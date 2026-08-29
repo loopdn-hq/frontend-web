@@ -1,36 +1,107 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Loopdn Frontend
 
-## Getting Started
+Loopdn is a community messaging and group management MVP built as a modern web app. This frontend focuses on the experience for users to sign in, create loops, manage group settings, and participate in chat-style or broadcast-style communication workflows.
 
-First, run the development server:
+## Overview
+
+The app currently includes:
+
+- Login and signup flows
+- Email and phone-based authentication UX
+- Session-based redirect logic for authenticated users
+- A dashboard for viewing and creating loops
+- Create-loop modal and configuration form
+- Group messaging UI and mock WebSocket status handling
+- Admin settings and member moderation mock panels
+- User settings modal
+
+This is an MVP frontend intended to connect with a backend service later, with demo-mode auth and mock data used where backend integration is still pending.
+
+## Tech Stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS
+- ESLint
+- App Router architecture
+
+## Prerequisites
+
+Make sure you have the following installed:
+
+- Node.js 18+
+- npm
+
+## Running Locally
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+3. Open the app in your browser:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Production Build
 
-## Learn More
+To create a production build:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm run build
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+To run the production server:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run start
+```
 
-## Deploy on Vercel
+## Project Structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```text
+src/
+  app/
+    api/
+      auth/
+        login/
+        logout/
+        signup/
+    home/
+    login/
+    signup/
+  components/
+    auth/
+    home/
+    settings/
+  lib/
+    auth/
+    theme/
+    validation/
+    websocket/
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- Authentication currently uses demo credentials for the MVP experience.
+- Real backend integration for persistence, WebSocket messaging, and production auth is planned.
+- The frontend is designed to be easy to connect to Django or another backend API layer in the next phase.
+
+## Scripts
+
+```bash
+npm run dev      # run app in development mode
+npm run build    # build for production
+npm run start    # run the production build
+npm run lint     # run ESLint checks
+```
