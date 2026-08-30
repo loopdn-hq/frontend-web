@@ -18,7 +18,8 @@ type UseWebSocketOptions = {
   reconnectDelay?: number;
 };
 
-type WebSocketStatus = "connecting" | "connected" | "disconnecting" | "disconnected" | "error";
+type WebSocketStatus =
+  "connecting" | "connected" | "disconnecting" | "disconnected" | "error";
 
 export function useWebSocket({
   url,
@@ -41,7 +42,10 @@ export function useWebSocket({
       return;
     }
 
-    if (ws.current?.readyState === WebSocket.OPEN || ws.current?.readyState === WebSocket.CONNECTING) {
+    if (
+      ws.current?.readyState === WebSocket.OPEN ||
+      ws.current?.readyState === WebSocket.CONNECTING
+    ) {
       return;
     }
 
@@ -85,7 +89,9 @@ export function useWebSocket({
         // Attempt to reconnect
         if (reconnectCountRef.current < reconnectAttempts) {
           reconnectCountRef.current += 1;
-          console.log(`[WebSocket] Reconnecting... (attempt ${reconnectCountRef.current}/${reconnectAttempts})`);
+          console.log(
+            `[WebSocket] Reconnecting... (attempt ${reconnectCountRef.current}/${reconnectAttempts})`,
+          );
 
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -93,13 +99,23 @@ export function useWebSocket({
         }
       };
     } catch (err) {
-      const error = err instanceof Error ? err : new Error("Failed to create WebSocket");
+      const error =
+        err instanceof Error ? err : new Error("Failed to create WebSocket");
       console.error("[WebSocket] Connection error:", error);
       setStatus("error");
       setError(error);
       onError?.(error);
     }
-  }, [url, enabled, onConnect, onDisconnect, onError, onMessage, reconnectAttempts, reconnectDelay]);
+  }, [
+    url,
+    enabled,
+    onConnect,
+    onDisconnect,
+    onError,
+    onMessage,
+    reconnectAttempts,
+    reconnectDelay,
+  ]);
 
   const disconnect = useCallback(() => {
     setStatus("disconnecting");
@@ -117,24 +133,28 @@ export function useWebSocket({
     setStatus("disconnected");
   }, []);
 
-  const send = useCallback((message: WebSocketMessage) => {
-    if (ws.current?.readyState === WebSocket.OPEN) {
-      try {
-        ws.current.send(JSON.stringify(message));
-        console.log("[WebSocket] Message sent:", message);
-      } catch (err) {
-        console.error("[WebSocket] Failed to send message:", err);
-        const error = err instanceof Error ? err : new Error("Failed to send message");
+  const send = useCallback(
+    (message: WebSocketMessage) => {
+      if (ws.current?.readyState === WebSocket.OPEN) {
+        try {
+          ws.current.send(JSON.stringify(message));
+          console.log("[WebSocket] Message sent:", message);
+        } catch (err) {
+          console.error("[WebSocket] Failed to send message:", err);
+          const error =
+            err instanceof Error ? err : new Error("Failed to send message");
+          setError(error);
+          onError?.(error);
+        }
+      } else {
+        console.warn("[WebSocket] Cannot send message - connection not ready");
+        const error = new Error("WebSocket connection not ready");
         setError(error);
         onError?.(error);
       }
-    } else {
-      console.warn("[WebSocket] Cannot send message - connection not ready");
-      const error = new Error("WebSocket connection not ready");
-      setError(error);
-      onError?.(error);
-    }
-  }, [onError]);
+    },
+    [onError],
+  );
 
   useEffect(() => {
     if (!enabled || !url) {

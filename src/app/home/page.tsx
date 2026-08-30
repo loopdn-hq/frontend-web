@@ -11,7 +11,8 @@ export default async function HomePage() {
     redirect("/login");
   }
 
-  const displayName = session.value === "demo-admin" ? DUMMY_ACCOUNT.displayName : "New Member";
+  const displayName =
+    session.value === "demo-admin" ? DUMMY_ACCOUNT.displayName : "New Member";
 
   return <HomeShell displayName={displayName} />;
 }

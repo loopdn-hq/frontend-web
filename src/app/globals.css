@@ -35,7 +35,6 @@ body {
   font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
 }
 
-
 * {
   scrollbar-width: thin;
   scrollbar-color: #00a6ff #e1effe; /* Thumb (Royal Blue) & Track (Sky Tint) */
@@ -45,7 +44,7 @@ body {
 
 /* Width and height of the scrollbar */
 ::-webkit-scrollbar {
-  width: 2px;  /* Width for vertical scrollbars */
+  width: 2px; /* Width for vertical scrollbars */
   height: 2px; /* Height for horizontal scrollbars */
 }
 
@@ -57,12 +56,20 @@ body {
 
 /* Thumb (The draggable scroll handle) */
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #3b82f6, #00a6ff); /* Bright Blue to Royal Blue */
+  background: linear-gradient(
+    to bottom,
+    #3b82f6,
+    #00a6ff
+  ); /* Bright Blue to Royal Blue */
   border-radius: 10px;
   border: 1px solid #e1effe; /* Creates a slight padding illusion */
 }
 
 /* Thumb Hover State (Darkens when you mouse over it) */
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(to bottom, #1d4ed8, #00a6ff); /* Royal Blue to Navy Blue */
+  background: linear-gradient(
+    to bottom,
+    #1d4ed8,
+    #00a6ff
+  ); /* Royal Blue to Navy Blue */
 }

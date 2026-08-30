@@ -11,7 +11,10 @@ export const DUMMY_ACCOUNT = {
 } as const;
 
 export function isDummyCredential(payload: AuthPayload): boolean {
-  const normalizedInput = normalizeContact(payload.contactMode, payload.contact);
+  const normalizedInput = normalizeContact(
+    payload.contactMode,
+    payload.contact,
+  );
 
   if (payload.contactMode === "email") {
     return (
@@ -20,5 +23,8 @@ export function isDummyCredential(payload: AuthPayload): boolean {
     );
   }
 
-  return normalizedInput === DUMMY_ACCOUNT.phone && payload.password === DUMMY_ACCOUNT.password;
+  return (
+    normalizedInput === DUMMY_ACCOUNT.phone &&
+    payload.password === DUMMY_ACCOUNT.password
+  );
 }

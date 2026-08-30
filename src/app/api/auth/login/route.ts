@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { DUMMY_ACCOUNT, SESSION_COOKIE_NAME, isDummyCredential } from "@/lib/auth/session";
+import {
+  DUMMY_ACCOUNT,
+  SESSION_COOKIE_NAME,
+  isDummyCredential,
+} from "@/lib/auth/session";
 import { authPayloadSchema, toFieldErrors } from "@/lib/validation/auth";
 
 export async function POST(request: Request) {
@@ -21,7 +25,8 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         ok: false,
-        message: "Invalid credentials. Use the MVP demo account shown on the page.",
+        message:
+          "Invalid credentials. Use the MVP demo account shown on the page.",
       },
       { status: 401 },
     );

@@ -104,4 +104,11 @@ npm run dev      # run app in development mode
 npm run build    # build for production
 npm run start    # run the production build
 npm run lint     # run ESLint checks
+npm run format   # format files with Prettier
+npm run format:check # verify Prettier formatting
+npm run typecheck # run TypeScript checks
 ```
+
+## Continuous Integration
+
+GitHub Actions runs on pushes and pull requests to verify linting, Prettier formatting, TypeScript, and the production build. It uses `npm ci` with Node.js 20 for reproducible dependency installation.

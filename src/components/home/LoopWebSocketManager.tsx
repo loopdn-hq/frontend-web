@@ -27,8 +27,12 @@ export function LoopWebSocketManager({
 }: LoopWebSocketManagerProps) {
   // Build WebSocket URL
   const getWebSocketUrl = useCallback(() => {
-    const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = typeof window !== "undefined" ? window.location.host : "localhost:8000";
+    const protocol =
+      typeof window !== "undefined" && window.location.protocol === "https:"
+        ? "wss:"
+        : "ws:";
+    const host =
+      typeof window !== "undefined" ? window.location.host : "localhost:8000";
     const wsHost = process.env.NEXT_PUBLIC_WS_HOST || host;
     return `${protocol}//${wsHost}/ws/loop/${loopId}/`;
   }, [loopId]);
@@ -82,7 +86,9 @@ export function LoopWebSocketManager({
   return (
     <>
       {/* Optional: Connection status indicator - can be removed if not needed */}
-      <div className={`hidden text-xs font-semibold px-2 py-1 rounded ${statusColor}`}>
+      <div
+        className={`hidden text-xs font-semibold px-2 py-1 rounded ${statusColor}`}
+      >
         {status === "connected" && "🟢 Connected"}
         {status === "connecting" && "🟡 Connecting..."}
         {status === "disconnected" && "⚫ Disconnected"}

@@ -80,7 +80,9 @@ export function normalizeContact(
   return normalizePhone(contact);
 }
 
-export function toFieldErrors(issues: z.ZodIssue[]): Partial<Record<"contact" | "password", string>> {
+export function toFieldErrors(
+  issues: z.ZodIssue[],
+): Partial<Record<"contact" | "password", string>> {
   const errors: Partial<Record<"contact" | "password", string>> = {};
 
   for (const issue of issues) {

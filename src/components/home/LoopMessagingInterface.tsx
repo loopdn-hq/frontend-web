@@ -41,29 +41,40 @@ export function LoopMessagingInterface({
           >
             <div className="flex items-start justify-between gap-2">
               <div>
-                <p className={`text-xs ${message.mine ? "text-sky-100" : "text-slate-500"}`}>
+                <p
+                  className={`text-xs ${message.mine ? "text-sky-100" : "text-slate-500"}`}
+                >
                   {message.sender}
                 </p>
                 {message.type === "announcement" && !message.mine && (
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">📢 Announcement</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+                    📢 Announcement
+                  </p>
                 )}
               </div>
             </div>
             <p className="mt-1 text-sm leading-relaxed">{message.text}</p>
-            <p className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}>
+            <p
+              className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}
+            >
               {message.time}
             </p>
 
             {/* Broadcast Reply Info */}
-            {message.type === "announcement" && !message.mine && mode === "broadcast" && (
-              <div className="mt-2 border-t border-slate-200 pt-2">
-                <p className="text-[11px] text-slate-600">
-                  {message.replyMode === "private" && "💬 Reply privately to admins"}
-                  {message.replyMode === "group_wide" && "💬 Reply to everyone"}
-                  {message.replyMode === "disabled" && "❌ No replies allowed"}
-                </p>
-              </div>
-            )}
+            {message.type === "announcement" &&
+              !message.mine &&
+              mode === "broadcast" && (
+                <div className="mt-2 border-t border-slate-200 pt-2">
+                  <p className="text-[11px] text-slate-600">
+                    {message.replyMode === "private" &&
+                      "💬 Reply privately to admins"}
+                    {message.replyMode === "group_wide" &&
+                      "💬 Reply to everyone"}
+                    {message.replyMode === "disabled" &&
+                      "❌ No replies allowed"}
+                  </p>
+                </div>
+              )}
           </article>
         ))}
       </div>
@@ -110,8 +121,8 @@ function BroadcastModeInput({ isLoading }: { isLoading?: boolean }) {
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
       <p className="text-xs font-semibold text-slate-600">📢 BROADCAST MODE</p>
       <p className="mt-2 text-sm text-slate-700">
-        In broadcast mode, use the admin dashboard to send announcements. Members can view and reply according to
-        reply settings.
+        In broadcast mode, use the admin dashboard to send announcements.
+        Members can view and reply according to reply settings.
       </p>
       <button
         type="button"

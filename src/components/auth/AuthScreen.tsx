@@ -31,16 +31,22 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   const [contactMode, setContactMode] = useState<ContactMode>("email");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<Partial<Record<"contact" | "password", string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<"contact" | "password", string>>
+  >({});
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const ctaText = useMemo(() => {
     if (authMode === "login") {
-      return contactMode === "email" ? "Continue with Email" : "Continue with Phone";
+      return contactMode === "email"
+        ? "Continue with Email"
+        : "Continue with Phone";
     }
 
-    return contactMode === "email" ? "Sign Up with Email" : "Sign Up with Phone";
+    return contactMode === "email"
+      ? "Sign Up with Email"
+      : "Sign Up with Phone";
   }, [authMode, contactMode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -65,7 +71,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     setIsSubmitting(true);
 
     try {
-      const endpoint = authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
+      const endpoint =
+        authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -83,7 +90,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
       if (!response.ok || !data.ok) {
         setErrors(data.errors ?? {});
-        setGeneralError(data.message ?? "Unable to continue. Please try again.");
+        setGeneralError(
+          data.message ?? "Unable to continue. Please try again.",
+        );
         return;
       }
 
@@ -111,19 +120,27 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               One group. Any phone. Everyone connected.
             </h1>
             <p className="mt-4 max-w-lg text-sm text-cyan-100 sm:text-base">
-              Coordinate chats for members on web and SMS with clear admin control,
-              broadcast options, and fast voice updates.
+              Coordinate chats for members on web and SMS with clear admin
+              control, broadcast options, and fast voice updates.
             </p>
           </div>
 
           <div className="mt-10 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">Realtime</p>
-              <p className="mt-1 text-lg font-semibold">Web + SMS thread sync</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">
+                Realtime
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                Web + SMS thread sync
+              </p>
             </div>
             <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">Voice</p>
-              <p className="mt-1 text-lg font-semibold">Record once, share everywhere</p>
+              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">
+                Voice
+              </p>
+              <p className="mt-1 text-lg font-semibold">
+                Record once, share everywhere
+              </p>
             </div>
           </div>
         </div>
@@ -155,8 +172,12 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               </Link>
             </div>
 
-            <h2 className="text-2xl font-bold text-slate-900">{panelTitle[authMode]}</h2>
-            <p className="mt-2 text-sm text-slate-600">{panelSubTitle[authMode]}</p>
+            <h2 className="text-2xl font-bold text-slate-900">
+              {panelTitle[authMode]}
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">
+              {panelSubTitle[authMode]}
+            </p>
 
             <div className="mt-6 flex gap-2 rounded-xl bg-sky-50 p-1">
               <button
@@ -196,7 +217,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
               {contactMode === "email" ? (
                 <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Email Address</span>
+                  <span className="mb-1 block text-sm font-medium text-slate-700">
+                    Email Address
+                  </span>
                   <input
                     type="email"
                     placeholder="you@example.com"
@@ -208,7 +231,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 </label>
               ) : (
                 <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">Phone Number</span>
+                  <span className="mb-1 block text-sm font-medium text-slate-700">
+                    Phone Number
+                  </span>
                   <input
                     type="tel"
                     placeholder="+1 (555) 000-0000"
@@ -220,13 +245,21 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 </label>
               )}
 
-              {errors.contact && <p className="text-xs text-rose-600">{errors.contact}</p>}
+              {errors.contact && (
+                <p className="text-xs text-rose-600">{errors.contact}</p>
+              )}
 
               <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  Password
+                </span>
                 <input
                   type="password"
-                  placeholder={authMode === "signup" ? "Create a password" : "Enter your password"}
+                  placeholder={
+                    authMode === "signup"
+                      ? "Create a password"
+                      : "Enter your password"
+                  }
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   disabled={isSubmitting}
@@ -234,16 +267,21 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 />
               </label>
 
-              {errors.password && <p className="text-xs text-rose-600">{errors.password}</p>}
+              {errors.password && (
+                <p className="text-xs text-rose-600">{errors.password}</p>
+              )}
 
               {authMode === "signup" && (
                 <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your {contactMode} before enabling admin actions.
+                  We will verify your {contactMode} before enabling admin
+                  actions.
                 </p>
               )}
 
               {generalError && (
-                <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">{generalError}</p>
+                <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                  {generalError}
+                </p>
               )}
 
               <button

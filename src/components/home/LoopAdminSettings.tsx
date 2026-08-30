@@ -27,7 +27,11 @@ type LoopAdminSettingsProps = {
   isLoading?: boolean;
 };
 
-export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: LoopAdminSettingsProps) {
+export function LoopAdminSettings({
+  loopSettings,
+  onSave,
+  isLoading = false,
+}: LoopAdminSettingsProps) {
   const [settings, setSettings] = useState<Partial<LoopSettings>>(loopSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setError] = useState<string>("");
@@ -56,12 +60,16 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Loop Settings</h2>
-        <p className="mt-1 text-sm text-slate-600">Customize how {loopSettings.name} works</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Customize how {loopSettings.name} works
+        </p>
       </div>
 
       {/* Messages */}
       {saveError && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{saveError}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {saveError}
+        </div>
       )}
       {successMessage && (
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -71,8 +79,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
 
       {/* Posting Permissions */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">Posting Permissions</h3>
-        <p className="mb-4 text-sm text-slate-600">Who can post messages in this Loop?</p>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+          Posting Permissions
+        </h3>
+        <p className="mb-4 text-sm text-slate-600">
+          Who can post messages in this Loop?
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
@@ -81,7 +93,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="posting_permission"
               value="everyone"
               checked={settings.posting_permission === "everyone"}
-              onChange={(e) => setSettings({ ...settings, posting_permission: e.target.value as PostingPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  posting_permission: e.target.value as PostingPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
@@ -97,7 +114,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="posting_permission"
               value="admins"
               checked={settings.posting_permission === "admins"}
-              onChange={(e) => setSettings({ ...settings, posting_permission: e.target.value as PostingPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  posting_permission: e.target.value as PostingPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
@@ -113,13 +135,20 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="posting_permission"
               value="selected_roles"
               checked={settings.posting_permission === "selected_roles"}
-              onChange={(e) => setSettings({ ...settings, posting_permission: e.target.value as PostingPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  posting_permission: e.target.value as PostingPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
               <p className="font-medium text-slate-900">Selected Roles</p>
-              <p className="text-xs text-slate-600">Admins, moderators, and selected roles</p>
+              <p className="text-xs text-slate-600">
+                Admins, moderators, and selected roles
+              </p>
             </div>
           </label>
         </div>
@@ -127,8 +156,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
 
       {/* Reply Permissions */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">Reply Permissions</h3>
-        <p className="mb-4 text-sm text-slate-600">Where can members reply to posts?</p>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+          Reply Permissions
+        </h3>
+        <p className="mb-4 text-sm text-slate-600">
+          Where can members reply to posts?
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
@@ -137,7 +170,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="reply_permission"
               value="group"
               checked={settings.reply_permission === "group"}
-              onChange={(e) => setSettings({ ...settings, reply_permission: e.target.value as ReplyPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  reply_permission: e.target.value as ReplyPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
@@ -153,7 +191,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="reply_permission"
               value="admins_only"
               checked={settings.reply_permission === "admins_only"}
-              onChange={(e) => setSettings({ ...settings, reply_permission: e.target.value as ReplyPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  reply_permission: e.target.value as ReplyPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
@@ -169,7 +212,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="reply_permission"
               value="disabled"
               checked={settings.reply_permission === "disabled"}
-              onChange={(e) => setSettings({ ...settings, reply_permission: e.target.value as ReplyPermission })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  reply_permission: e.target.value as ReplyPermission,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
@@ -190,7 +238,9 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
             label="Voice Messages"
             description="Allow members to send voice notes and recordings"
             checked={settings.voice_enabled || false}
-            onChange={(value) => setSettings({ ...settings, voice_enabled: value })}
+            onChange={(value) =>
+              setSettings({ ...settings, voice_enabled: value })
+            }
             disabled={isSaving || isLoading}
           />
 
@@ -198,7 +248,9 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
             label="Media Sharing"
             description="Allow members to share photos, videos, and files"
             checked={settings.media_enabled || false}
-            onChange={(value) => setSettings({ ...settings, media_enabled: value })}
+            onChange={(value) =>
+              setSettings({ ...settings, media_enabled: value })
+            }
             disabled={isSaving || isLoading}
           />
 
@@ -206,7 +258,9 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
             label="Reactions"
             description="Allow emoji and reaction responses to messages"
             checked={settings.reactions_enabled || false}
-            onChange={(value) => setSettings({ ...settings, reactions_enabled: value })}
+            onChange={(value) =>
+              setSettings({ ...settings, reactions_enabled: value })
+            }
             disabled={isSaving || isLoading}
           />
         </div>
@@ -214,8 +268,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
 
       {/* Member Permissions */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">Member Permissions</h3>
-        <p className="mb-4 text-sm text-slate-600">Who can invite new members?</p>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+          Member Permissions
+        </h3>
+        <p className="mb-4 text-sm text-slate-600">
+          Who can invite new members?
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
@@ -227,7 +285,8 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  member_invitation_permission: e.target.value as MemberInvitationPermission,
+                  member_invitation_permission: e.target
+                    .value as MemberInvitationPermission,
                 })
               }
               disabled={isSaving || isLoading}
@@ -248,7 +307,8 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  member_invitation_permission: e.target.value as MemberInvitationPermission,
+                  member_invitation_permission: e.target
+                    .value as MemberInvitationPermission,
                 })
               }
               disabled={isSaving || isLoading}
@@ -269,7 +329,8 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  member_invitation_permission: e.target.value as MemberInvitationPermission,
+                  member_invitation_permission: e.target
+                    .value as MemberInvitationPermission,
                 })
               }
               disabled={isSaving || isLoading}
@@ -277,7 +338,9 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
             />
             <div>
               <p className="font-medium text-slate-900">Disabled</p>
-              <p className="text-xs text-slate-600">No one can invite (closed group)</p>
+              <p className="text-xs text-slate-600">
+                No one can invite (closed group)
+              </p>
             </div>
           </label>
         </div>
@@ -285,8 +348,12 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
 
       {/* New Member History */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">New Member History</h3>
-        <p className="mb-4 text-sm text-slate-600">What message history can new members see?</p>
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+          New Member History
+        </h3>
+        <p className="mb-4 text-sm text-slate-600">
+          What message history can new members see?
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
@@ -295,13 +362,21 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="history_visibility"
               value="full"
               checked={settings.new_member_history_visibility === "full"}
-              onChange={(e) => setSettings({ ...settings, new_member_history_visibility: e.target.value as HistoryVisibility })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  new_member_history_visibility: e.target
+                    .value as HistoryVisibility,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
               <p className="font-medium text-slate-900">Full History</p>
-              <p className="text-xs text-slate-600">New members see all previous messages</p>
+              <p className="text-xs text-slate-600">
+                New members see all previous messages
+              </p>
             </div>
           </label>
 
@@ -311,13 +386,21 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="history_visibility"
               value="from_join"
               checked={settings.new_member_history_visibility === "from_join"}
-              onChange={(e) => setSettings({ ...settings, new_member_history_visibility: e.target.value as HistoryVisibility })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  new_member_history_visibility: e.target
+                    .value as HistoryVisibility,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
               <p className="font-medium text-slate-900">From Join Date</p>
-              <p className="text-xs text-slate-600">New members see messages only after they joined</p>
+              <p className="text-xs text-slate-600">
+                New members see messages only after they joined
+              </p>
             </div>
           </label>
 
@@ -327,13 +410,21 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="history_visibility"
               value="none"
               checked={settings.new_member_history_visibility === "none"}
-              onChange={(e) => setSettings({ ...settings, new_member_history_visibility: e.target.value as HistoryVisibility })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  new_member_history_visibility: e.target
+                    .value as HistoryVisibility,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
               <p className="font-medium text-slate-900">No History</p>
-              <p className="text-xs text-slate-600">New members see no previous messages</p>
+              <p className="text-xs text-slate-600">
+                New members see no previous messages
+              </p>
             </div>
           </label>
         </div>
@@ -342,7 +433,9 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
       {/* Plan Type */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h3 className="mb-4 text-lg font-semibold text-slate-900">Plan Type</h3>
-        <p className="mb-4 text-sm text-slate-600">Choose how to support this Loop</p>
+        <p className="mb-4 text-sm text-slate-600">
+          Choose how to support this Loop
+        </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
@@ -351,13 +444,22 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="plan_type"
               value="sponsored_free"
               checked={settings.plan_type === "sponsored_free"}
-              onChange={(e) => setSettings({ ...settings, plan_type: e.target.value as PlanType })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  plan_type: e.target.value as PlanType,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
-              <p className="font-medium text-slate-900">Sponsored/Free with Ads</p>
-              <p className="text-xs text-slate-600">Members see occasional ads to support operations</p>
+              <p className="font-medium text-slate-900">
+                Sponsored/Free with Ads
+              </p>
+              <p className="text-xs text-slate-600">
+                Members see occasional ads to support operations
+              </p>
             </div>
           </label>
 
@@ -367,13 +469,20 @@ export function LoopAdminSettings({ loopSettings, onSave, isLoading = false }: L
               name="plan_type"
               value="ad_free"
               checked={settings.plan_type === "ad_free"}
-              onChange={(e) => setSettings({ ...settings, plan_type: e.target.value as PlanType })}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  plan_type: e.target.value as PlanType,
+                })
+              }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
               <p className="font-medium text-slate-900">Ad-Free Premium</p>
-              <p className="text-xs text-slate-600">No ads, premium experience for members</p>
+              <p className="text-xs text-slate-600">
+                No ads, premium experience for members
+              </p>
             </div>
           </label>
         </div>
