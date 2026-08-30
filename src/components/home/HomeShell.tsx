@@ -8,7 +8,6 @@ import { LoopWebSocketManager } from "./LoopWebSocketManager";
 import {
   UserSettingsModal,
   type UserProfile,
-  type NotificationPreferences,
 } from "@/components/settings/UserSettingsModal";
 
 type Conversation = {
@@ -114,11 +113,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
   // Store WebSocket status per loop
   const [loopWSStatus, setLoopWSStatus] = useState<
     Map<string | number, string>
-  >(new Map());
-
-  // Store WebSocket send function per loop
-  const [loopWSSend, setLoopWSSend] = useState<
-    Map<string | number, (msg: string) => void>
   >(new Map());
 
   // Message input state
@@ -239,19 +233,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
       return map;
     });
 
-    // Send through WebSocket if a live connection is available; otherwise this
-    // is local-only demo mode until the Django backend is connected.
-    const send = loopWSSend.get(selectedConversationId);
-    if (send) {
-      send(messageInput);
-    } else {
-      console.log(
-        "No WebSocket connection — message kept locally (demo mode).",
-      );
-    }
-
     setMessageInput("");
-  }, [messageInput, selectedConversationId, loopWSSend, displayName]);
+  }, [messageInput, selectedConversationId, displayName]);
 
   function handleCreateLoopSuccess(loopData: {
     name: string;
@@ -347,7 +330,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2 justify-between w-full">
               <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
-                Loopd'n
+                Loopd&apos;n
               </p>
               <button
                 type="button"
@@ -378,7 +361,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   No Loops yet
                 </p>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                  Click "Create Loop" above to get started
+                  Click Create Loop above to get started
                 </p>
               </div>
             ) : (

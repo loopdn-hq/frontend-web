@@ -64,7 +64,7 @@ export function LoopAdminPanel({
             {loopSettings.name} Admin Panel
           </h1>
           <p className="mt-2 text-slate-600">
-            Manage your Loop's settings and members
+            Manage your Loop&apos;s settings and members
           </p>
         </div>
 

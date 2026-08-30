@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect } from "react";
 import { useWebSocket } from "@/lib/websocket/useWebSocket";
 
 type WebSocketMessage = {
@@ -17,6 +17,13 @@ type LoopWebSocketManagerProps = {
   children?: React.ReactNode;
 };
 
+declare global {
+  interface Window {
+    __loopWSSend?: (message: WebSocketMessage) => void;
+    __loopWSStatus?: string;
+  }
+}
+
 export function LoopWebSocketManager({
   loopId,
   onMessage,
@@ -25,29 +32,20 @@ export function LoopWebSocketManager({
   onError,
   children,
 }: LoopWebSocketManagerProps) {
-  // Build WebSocket URL
-  const getWebSocketUrl = useCallback(() => {
-    const protocol =
-      typeof window !== "undefined" && window.location.protocol === "https:"
-        ? "wss:"
-        : "ws:";
-    const host =
-      typeof window !== "undefined" ? window.location.host : "localhost:8000";
-    const wsHost = process.env.NEXT_PUBLIC_WS_HOST || host;
-    return `${protocol}//${wsHost}/ws/loop/${loopId}/`;
-  }, [loopId]);
-
-  const [url, setUrl] = useState<string>("");
-
-  useEffect(() => {
-    setUrl(getWebSocketUrl());
-  }, [getWebSocketUrl]);
+  const protocol =
+    typeof window !== "undefined" && window.location.protocol === "https:"
+      ? "wss:"
+      : "ws:";
+  const host =
+    typeof window !== "undefined" ? window.location.host : "localhost:8000";
+  const wsHost = process.env.NEXT_PUBLIC_WS_HOST || host;
+  const url = `${protocol}//${wsHost}/ws/loop/${loopId}/`;
 
   // No backend WebSocket server configured yet — skip connecting so we don't
   // spam the console with errors/reconnect attempts against nothing.
   const wsEnabled = Boolean(process.env.NEXT_PUBLIC_WS_HOST);
 
-  const { status, error, send, isConnected } = useWebSocket({
+  const { status, error, send } = useWebSocket({
     url,
     enabled: wsEnabled,
     onMessage,
@@ -61,14 +59,14 @@ export function LoopWebSocketManager({
   // Provide send function through window for now (will be improved)
   useEffect(() => {
     if (typeof window !== "undefined") {
-      (window as any).__loopWSSend = send;
-      (window as any).__loopWSStatus = status;
+      window.__loopWSSend = send;
+      window.__loopWSStatus = status;
     }
 
     return () => {
       if (typeof window !== "undefined") {
-        delete (window as any).__loopWSSend;
-        delete (window as any).__loopWSStatus;
+        delete window.__loopWSSend;
+        delete window.__loopWSStatus;
       }
     };
   }, [send, status]);

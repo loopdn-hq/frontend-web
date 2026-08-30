@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 type CommunicationMode = "chat" | "broadcast";
 type BroadcastReplyMode = "private" | "group_wide" | "disabled";
 
@@ -98,16 +100,35 @@ function ChatModeInput({
   isLoading?: boolean;
   onSend?: (message: string) => Promise<void>;
 }) {
+  const [message, setMessage] = useState("");
+
+  function handleSend() {
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage || isLoading) return;
+
+    void onSend?.(trimmedMessage);
+    setMessage("");
+  }
+
   return (
     <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)]">
       <input
         type="text"
         placeholder="Type your message..."
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            handleSend();
+          }
+        }}
         className="w-full bg-transparent px-2 text-sm text-slate-700 outline-none placeholder:text-slate-400"
       />
       <button
         type="button"
-        disabled={isLoading}
+        onClick={handleSend}
+        disabled={isLoading || !message.trim()}
         className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
       >
         Send

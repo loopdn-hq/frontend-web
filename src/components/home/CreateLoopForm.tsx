@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useRef } from "react";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 
@@ -236,9 +237,11 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           >
             {imagePreview ? (
               <>
-                <img
+                <Image
                   src={imagePreview}
                   alt="Preview"
+                  width={80}
+                  height={80}
                   className="mb-3 h-20 w-20 rounded-lg object-cover"
                 />
                 <p className="text-xs text-slate-600">Click to change image</p>

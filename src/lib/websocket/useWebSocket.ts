@@ -36,6 +36,7 @@ export function useWebSocket({
   const [error, setError] = useState<Error | null>(null);
   const reconnectCountRef = useRef(0);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const connectRef = useRef<() => void>(() => {});
 
   const connect = useCallback(() => {
     if (!enabled || !url) {
@@ -94,7 +95,7 @@ export function useWebSocket({
           );
 
           reconnectTimeoutRef.current = setTimeout(() => {
-            connect();
+            connectRef.current();
           }, reconnectDelay);
         }
       };
@@ -116,6 +117,10 @@ export function useWebSocket({
     reconnectAttempts,
     reconnectDelay,
   ]);
+
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     setStatus("disconnecting");
@@ -158,13 +163,13 @@ export function useWebSocket({
 
   useEffect(() => {
     if (!enabled || !url) {
-      setStatus("disconnected");
       return;
     }
 
-    connect();
+    const connectionTimeout = window.setTimeout(connect, 0);
 
     return () => {
+      window.clearTimeout(connectionTimeout);
       disconnect();
     };
   }, [connect, disconnect, enabled, url]);

@@ -7,7 +7,6 @@ import {
   useState,
   useCallback,
 } from "react";
-import { useWebSocket } from "./useWebSocket";
 
 type LoopWebSocketContextType = {
   connectToLoop: (loopId: string | number) => void;
@@ -35,14 +34,6 @@ export function LoopWebSocketProvider({ children }: { children: ReactNode }) {
   const [connections, setConnections] = useState<
     Map<string | number, LoopConnection>
   >(new Map());
-
-  // Build WebSocket URL based on environment
-  const getWebSocketUrl = useCallback((loopId: string | number) => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const host = process.env.NEXT_PUBLIC_WS_HOST || window.location.host;
-    // Example: ws://localhost:8000/ws/loop/{loopId}/
-    return `${protocol}//${host}/ws/loop/${loopId}/`;
-  }, []);
 
   const connectToLoop = useCallback((loopId: string | number) => {
     console.log(`[LoopWebSocket] Connecting to loop ${loopId}`);
