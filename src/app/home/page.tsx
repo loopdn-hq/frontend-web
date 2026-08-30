@@ -1,18 +1,21 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { HomeShell } from "@/components/home/HomeShell";
-import { DUMMY_ACCOUNT, SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { displayNameForSession, useSession } from "@/lib/auth/client";
 
-export default async function HomePage() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE_NAME);
+export default function HomePage() {
+  const router = useRouter();
+  const session = useSession();
 
-  if (!session?.value) {
-    redirect("/login");
-  }
+  useEffect(() => {
+    if (!session) {
+      router.replace("/login");
+    }
+  }, [router, session]);
 
-  const displayName =
-    session.value === "demo-admin" ? DUMMY_ACCOUNT.displayName : "New Member";
+  if (!session) return null;
 
-  return <HomeShell displayName={displayName} />;
+  return <HomeShell displayName={displayNameForSession(session)} />;
 }

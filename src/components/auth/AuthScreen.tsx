@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { authenticate } from "@/lib/auth/client";
 import { DUMMY_ACCOUNT } from "@/lib/auth/session";
 import { authPayloadSchema, toFieldErrors } from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
@@ -92,33 +93,14 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     setIsSubmitting(true);
 
     try {
-      const endpoint =
-        authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await authenticate(parsed.data);
 
-      const data = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        redirectTo?: string;
-        errors?: Partial<Record<"contact" | "password", string>>;
-      };
-
-      if (!response.ok || !data.ok) {
-        setErrors(data.errors ?? {});
-        setGeneralError(
-          data.message ?? "Unable to continue. Please try again.",
-        );
+      if (!result.ok) {
+        setGeneralError(result.message);
         return;
       }
 
-      router.push(data.redirectTo ?? "/home");
-      router.refresh();
+      router.push("/home");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {

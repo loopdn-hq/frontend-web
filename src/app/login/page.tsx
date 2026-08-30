@@ -1,15 +1,21 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AuthScreen } from "@/components/auth/AuthScreen";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+import { useSession } from "@/lib/auth/client";
 
-export default async function LoginPage() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE_NAME);
+export default function LoginPage() {
+  const router = useRouter();
+  const session = useSession();
 
-  if (session?.value) {
-    redirect("/home");
-  }
+  useEffect(() => {
+    if (session) {
+      router.replace("/home");
+    }
+  }, [router, session]);
+
+  if (session) return null;
 
   return <AuthScreen initialMode="login" />;
 }
