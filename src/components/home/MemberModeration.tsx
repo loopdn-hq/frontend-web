@@ -43,7 +43,7 @@ export function MemberModeration({
     (m) =>
       m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.phone?.includes(searchTerm)
+      m.phone?.includes(searchTerm),
   );
 
   async function handleRoleChange(memberId: string, newRole: MemberRole) {
@@ -106,12 +106,16 @@ export function MemberModeration({
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Member Management</h2>
-        <p className="mt-1 text-sm text-slate-600">Manage members of {loopName}</p>
+        <p className="mt-1 text-sm text-slate-600">
+          Manage members of {loopName}
+        </p>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div>
+        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {error}
+        </div>
       )}
 
       {/* Search */}
@@ -128,8 +132,16 @@ export function MemberModeration({
       {/* Member Stats */}
       <div className="grid grid-cols-4 gap-4">
         <StatCard label="Total Members" value={members.length.toString()} />
-        <StatCard label="Admins" value={members.filter((m) => m.role === "admin").length.toString()} />
-        <StatCard label="Moderators" value={members.filter((m) => m.role === "moderator").length.toString()} />
+        <StatCard
+          label="Admins"
+          value={members.filter((m) => m.role === "admin").length.toString()}
+        />
+        <StatCard
+          label="Moderators"
+          value={members
+            .filter((m) => m.role === "moderator")
+            .length.toString()}
+        />
         <StatCard
           label="Blocked"
           value={members.filter((m) => m.isBlocked).length.toString()}
@@ -149,7 +161,11 @@ export function MemberModeration({
               key={member.id}
               member={member}
               isExpanded={expandedMemberId === member.id}
-              onToggleExpand={() => setExpandedMemberId(expandedMemberId === member.id ? null : member.id)}
+              onToggleExpand={() =>
+                setExpandedMemberId(
+                  expandedMemberId === member.id ? null : member.id,
+                )
+              }
               onRoleChange={(role) => handleRoleChange(member.id, role)}
               onBlock={() => handleBlockMember(member.id)}
               onUnblock={() => handleUnblockMember(member.id)}
@@ -176,15 +192,19 @@ function StatCard({
   return (
     <div
       className={`rounded-xl border p-4 ${
-        highlight
-          ? "border-rose-200 bg-rose-50"
-          : "border-slate-200 bg-white"
+        highlight ? "border-rose-200 bg-rose-50" : "border-slate-200 bg-white"
       }`}
     >
-      <p className={`text-xs font-semibold uppercase tracking-wider ${highlight ? "text-rose-700" : "text-slate-600"}`}>
+      <p
+        className={`text-xs font-semibold uppercase tracking-wider ${highlight ? "text-rose-700" : "text-slate-600"}`}
+      >
         {label}
       </p>
-      <p className={`mt-2 text-2xl font-bold ${highlight ? "text-rose-900" : "text-slate-900"}`}>{value}</p>
+      <p
+        className={`mt-2 text-2xl font-bold ${highlight ? "text-rose-900" : "text-slate-900"}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
@@ -231,7 +251,11 @@ function MemberCard({
               <div>
                 <p className="font-semibold text-slate-900">
                   {member.name}
-                  {member.isBlocked && <span className="ml-2 text-xs font-bold text-rose-700">BLOCKED</span>}
+                  {member.isBlocked && (
+                    <span className="ml-2 text-xs font-bold text-rose-700">
+                      BLOCKED
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-slate-600">
                   {member.email || member.phone || "No contact info"}
@@ -248,13 +272,20 @@ function MemberCard({
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 14l-7 7m0 0l-7-7m7 7V3"
+              />
             </svg>
           </div>
         </div>
 
         {member.lastActive && (
-          <p className="mt-2 text-xs text-slate-500">Last active: {member.lastActive}</p>
+          <p className="mt-2 text-xs text-slate-500">
+            Last active: {member.lastActive}
+          </p>
         )}
       </button>
 
@@ -264,13 +295,17 @@ function MemberCard({
           <div className="space-y-4">
             {/* Join Date */}
             <div>
-              <p className="text-xs font-semibold text-slate-600 uppercase">Joined</p>
+              <p className="text-xs font-semibold text-slate-600 uppercase">
+                Joined
+              </p>
               <p className="mt-1 text-sm text-slate-900">{member.joinedAt}</p>
             </div>
 
             {/* Role Selection */}
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-600 uppercase">Role</p>
+              <p className="mb-2 text-xs font-semibold text-slate-600 uppercase">
+                Role
+              </p>
               <div className="flex gap-2">
                 {(["member", "moderator", "admin"] as const).map((role) => (
                   <button
@@ -327,14 +362,22 @@ function MemberCard({
 function RoleAdjective({ role }: { role: MemberRole }) {
   switch (role) {
     case "admin":
-      return <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">Admin</span>;
+      return (
+        <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
+          Admin
+        </span>
+      );
     case "moderator":
       return (
-        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Moderator</span>
+        <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+          Moderator
+        </span>
       );
     default:
       return (
-        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">Member</span>
+        <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
+          Member
+        </span>
       );
   }
 }

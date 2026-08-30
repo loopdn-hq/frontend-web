@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useRef } from "react";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 
@@ -9,7 +10,13 @@ type BroadcastReplyMode = "private" | "group_wide" | "disabled";
 
 type CreateLoopFormProps = {
   onClose: () => void;
-  onSuccess?: (loopData: { name: string; description: string; joining_method: JoiningMethod; communication_mode: CommunicationMode; broadcast_reply_mode?: BroadcastReplyMode }) => void;
+  onSuccess?: (loopData: {
+    name: string;
+    description: string;
+    joining_method: JoiningMethod;
+    communication_mode: CommunicationMode;
+    broadcast_reply_mode?: BroadcastReplyMode;
+  }) => void;
 };
 
 const joiningMethods: Array<{
@@ -82,8 +89,10 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
   const [loopName, setLoopName] = useState("");
   const [description, setDescription] = useState("");
   const [joiningMethod, setJoiningMethod] = useState<JoiningMethod>("open");
-  const [communicationMode, setCommunicationMode] = useState<CommunicationMode>("chat");
-  const [broadcastReplyMode, setBroadcastReplyMode] = useState<BroadcastReplyMode>("private");
+  const [communicationMode, setCommunicationMode] =
+    useState<CommunicationMode>("chat");
+  const [broadcastReplyMode, setBroadcastReplyMode] =
+    useState<BroadcastReplyMode>("private");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -118,8 +127,10 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
     // Validation
     const newErrors: Record<string, string> = {};
     if (!loopName.trim()) newErrors.loopName = "Loop name is required";
-    if (loopName.trim().length < 3) newErrors.loopName = "Loop name must be at least 3 characters";
-    if (loopName.trim().length > 50) newErrors.loopName = "Loop name must be 50 characters or less";
+    if (loopName.trim().length < 3)
+      newErrors.loopName = "Loop name must be at least 3 characters";
+    if (loopName.trim().length > 50)
+      newErrors.loopName = "Loop name must be 50 characters or less";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -149,7 +160,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         description,
         joining_method: joiningMethod,
         communication_mode: communicationMode,
-        broadcast_reply_mode: communicationMode === "broadcast" ? broadcastReplyMode : null,
+        broadcast_reply_mode:
+          communicationMode === "broadcast" ? broadcastReplyMode : null,
         image: image ? image.name : null,
       });
 
@@ -162,7 +174,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         description,
         joining_method: joiningMethod,
         communication_mode: communicationMode,
-        broadcast_reply_mode: communicationMode === "broadcast" ? broadcastReplyMode : undefined,
+        broadcast_reply_mode:
+          communicationMode === "broadcast" ? broadcastReplyMode : undefined,
       });
       onClose();
     } catch (error) {
@@ -178,7 +191,9 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       {/* Loop Name */}
       <div>
         <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">Loop Name *</span>
+          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Loop Name *
+          </span>
           <input
             type="text"
             placeholder="e.g., Family HQ, Neighborhood Watch"
@@ -188,13 +203,17 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
             className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 dark:text-slate-200 dark:bg-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
           />
         </label>
-        {errors.loopName && <p className="mt-1 text-xs text-rose-600">{errors.loopName}</p>}
+        {errors.loopName && (
+          <p className="mt-1 text-xs text-rose-600">{errors.loopName}</p>
+        )}
       </div>
 
       {/* Description */}
       <div>
         <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">Description</span>
+          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Description
+          </span>
           <textarea
             placeholder="What is this Loop about? (optional)"
             value={description}
@@ -209,14 +228,22 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       {/* Image Upload */}
       <div>
         <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">Loop Image</span>
+          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Loop Image
+          </span>
           <div
             onClick={() => fileInputRef.current?.click()}
             className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 px-4 py-8 transition hover:border-sky-400 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
           >
             {imagePreview ? (
               <>
-                <img src={imagePreview} alt="Preview" className="mb-3 h-20 w-20 rounded-lg object-cover" />
+                <Image
+                  src={imagePreview}
+                  alt="Preview"
+                  width={80}
+                  height={80}
+                  className="mb-3 h-20 w-20 rounded-lg object-cover"
+                />
                 <p className="text-xs text-slate-600">Click to change image</p>
               </>
             ) : (
@@ -234,8 +261,12 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
                     d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
                   />
                 </svg>
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Upload an image</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">PNG, JPG up to 5MB</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                  Upload an image
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  PNG, JPG up to 5MB
+                </p>
               </>
             )}
           </div>
@@ -248,16 +279,23 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
             className="hidden"
           />
         </label>
-        {errors.image && <p className="mt-1 text-xs text-rose-600">{errors.image}</p>}
+        {errors.image && (
+          <p className="mt-1 text-xs text-rose-600">{errors.image}</p>
+        )}
       </div>
 
       {/* Joining Method */}
       <div>
         <label className="block">
-          <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">Who can join? *</span>
+          <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Who can join? *
+          </span>
           <div className="space-y-2">
             {joiningMethods.map((method) => (
-              <label key={method.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+              <label
+                key={method.value}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50"
+              >
                 <input
                   type="radio"
                   name="joiningMethod"
@@ -268,8 +306,12 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
                   className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                 />
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">{method.label}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">{method.description}</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">
+                    {method.label}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {method.description}
+                  </p>
                 </div>
               </label>
             ))}
@@ -280,10 +322,15 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       {/* Communication Mode */}
       <div>
         <label className="block">
-          <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">Communication Mode *</span>
+          <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+            Communication Mode *
+          </span>
           <div className="space-y-2">
             {communicationModes.map((mode) => (
-              <label key={mode.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+              <label
+                key={mode.value}
+                className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50"
+              >
                 <input
                   type="radio"
                   name="communicationMode"
@@ -294,8 +341,12 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
                   className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                 />
                 <div>
-                  <p className="font-medium text-slate-900 dark:text-slate-100">{mode.label}</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">{mode.description}</p>
+                  <p className="font-medium text-slate-900 dark:text-slate-100">
+                    {mode.label}
+                  </p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    {mode.description}
+                  </p>
                 </div>
               </label>
             ))}
@@ -307,10 +358,15 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       {communicationMode === "broadcast" && (
         <div className="rounded-xl border border-sky-200 bg-sky-50 dark:bg-sky-950/40 p-4">
           <label className="block">
-            <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">How can members reply? *</span>
+            <span className="mb-3 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+              How can members reply? *
+            </span>
             <div className="space-y-2">
               {broadcastReplyModes.map((mode) => (
-                <label key={mode.value} className="flex cursor-pointer items-start gap-3 rounded-lg border border-sky-200 bg-white dark:bg-slate-900 p-3 transition hover:border-sky-400 hover:bg-sky-50">
+                <label
+                  key={mode.value}
+                  className="flex cursor-pointer items-start gap-3 rounded-lg border border-sky-200 bg-white dark:bg-slate-900 p-3 transition hover:border-sky-400 hover:bg-sky-50"
+                >
                   <input
                     type="radio"
                     name="broadcastReplyMode"
@@ -321,8 +377,12 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
                   <div>
-                    <p className="font-medium text-slate-900 dark:text-slate-100">{mode.label}</p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">{mode.description}</p>
+                    <p className="font-medium text-slate-900 dark:text-slate-100">
+                      {mode.label}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {mode.description}
+                    </p>
                   </div>
                 </label>
               ))}
@@ -333,7 +393,9 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
 
       {/* Error Message */}
       {errors.submit && (
-        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{errors.submit}</div>
+        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          {errors.submit}
+        </div>
       )}
 
       {/* Actions */}

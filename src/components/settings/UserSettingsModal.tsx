@@ -24,7 +24,9 @@ type UserSettingsModalProps = {
   profile: UserProfile;
   onSaveProfile?: (profile: UserProfile) => Promise<void> | void;
   notificationPreferences?: NotificationPreferences;
-  onSaveNotifications?: (prefs: NotificationPreferences) => Promise<void> | void;
+  onSaveNotifications?: (
+    prefs: NotificationPreferences,
+  ) => Promise<void> | void;
   onLogout?: () => void;
 };
 
@@ -57,8 +59,18 @@ export function UserSettingsModal({
             onClick={onClose}
             className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white/10 p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white"
           >
-            <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
 
@@ -94,17 +106,21 @@ export function UserSettingsModal({
               ))}
             </div>
             <div className="mb-6 overflow-y-auto max-h-[50vh] ![scrollbar-width:none] ![&::-webkit-scrollbar]:hidden">
-                 {activeTab === "profile" && (
-              <ProfileSettings profile={profile} onSave={onSaveProfile} />
-            )}
-            {activeTab === "appearance" && <AppearanceSettings />}
-            {activeTab === "notifications" && (
-              <NotificationSettings preferences={notificationPreferences} onSave={onSaveNotifications} />
-            )}
-            {activeTab === "privacy" && <PrivacySettings onLogout={onLogout} />}
-          
+              {activeTab === "profile" && (
+                <ProfileSettings profile={profile} onSave={onSaveProfile} />
+              )}
+              {activeTab === "appearance" && <AppearanceSettings />}
+              {activeTab === "notifications" && (
+                <NotificationSettings
+                  preferences={notificationPreferences}
+                  onSave={onSaveNotifications}
+                />
+              )}
+              {activeTab === "privacy" && (
+                <PrivacySettings onLogout={onLogout} />
+              )}
             </div>
-           </div>
+          </div>
         </div>
       </div>
     </div>
@@ -130,7 +146,11 @@ function ProfileSettings({
     setIsSaving(true);
     setSaved(false);
     try {
-      await onSave?.({ displayName, email: email || undefined, phone: phone || undefined });
+      await onSave?.({
+        displayName,
+        email: email || undefined,
+        phone: phone || undefined,
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } finally {
@@ -146,12 +166,16 @@ function ProfileSettings({
         </div>
         <div>
           <p className="font-semibold">{displayName || "Your name"}</p>
-          <p className="text-xs text-slate-500 dark:text-slate-400">Avatar upload coming soon</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Avatar upload coming soon
+          </p>
         </div>
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Display Name</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Display Name
+        </label>
         <input
           type="text"
           value={displayName}
@@ -161,7 +185,9 @@ function ProfileSettings({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Email</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Email
+        </label>
         <input
           type="email"
           value={email}
@@ -172,7 +198,9 @@ function ProfileSettings({
       </div>
 
       <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Phone</label>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Phone
+        </label>
         <input
           type="tel"
           value={phone}
@@ -191,7 +219,9 @@ function ProfileSettings({
         >
           {isSaving ? "Saving..." : "Save Profile"}
         </button>
-        {saved && <p className="text-xs font-medium text-emerald-600">Saved ✓</p>}
+        {saved && (
+          <p className="text-xs font-medium text-emerald-600">Saved ✓</p>
+        )}
       </div>
     </div>
   );
@@ -200,15 +230,37 @@ function ProfileSettings({
 function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
 
-  const options: { id: ThemePreference; label: string; description: string; icon: string }[] = [
-    { id: "light", label: "Light", description: "Bright background, dark text", icon: "☀️" },
-    { id: "dark", label: "Dark", description: "Dark background, light text", icon: "🌙" },
-    { id: "system", label: "System", description: "Match your device setting", icon: "🖥️" },
+  const options: {
+    id: ThemePreference;
+    label: string;
+    description: string;
+    icon: string;
+  }[] = [
+    {
+      id: "light",
+      label: "Light",
+      description: "Bright background, dark text",
+      icon: "☀️",
+    },
+    {
+      id: "dark",
+      label: "Dark",
+      description: "Dark background, light text",
+      icon: "🌙",
+    },
+    {
+      id: "system",
+      label: "System",
+      description: "Match your device setting",
+      icon: "🖥️",
+    },
   ];
 
   return (
     <div className="space-y-4">
-      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Theme</p>
+      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
+        Theme
+      </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {options.map((option) => (
           <button
@@ -222,8 +274,12 @@ function AppearanceSettings() {
             }`}
           >
             <div className="text-xl">{option.icon}</div>
-            <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{option.label}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{option.description}</p>
+            <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {option.label}
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              {option.description}
+            </p>
           </button>
         ))}
       </div>
@@ -241,7 +297,10 @@ function NotificationSettings({
   const [prefs, setPrefs] = useState(preferences);
   const [isSaving, setIsSaving] = useState(false);
 
-  async function handleToggle(key: keyof NotificationPreferences, value: boolean) {
+  async function handleToggle(
+    key: keyof NotificationPreferences,
+    value: boolean,
+  ) {
     const next = { ...prefs, [key]: value };
     setPrefs(next);
     setIsSaving(true);
@@ -287,7 +346,9 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">Log Out</p>
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          Log Out
+        </p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Sign out of Loopdn on this device.
         </p>
@@ -301,9 +362,12 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">Data Export</p>
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          Data Export
+        </p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Request a copy of your account data. This will be available once the backend is connected.
+          Request a copy of your account data. This will be available once the
+          backend is connected.
         </p>
         <button
           type="button"
@@ -315,9 +379,12 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
       </div>
 
       <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
-        <p className="font-medium text-rose-700 dark:text-rose-400">Delete Account</p>
+        <p className="font-medium text-rose-700 dark:text-rose-400">
+          Delete Account
+        </p>
         <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-400/70">
-          Permanently delete your account and all associated data. This action cannot be undone.
+          Permanently delete your account and all associated data. This action
+          cannot be undone.
         </p>
         <button
           type="button"
@@ -345,8 +412,12 @@ function ToggleRow({
   return (
     <div className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:border-sky-700 dark:hover:bg-sky-950/30">
       <div>
-        <p className="font-medium text-slate-900 dark:text-slate-100">{label}</p>
-        <p className="text-xs text-slate-600 dark:text-slate-400">{description}</p>
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          {label}
+        </p>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          {description}
+        </p>
       </div>
       <button
         type="button"

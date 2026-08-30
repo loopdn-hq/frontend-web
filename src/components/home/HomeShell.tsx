@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
-import { UserSettingsModal, type UserProfile, type NotificationPreferences } from "@/components/settings/UserSettingsModal";
+import {
+  UserSettingsModal,
+  type UserProfile,
+} from "@/components/settings/UserSettingsModal";
 
 type Conversation = {
   id: string | number;
@@ -92,34 +95,36 @@ const mockMembers = [
 
 export function HomeShell({ displayName }: HomeShellProps) {
   const router = useRouter();
-  const [conversations, setConversations] = useState<Conversation[]>(defaultConversations);
-  const [selectedConversationId, setSelectedConversationId] = useState<string | number | null>(
-    defaultConversations.length > 0 ? defaultConversations[0].id : null
-  );
+  const [conversations, setConversations] =
+    useState<Conversation[]>(defaultConversations);
+  const [selectedConversationId, setSelectedConversationId] = useState<
+    string | number | null
+  >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
   const [isCreateLoopOpen, setIsCreateLoopOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
-  
+
   // Store messages per loop
-  const [loopMessages, setLoopMessages] = useState<Map<string | number, Message[]>>(new Map());
-  
+  const [loopMessages, setLoopMessages] = useState<
+    Map<string | number, Message[]>
+  >(new Map());
+
   // Store WebSocket status per loop
-  const [loopWSStatus, setLoopWSStatus] = useState<Map<string | number, string>>(new Map());
-  
-  // Store WebSocket send function per loop
-  const [loopWSSend, setLoopWSSend] = useState<Map<string | number, (msg: string) => void>>(new Map());
-  
+  const [loopWSStatus, setLoopWSStatus] = useState<
+    Map<string | number, string>
+  >(new Map());
+
   // Message input state
   const [messageInput, setMessageInput] = useState("");
 
-  const selectedConversation = selectedConversationId 
+  const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
   const isAdmin = selectedConversation?.isAdmin || false;
-  
+
   // Get messages for selected loop
-  const currentMessages = selectedConversationId 
+  const currentMessages = selectedConversationId
     ? loopMessages.get(selectedConversationId) || []
     : [];
 
@@ -129,37 +134,43 @@ export function HomeShell({ displayName }: HomeShellProps) {
     router.refresh();
   }
 
-  const handleWebSocketMessage = useCallback((message: WebSocketMessage) => {
-    if (!selectedConversationId) return;
+  const handleWebSocketMessage = useCallback(
+    (message: WebSocketMessage) => {
+      if (!selectedConversationId) return;
 
-    console.log("WebSocket message received:", message);
+      console.log("WebSocket message received:", message);
 
-    if (message.type === "message") {
-      const newMessage: Message = {
-        id: (message.data.id as string | number | undefined) ?? Date.now(),
-        sender: (message.data.sender as string) || "Unknown",
-        text: (message.data.text as string) || "",
-        mine: message.data.mine === true,
-        time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-      };
+      if (message.type === "message") {
+        const newMessage: Message = {
+          id: (message.data.id as string | number | undefined) ?? Date.now(),
+          sender: (message.data.sender as string) || "Unknown",
+          text: (message.data.text as string) || "",
+          mine: message.data.mine === true,
+          time: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        };
 
-      setLoopMessages((prev) => {
-        const map = new Map(prev);
-        const messages = map.get(selectedConversationId) || [];
-        map.set(selectedConversationId, [...messages, newMessage]);
-        return map;
-      });
+        setLoopMessages((prev) => {
+          const map = new Map(prev);
+          const messages = map.get(selectedConversationId) || [];
+          map.set(selectedConversationId, [...messages, newMessage]);
+          return map;
+        });
 
-      // Update preview in conversations list
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === selectedConversationId
-            ? { ...c, preview: newMessage.text.substring(0, 50) }
-            : c
-        )
-      );
-    }
-  }, [selectedConversationId]);
+        // Update preview in conversations list
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === selectedConversationId
+              ? { ...c, preview: newMessage.text.substring(0, 50) }
+              : c,
+          ),
+        );
+      }
+    },
+    [selectedConversationId],
+  );
 
   const handleWebSocketConnected = useCallback(() => {
     if (selectedConversationId) {
@@ -183,16 +194,22 @@ export function HomeShell({ displayName }: HomeShellProps) {
     }
   }, [selectedConversationId]);
 
-  const handleWebSocketError = useCallback((error: Error) => {
-    if (selectedConversationId) {
-      setLoopWSStatus((prev) => {
-        const map = new Map(prev);
-        map.set(selectedConversationId, "error");
-        return map;
-      });
-      console.error(`WebSocket error for loop ${selectedConversationId}:`, error);
-    }
-  }, [selectedConversationId]);
+  const handleWebSocketError = useCallback(
+    (error: Error) => {
+      if (selectedConversationId) {
+        setLoopWSStatus((prev) => {
+          const map = new Map(prev);
+          map.set(selectedConversationId, "error");
+          return map;
+        });
+        console.error(
+          `WebSocket error for loop ${selectedConversationId}:`,
+          error,
+        );
+      }
+    },
+    [selectedConversationId],
+  );
 
   const handleSendMessage = useCallback(() => {
     if (!messageInput.trim() || !selectedConversationId) return;
@@ -203,7 +220,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
       sender: displayName,
       text: messageInput,
       mine: true,
-      time: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      time: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     };
 
     setLoopMessages((prev) => {
@@ -213,17 +233,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
       return map;
     });
 
-    // Send through WebSocket if a live connection is available; otherwise this
-    // is local-only demo mode until the Django backend is connected.
-    const send = loopWSSend.get(selectedConversationId);
-    if (send) {
-      send(messageInput);
-    } else {
-      console.log("No WebSocket connection — message kept locally (demo mode).");
-    }
-
     setMessageInput("");
-  }, [messageInput, selectedConversationId, loopWSSend, displayName]);
+  }, [messageInput, selectedConversationId, displayName]);
 
   function handleCreateLoopSuccess(loopData: {
     name: string;
@@ -240,13 +251,14 @@ export function HomeShell({ displayName }: HomeShellProps) {
       unread: 0,
       active: true,
       isAdmin: true,
-      communicationMode: loopData.communication_mode === "broadcast" ? "broadcast" : "chat",
+      communicationMode:
+        loopData.communication_mode === "broadcast" ? "broadcast" : "chat",
     };
-    
+
     // Update conversations list with the new loop
     const updatedConversations = [...conversations, newLoop];
     setConversations(updatedConversations);
-    
+
     // Select the newly created loop
     setSelectedConversationId(newLoop.id);
     setIsCreateLoopOpen(false);
@@ -258,7 +270,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
       conversations.map((c) => ({
         ...c,
         active: c.id === conversationId,
-      }))
+      })),
     );
   }
 
@@ -286,7 +298,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
             </div>
             <p
               className={`mt-0.5 text-xs ${
-                conversation.active ? "text-sky-100" : "text-slate-500 dark:text-slate-400"
+                conversation.active
+                  ? "text-sky-100"
+                  : "text-slate-500 dark:text-slate-400"
               }`}
             >
               {conversation.preview}
@@ -302,8 +316,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
     );
   }
 
-  const chatLoops = conversations.filter((c) => c.communicationMode !== "broadcast");
-  const broadcastLoops = conversations.filter((c) => c.communicationMode === "broadcast");
+  const chatLoops = conversations.filter(
+    (c) => c.communicationMode !== "broadcast",
+  );
+  const broadcastLoops = conversations.filter(
+    (c) => c.communicationMode === "broadcast",
+  );
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
@@ -311,22 +329,22 @@ export function HomeShell({ displayName }: HomeShellProps) {
         <aside className="border-b border-sky-100 bg-white/85 p-4 md:border-r md:border-b-0 md:p-5 dark:border-slate-800 dark:bg-slate-900/85">
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2 justify-between w-full">
-              <p className="text-xs uppercase tracking-[0.14em] text-sky-500">Loopd'n</p>
+              <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
+                Loopd&apos;n
+              </p>
               <button
-            type="button"
-            onClick={() => setIsUserSettingsOpen(true)}
-            className="py-1.5 px-0 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-          >
-            ⚙️
-          </button>
+                type="button"
+                onClick={() => setIsUserSettingsOpen(true)}
+                className="py-1.5 px-0 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                ⚙️
+              </button>
             </div>
           </div>
 
           <p className="mb-4 rounded-xl bg-cyan-50 px-3 py-2 text-xs text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300">
             Signed in as {displayName}
           </p>
-
-          
 
           <button
             type="button"
@@ -339,8 +357,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
           <div className="space-y-5">
             {conversations.length === 0 ? (
               <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50 p-6 text-center dark:border-sky-800 dark:bg-sky-950/30">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">No Loops yet</p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Click "Create Loop" above to get started</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  No Loops yet
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  Click Create Loop above to get started
+                </p>
               </div>
             ) : (
               <>
@@ -353,7 +375,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       No chat loops yet
                     </p>
                   ) : (
-                    <div className="space-y-2">{chatLoops.map(renderConversationButton)}</div>
+                    <div className="space-y-2">
+                      {chatLoops.map(renderConversationButton)}
+                    </div>
                   )}
                 </div>
 
@@ -366,7 +390,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       No broadcast loops yet
                     </p>
                   ) : (
-                    <div className="space-y-2">{broadcastLoops.map(renderConversationButton)}</div>
+                    <div className="space-y-2">
+                      {broadcastLoops.map(renderConversationButton)}
+                    </div>
                   )}
                 </div>
               </>
@@ -387,8 +413,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
           <header className="flex items-center justify-between border-b border-sky-100 px-5 py-4 dark:border-slate-800">
             <div>
-              <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">Group</p>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">{selectedConversation?.name || "Select a Loop"}</h2>
+              <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
+                Group
+              </p>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                {selectedConversation?.name || "Select a Loop"}
+              </h2>
             </div>
             <div className="flex items-center gap-3">
               {selectedConversationId && (
@@ -403,14 +433,17 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   className={`rounded-full px-3 py-1 text-[10px] font-semibold ${
                     loopWSStatus.get(selectedConversationId) === "connected"
                       ? "bg-emerald-100 text-emerald-700"
-                      : loopWSStatus.get(selectedConversationId) === "connecting"
+                      : loopWSStatus.get(selectedConversationId) ===
+                          "connecting"
                         ? "bg-amber-100 text-amber-700"
                         : "bg-slate-100 text-slate-700"
                   }`}
                   title={`WebSocket: ${loopWSStatus.get(selectedConversationId) || "disconnected"}`}
                 >
-                  {loopWSStatus.get(selectedConversationId) === "connected" && "🟢 Live"}
-                  {loopWSStatus.get(selectedConversationId) === "connecting" && "🟡 Connecting"}
+                  {loopWSStatus.get(selectedConversationId) === "connected" &&
+                    "🟢 Live"}
+                  {loopWSStatus.get(selectedConversationId) === "connecting" &&
+                    "🟡 Connecting"}
                   {!loopWSStatus.get(selectedConversationId) && "⚫ Offline"}
                 </div>
               )}
@@ -422,14 +455,24 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   title="Loop Settings"
                   className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                 >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
                       d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
                     />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                    />
                   </svg>
                 </button>
               )}
@@ -441,19 +484,37 @@ export function HomeShell({ displayName }: HomeShellProps) {
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
                   <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-sky-100 p-4 dark:bg-sky-950/40">
-                    <svg className="h-full w-full text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m0 0h6m-6-6h6" />
+                    <svg
+                      className="h-full w-full text-sky-600"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 6v6m0 0v6m0-6h6m0 0h6m-6-6h6"
+                      />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">No Loop Selected</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Create a Loop to get started!</p>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    No Loop Selected
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    Create a Loop to get started!
+                  </p>
                 </div>
               </div>
             ) : currentMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">No messages yet</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Start the conversation!</p>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    No messages yet
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    Start the conversation!
+                  </p>
                 </div>
               </div>
             ) : (
@@ -466,11 +527,15 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
                   }`}
                 >
-                  <p className={`text-xs ${message.mine ? "text-sky-100" : "text-slate-500 dark:text-slate-400"}`}>
+                  <p
+                    className={`text-xs ${message.mine ? "text-sky-100" : "text-slate-500 dark:text-slate-400"}`}
+                  >
                     {message.sender}
                   </p>
                   <p className="mt-1 text-sm leading-relaxed">{message.text}</p>
-                  <p className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}>
+                  <p
+                    className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}
+                  >
                     {message.time}
                   </p>
                 </article>
@@ -481,7 +546,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
           <footer className="border-t border-sky-100 p-4 dark:border-slate-800">
             {!selectedConversation ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-sm text-slate-600 dark:text-slate-400">Select or create a Loop to start chatting</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Select or create a Loop to start chatting
+                </p>
               </div>
             ) : (
               <div className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
@@ -512,8 +579,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
         </section>
       </div>
 
-      <CreateLoopModal 
-        isOpen={isCreateLoopOpen} 
+      <CreateLoopModal
+        isOpen={isCreateLoopOpen}
         onClose={() => setIsCreateLoopOpen(false)}
         onSuccess={handleCreateLoopSuccess}
       />
@@ -528,8 +595,18 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 onClick={() => setIsAdminPanelOpen(false)}
                 className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
               >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
 

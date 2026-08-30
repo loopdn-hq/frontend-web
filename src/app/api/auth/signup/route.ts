@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
-import { authPayloadSchema, normalizeContact, toFieldErrors } from "@/lib/validation/auth";
+import {
+  authPayloadSchema,
+  normalizeContact,
+  toFieldErrors,
+} from "@/lib/validation/auth";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -17,7 +21,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const normalizedContact = normalizeContact(parsed.data.contactMode, parsed.data.contact);
+  const normalizedContact = normalizeContact(
+    parsed.data.contactMode,
+    parsed.data.contact,
+  );
 
   const response = NextResponse.json({
     ok: true,

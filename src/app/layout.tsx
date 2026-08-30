@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
+import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
 
@@ -33,7 +34,7 @@ const themeInitScript = `
 })();
 `;
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"

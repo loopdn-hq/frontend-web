@@ -60,8 +60,12 @@ export function LoopAdminPanel({
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">{loopSettings.name} Admin Panel</h1>
-          <p className="mt-2 text-slate-600">Manage your Loop's settings and members</p>
+          <h1 className="text-3xl font-bold text-slate-900">
+            {loopSettings.name} Admin Panel
+          </h1>
+          <p className="mt-2 text-slate-600">
+            Manage your Loop&apos;s settings and members
+          </p>
         </div>
 
         {/* Tabs */}
@@ -113,10 +117,17 @@ export function LoopAdminPanel({
 
         {/* Footer Info */}
         <div className="mt-6 rounded-xl border border-cyan-200 bg-cyan-50 px-6 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-cyan-700">Tips</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-cyan-700">
+            Tips
+          </p>
           <ul className="mt-2 space-y-1 text-xs text-cyan-900">
-            <li>• Changes to settings take effect immediately for all members</li>
-            <li>• Admins can always see all messages regardless of posting permissions</li>
+            <li>
+              • Changes to settings take effect immediately for all members
+            </li>
+            <li>
+              • Admins can always see all messages regardless of posting
+              permissions
+            </li>
             <li>• Blocked members cannot access the Loop or view messages</li>
             <li>• All admin actions are logged for audit purposes</li>
           </ul>

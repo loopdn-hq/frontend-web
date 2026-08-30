@@ -9,7 +9,10 @@ type LoopCommunicationModeProps = {
   loopName: string;
   currentMode: CommunicationMode;
   broadcastReplyMode?: BroadcastReplyMode;
-  onModeChange?: (mode: CommunicationMode, replyMode?: BroadcastReplyMode) => Promise<void>;
+  onModeChange?: (
+    mode: CommunicationMode,
+    replyMode?: BroadcastReplyMode,
+  ) => Promise<void>;
   isLoading?: boolean;
   isAdmin?: boolean;
 };
@@ -32,9 +35,16 @@ export function LoopCommunicationMode({
     setError("");
 
     try {
-      await onModeChange?.(newMode, newMode === "broadcast" ? broadcastReplyMode : undefined);
+      await onModeChange?.(
+        newMode,
+        newMode === "broadcast" ? broadcastReplyMode : undefined,
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update communication mode");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update communication mode",
+      );
     } finally {
       setIsChanging(false);
     }
@@ -46,11 +56,17 @@ export function LoopCommunicationMode({
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.12em] text-slate-500">Communication Mode</p>
-            <h3 className="mt-1 text-lg font-semibold text-slate-900">{loopName}</h3>
+            <p className="text-xs uppercase tracking-[0.12em] text-slate-500">
+              Communication Mode
+            </p>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">
+              {loopName}
+            </h3>
           </div>
           {currentMode === "chat" ? (
-            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">Chat Group</span>
+            <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">
+              Chat Group
+            </span>
           ) : (
             <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-700">
               Broadcast
@@ -66,11 +82,16 @@ export function LoopCommunicationMode({
 
         {currentMode === "broadcast" && (
           <div className="mt-3 rounded-lg border border-purple-100 bg-purple-50 p-3">
-            <p className="text-xs font-semibold text-purple-900">Member Reply Settings:</p>
+            <p className="text-xs font-semibold text-purple-900">
+              Member Reply Settings:
+            </p>
             <p className="mt-1 text-xs text-purple-800">
-              {broadcastReplyMode === "private" && "Members can only reply privately to admins"}
-              {broadcastReplyMode === "group_wide" && "Members can reply to everyone in the group"}
-              {broadcastReplyMode === "disabled" && "Members cannot reply; receive announcements only"}
+              {broadcastReplyMode === "private" &&
+                "Members can only reply privately to admins"}
+              {broadcastReplyMode === "group_wide" &&
+                "Members can reply to everyone in the group"}
+              {broadcastReplyMode === "disabled" &&
+                "Members cannot reply; receive announcements only"}
             </p>
           </div>
         )}
@@ -79,7 +100,9 @@ export function LoopCommunicationMode({
       {/* Mode Toggle (Admin only) */}
       {isAdmin && (
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-          <p className="mb-3 text-sm font-semibold text-slate-900">Switch Communication Mode</p>
+          <p className="mb-3 text-sm font-semibold text-slate-900">
+            Switch Communication Mode
+          </p>
 
           <div className="space-y-2">
             <button
@@ -92,7 +115,9 @@ export function LoopCommunicationMode({
               }`}
             >
               <p className="font-semibold">Chat Group</p>
-              <p className="text-xs text-slate-600">Members communicate with everyone</p>
+              <p className="text-xs text-slate-600">
+                Members communicate with everyone
+              </p>
             </button>
 
             <button
@@ -105,18 +130,24 @@ export function LoopCommunicationMode({
               }`}
             >
               <p className="font-semibold">Broadcast Group</p>
-              <p className="text-xs text-slate-600">You send announcements to members</p>
+              <p className="text-xs text-slate-600">
+                You send announcements to members
+              </p>
             </button>
           </div>
 
           {error && <p className="mt-3 text-xs text-rose-600">{error}</p>}
-          {isChanging && <p className="mt-3 text-xs text-slate-600">Updating mode...</p>}
+          {isChanging && (
+            <p className="mt-3 text-xs text-slate-600">Updating mode...</p>
+          )}
         </div>
       )}
 
       {!isAdmin && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-xs text-slate-600">Only admins can change the communication mode for this Loop.</p>
+          <p className="text-xs text-slate-600">
+            Only admins can change the communication mode for this Loop.
+          </p>
         </div>
       )}
     </div>

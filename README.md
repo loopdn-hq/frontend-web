@@ -104,4 +104,30 @@ npm run dev      # run app in development mode
 npm run build    # build for production
 npm run start    # run the production build
 npm run lint     # run ESLint checks
+npm run format   # format files with Prettier
+npm run format:check # verify Prettier formatting
+npm run typecheck # run TypeScript checks
 ```
+
+## Continuous Integration
+
+GitHub Actions runs on pushes and pull requests to verify linting, Prettier formatting, TypeScript, and the production build. It uses `npm ci` with Node.js 20 for reproducible dependency installation.
+
+## Continuous Deployment
+
+After the CI workflow succeeds, GitHub Actions deploys the `staging` and `main` branches to separate AWS ECS/Fargate services using the shared production Docker image. The production job uses GitHub's `production` environment. Configure required reviewers for that environment in the repository settings to require manual approval before AWS deployment.
+
+Configure the following GitHub Actions secret in both the `staging` and `production` environments:
+
+- `AWS_ROLE_TO_ASSUME` for an AWS IAM role trusted by GitHub Actions OIDC
+
+Configure the following GitHub Actions variables in both environments. Use environment-specific values for the ECR repository and ECS resources.
+
+- `AWS_REGION`
+- `ECR_REPOSITORY`
+- `ECS_CLUSTER`
+- `ECS_SERVICE`
+- `ECS_TASK_DEFINITION` (task definition family name or ARN)
+- `ECS_CONTAINER_NAME` (the container name in the task definition)
+
+Each IAM role needs permission to authenticate and push to its selected ECR repository and to describe, register, and update its ECS service and task definition.
