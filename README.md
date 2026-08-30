@@ -115,14 +115,13 @@ GitHub Actions runs on pushes and pull requests to verify linting, Prettier form
 
 ## Continuous Deployment
 
-After the CI workflow succeeds, GitHub Actions deploys the `staging` branch to Vercel and deploys the `main` branch to ECS/Fargate. The production job uses GitHub's `production` environment. Configure required reviewers for that environment in the repository settings to require manual approval before AWS deployment.
+After the CI workflow succeeds, GitHub Actions deploys the `staging` and `main` branches to separate AWS ECS/Fargate services using the shared production Docker image. The production job uses GitHub's `production` environment. Configure required reviewers for that environment in the repository settings to require manual approval before AWS deployment.
 
-Configure these GitHub Actions secrets:
+Configure the following GitHub Actions secret in both the `staging` and `production` environments:
 
-- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` for staging deployments
-- `AWS_ROLE_TO_ASSUME` for a production AWS IAM role trusted by GitHub Actions OIDC
+- `AWS_ROLE_TO_ASSUME` for an AWS IAM role trusted by GitHub Actions OIDC
 
-Configure these GitHub Actions variables:
+Configure the following GitHub Actions variables in both environments. Use environment-specific values for the ECR repository and ECS resources.
 
 - `AWS_REGION`
 - `ECR_REPOSITORY`
@@ -131,4 +130,4 @@ Configure these GitHub Actions variables:
 - `ECS_TASK_DEFINITION` (task definition family name or ARN)
 - `ECS_CONTAINER_NAME` (the container name in the task definition)
 
-The production IAM role needs permission to authenticate and push to the selected ECR repository and to describe, register, and update the selected ECS service and task definition.
+Each IAM role needs permission to authenticate and push to its selected ECR repository and to describe, register, and update its ECS service and task definition.
