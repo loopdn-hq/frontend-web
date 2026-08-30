@@ -67,9 +67,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         : "Continue with phone";
     }
 
-    return contactMode === "email"
-      ? "Create account"
-      : "Create phone account";
+    return contactMode === "email" ? "Create account" : "Create phone account";
   }, [authMode, contactMode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -313,7 +311,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {authMode === "signup" && (
                 <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your {contactMode === "email" ? "email" : "phone number"} before enabling admin actions.
+                  We will verify your{" "}
+                  {contactMode === "email" ? "email" : "phone number"} before
+                  enabling admin actions.
                 </p>
               )}
 
@@ -333,15 +333,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {isSubmitting && <ProgressBar />}
             </form>
-
-            {authMode === "login" && (
-              <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs text-cyan-900">
-                <p className="font-semibold">MVP Demo Account</p>
-                <p>Email: {DUMMY_ACCOUNT.email}</p>
-                <p>Phone: {DUMMY_ACCOUNT.phone}</p>
-                <p>Password: {DUMMY_ACCOUNT.password}</p>
-              </div>
-            )}
 
             <p className="mt-6 text-center text-xs text-slate-500">
               By continuing, you agree to Loopdn Terms and Privacy Policy.
