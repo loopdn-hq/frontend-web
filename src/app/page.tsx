@@ -1,10 +1,16 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { SESSION_COOKIE_NAME } from "@/lib/auth/session";
+"use client";
 
-export default async function Home() {
-  const cookieStore = await cookies();
-  const session = cookieStore.get(SESSION_COOKIE_NAME);
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useSession } from "@/lib/auth/client";
 
-  redirect(session?.value ? "/home" : "/login");
+export default function RootPage() {
+  const router = useRouter();
+  const session = useSession();
+
+  useEffect(() => {
+    router.replace(session ? "/home" : "/login");
+  }, [router, session]);
+
+  return null;
 }

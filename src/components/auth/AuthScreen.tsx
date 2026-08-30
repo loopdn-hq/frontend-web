@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { authenticate } from "@/lib/auth/client";
 import { DUMMY_ACCOUNT } from "@/lib/auth/session";
 import { authPayloadSchema, toFieldErrors } from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
@@ -22,8 +23,31 @@ const panelTitle: Record<AuthMode, string> = {
 
 const panelSubTitle: Record<AuthMode, string> = {
   login: "Sign in to manage groups, members, and broadcasts.",
-  signup: "Start your first Loop and invite members across web and SMS.",
+  signup: "Create an account with email or phone to get started.",
 };
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
+      <path
+        d="M21.6 12.23c0-.69-.06-1.35-.18-1.99H12v3.76h5.39a4.6 4.6 0 0 1-1.99 3.02v2.5h3.22c1.89-1.74 2.98-4.3 2.98-7.29Z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 22c2.7 0 4.96-.9 6.61-2.43l-3.22-2.5c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H.81v2.58A10 10 0 0 0 12 22Z"
+        fill="#34A853"
+      />
+      <path
+        d="M6.41 19.88A6.02 6.02 0 0 1 6 16.7V14.1H2.72A9.97 9.97 0 0 0 2 12c0-1.61.39-3.13 1.08-4.46L6.41 10.3A6.04 6.04 0 0 1 6 12c0 .75.13 1.48.41 2.18v5.7Z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 3.98c1.47 0 2.8.5 3.84 1.5l2.87-2.87A9.95 9.95 0 0 0 12 2a10 10 0 0 0-9.19 5.54l3.7 2.88A6.03 6.03 0 0 1 12 3.98Z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
 
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
@@ -40,13 +64,11 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   const ctaText = useMemo(() => {
     if (authMode === "login") {
       return contactMode === "email"
-        ? "Continue with Email"
-        : "Continue with Phone";
+        ? "Continue with email"
+        : "Continue with phone";
     }
 
-    return contactMode === "email"
-      ? "Sign Up with Email"
-      : "Sign Up with Phone";
+    return contactMode === "email" ? "Create account" : "Create phone account";
   }, [authMode, contactMode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -71,33 +93,14 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     setIsSubmitting(true);
 
     try {
-      const endpoint =
-        authMode === "login" ? "/api/auth/login" : "/api/auth/signup";
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const result = await authenticate(parsed.data);
 
-      const data = (await response.json()) as {
-        ok: boolean;
-        message?: string;
-        redirectTo?: string;
-        errors?: Partial<Record<"contact" | "password", string>>;
-      };
-
-      if (!response.ok || !data.ok) {
-        setErrors(data.errors ?? {});
-        setGeneralError(
-          data.message ?? "Unable to continue. Please try again.",
-        );
+      if (!result.ok) {
+        setGeneralError(result.message);
         return;
       }
 
-      router.push(data.redirectTo ?? "/home");
-      router.refresh();
+      router.push("/home");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -179,7 +182,24 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {panelSubTitle[authMode]}
             </p>
 
-            <div className="mt-6 flex gap-2 rounded-xl bg-sky-50 p-1">
+            <button
+              type="button"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition hover:bg-slate-50 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
+                <GoogleIcon />
+              </span>
+              Continue with Google
+            </button>
+
+            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+              <div className="h-px flex-1 bg-slate-200" />
+              or continue with email or phone
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
               <button
                 type="button"
                 onClick={() => {
@@ -214,7 +234,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               </button>
             </div>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
+            <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
               {contactMode === "email" ? (
                 <label className="block">
                   <span className="mb-1 block text-sm font-medium text-slate-700">
@@ -273,8 +293,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {authMode === "signup" && (
                 <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your {contactMode} before enabling admin
-                  actions.
+                  We will verify your{" "}
+                  {contactMode === "email" ? "email" : "phone number"} before
+                  enabling admin actions.
                 </p>
               )}
 
@@ -294,29 +315,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {isSubmitting && <ProgressBar />}
             </form>
-
-            <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
-              <div className="h-px flex-1 bg-slate-200" />
-              OR
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <button
-              type="button"
-              disabled={isSubmitting}
-              className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Send me a one-time code
-            </button>
-
-            {authMode === "login" && (
-              <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs text-cyan-900">
-                <p className="font-semibold">MVP Demo Account</p>
-                <p>Email: {DUMMY_ACCOUNT.email}</p>
-                <p>Phone: {DUMMY_ACCOUNT.phone}</p>
-                <p>Password: {DUMMY_ACCOUNT.password}</p>
-              </div>
-            )}
 
             <p className="mt-6 text-center text-xs text-slate-500">
               By continuing, you agree to Loopdn Terms and Privacy Policy.
