@@ -112,3 +112,23 @@ npm run typecheck # run TypeScript checks
 ## Continuous Integration
 
 GitHub Actions runs on pushes and pull requests to verify linting, Prettier formatting, TypeScript, and the production build. It uses `npm ci` with Node.js 20 for reproducible dependency installation.
+
+## Continuous Deployment
+
+After the CI workflow succeeds, GitHub Actions deploys the `staging` branch to Vercel and deploys the `main` branch to ECS/Fargate. The production job uses GitHub's `production` environment. Configure required reviewers for that environment in the repository settings to require manual approval before AWS deployment.
+
+Configure these GitHub Actions secrets:
+
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` for staging deployments
+- `AWS_ROLE_TO_ASSUME` for a production AWS IAM role trusted by GitHub Actions OIDC
+
+Configure these GitHub Actions variables:
+
+- `AWS_REGION`
+- `ECR_REPOSITORY`
+- `ECS_CLUSTER`
+- `ECS_SERVICE`
+- `ECS_TASK_DEFINITION` (task definition family name or ARN)
+- `ECS_CONTAINER_NAME` (the container name in the task definition)
+
+The production IAM role needs permission to authenticate and push to the selected ECR repository and to describe, register, and update the selected ECS service and task definition.
