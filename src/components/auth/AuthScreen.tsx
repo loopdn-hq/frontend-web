@@ -295,20 +295,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {isSubmitting && <ProgressBar />}
             </form>
 
-            <div className="mt-6 flex items-center gap-2 text-xs text-slate-500">
-              <div className="h-px flex-1 bg-slate-200" />
-              OR
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
-
-            <button
-              type="button"
-              disabled={isSubmitting}
-              className="mt-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Send me a one-time code
-            </button>
-
             {authMode === "login" && (
               <div className="mt-4 rounded-xl border border-cyan-100 bg-cyan-50 p-3 text-xs text-cyan-900">
                 <p className="font-semibold">MVP Demo Account</p>
