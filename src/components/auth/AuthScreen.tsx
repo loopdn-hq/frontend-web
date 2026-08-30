@@ -9,7 +9,7 @@ import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 
 export type AuthMode = "login" | "signup";
-type ContactMode = "email" | "phone";
+type ContactMode = "email";
 
 type AuthScreenProps = {
   initialMode: AuthMode;
@@ -22,13 +22,13 @@ const panelTitle: Record<AuthMode, string> = {
 
 const panelSubTitle: Record<AuthMode, string> = {
   login: "Sign in to manage groups, members, and broadcasts.",
-  signup: "Start your first Loop and invite members across web and SMS.",
+  signup: "Create an account with your email and password to get started.",
 };
 
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
-  const [contactMode, setContactMode] = useState<ContactMode>("email");
+  const [contactMode] = useState<ContactMode>("email");
   const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<
@@ -39,15 +39,11 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
   const ctaText = useMemo(() => {
     if (authMode === "login") {
-      return contactMode === "email"
-        ? "Continue with Email"
-        : "Continue with Phone";
+      return "Continue with email";
     }
 
-    return contactMode === "email"
-      ? "Sign Up with Email"
-      : "Sign Up with Phone";
-  }, [authMode, contactMode]);
+    return "Create account";
+  }, [authMode]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -179,71 +175,35 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {panelSubTitle[authMode]}
             </p>
 
-            <div className="mt-6 flex gap-2 rounded-xl bg-sky-50 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("email");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "email"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("phone");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "phone"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Phone
-              </button>
+            <button
+              type="button"
+              disabled={isSubmitting}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span aria-hidden="true">G</span>
+              Continue with Google
+            </button>
+
+            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+              <div className="h-px flex-1 bg-slate-200" />
+              or continue with email
+              <div className="h-px flex-1 bg-slate-200" />
             </div>
 
-            <form className="mt-6 space-y-4" onSubmit={handleSubmit} noValidate>
-              {contactMode === "email" ? (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Email Address
-                  </span>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
-              ) : (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Phone Number
-                  </span>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
-              )}
+            <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
+              <label className="block">
+                <span className="mb-1 block text-sm font-medium text-slate-700">
+                  Email Address
+                </span>
+                <input
+                  type="email"
+                  placeholder="you@example.com"
+                  value={contact}
+                  onChange={(event) => setContact(event.target.value)}
+                  disabled={isSubmitting}
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                />
+              </label>
 
               {errors.contact && (
                 <p className="text-xs text-rose-600">{errors.contact}</p>
@@ -273,8 +233,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {authMode === "signup" && (
                 <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your {contactMode} before enabling admin
-                  actions.
+                  We will use your email to create your account and enable admin
+                  actions after verification.
                 </p>
               )}
 

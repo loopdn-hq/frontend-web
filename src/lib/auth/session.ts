@@ -16,15 +16,8 @@ export function isDummyCredential(payload: AuthPayload): boolean {
     payload.contact,
   );
 
-  if (payload.contactMode === "email") {
-    return (
-      normalizedInput === DUMMY_ACCOUNT.email.toLowerCase() &&
-      payload.password === DUMMY_ACCOUNT.password
-    );
-  }
-
   return (
-    normalizedInput === DUMMY_ACCOUNT.phone &&
+    normalizedInput === DUMMY_ACCOUNT.email.toLowerCase() &&
     payload.password === DUMMY_ACCOUNT.password
   );
 }
