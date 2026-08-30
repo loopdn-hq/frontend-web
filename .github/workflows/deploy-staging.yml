@@ -1,14 +1,16 @@
 name: Deploy Staging
 
+# Builds the static export and copies out/ to S3, then invalidates CloudFront.
+# No Docker and no Terraform: the deployable artifact is a folder of files.
 on:
   workflow_run:
     workflows: [CI]
     branches: [staging]
     types: [completed]
+  workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: deploy-staging
@@ -16,55 +18,70 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    name: Deploy to ECS/Fargate
+    # workflow_dispatch has no workflow_run payload, so allow it through too.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    name: Build and publish to S3
     runs-on: ubuntu-latest
     environment:
       name: staging
+      url: https://staging.loopdn.com
 
     steps:
       - name: Check out validated commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # NEXT_PUBLIC_* is inlined at build time, so it has to be set here rather
+      # than at runtime - a static bundle has no runtime to read it from.
+      - name: Build static export
+        run: npm run build
+        env:
+          NEXT_PUBLIC_WS_HOST: ${{ vars.NEXT_PUBLIC_WS_HOST }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v5
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Log in to Amazon ECR
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push image
-        id: image
-        env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+      # Keep every build addressable by commit, so a rollback is a copy rather
+      # than a rebuild of an older tree.
+      - name: Archive this version
         run: |
-          image="$REGISTRY/$REPOSITORY:$IMAGE_TAG"
-          docker build --tag "$image" .
-          docker push "$image"
-          echo "uri=$image" >> "$GITHUB_OUTPUT"
+          sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+          aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}-releases/$sha/" --only-show-errors
 
-      - name: Download active task definition
-        run: aws ecs describe-task-definition --task-definition "${{ vars.ECS_TASK_DEFINITION }}" --query taskDefinition > task-definition.json
+      # Two passes on purpose. Filenames under _next/static are content-hashed,
+      # so they can be cached forever; the HTML that points at them must never
+      # be, or browsers keep loading the previous build's asset names.
+      - name: Publish hashed assets
+        run: |
+          aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}" --delete --only-show-errors \
+            --exclude "*.html" \
+            --cache-control "public,max-age=31536000,immutable"
 
-      - name: Render task definition
-        id: task-definition
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ vars.ECS_CONTAINER_NAME }}
-          image: ${{ steps.image.outputs.uri }}
+      - name: Publish HTML
+        run: |
+          aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}" --delete --only-show-errors \
+            --exclude "*" --include "*.html" \
+            --cache-control "no-cache"
 
-      - name: Deploy task definition
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-definition.outputs.task-definition }}
-          service: ${{ vars.ECS_SERVICE }}
-          cluster: ${{ vars.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Invalidate CloudFront
+        run: |
+          id=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CF_DISTRIBUTION_ID }}" \
+            --paths "/*" --query 'Invalidation.Id' --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.CF_DISTRIBUTION_ID }}" --id "$id"
+          echo "Live at https://staging.loopdn.com"

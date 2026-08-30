@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { clearSession } from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
@@ -128,10 +129,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
     ? loopMessages.get(selectedConversationId) || []
     : [];
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
+  function handleLogout() {
+    clearSession();
     router.push("/login");
-    router.refresh();
   }
 
   const handleWebSocketMessage = useCallback(
