@@ -54,7 +54,11 @@ export const signupSchema = z
     confirmPassword: z.string().min(1, "Confirm your password."),
     firstName: requiredNameSchema,
     lastName: requiredNameSchema,
-    displayName: z.string().trim().max(50, "Must be less than 51 characters.").optional(),
+    displayName: z
+      .string()
+      .trim()
+      .max(50, "Must be less than 51 characters.")
+      .optional(),
     // Optional here: email signup leaves this blank, phone signup (the other tab) requires it.
     phoneNumber: z
       .string()

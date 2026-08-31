@@ -114,9 +114,7 @@ function extractErrorMessage(payload: unknown): string | null {
 }
 
 // POST /api/v1/users/login/ — username accepts a username or an email.
-export async function authenticate(
-  payload: LoginPayload,
-): Promise<AuthResult> {
+export async function authenticate(payload: LoginPayload): Promise<AuthResult> {
   try {
     const response = await fetch(`${API_BASE_URL}/users/login/`, {
       method: "POST",
@@ -132,8 +130,7 @@ export async function authenticate(
     if (!response.ok) {
       return {
         ok: false,
-        message:
-          extractErrorMessage(data) ?? "Incorrect username or password.",
+        message: extractErrorMessage(data) ?? "Incorrect username or password.",
       };
     }
 
