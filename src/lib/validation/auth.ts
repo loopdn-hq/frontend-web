@@ -5,7 +5,6 @@ export const emailSchema = z
   .trim()
   .email("Enter a valid email address.");
 
-const phoneCharacters = /^[0-9+()\-\s]+$/;
 const e164Phone = /^\+?[1-9]\d{7,14}$/;
 
 export const passwordSchema = z
@@ -15,51 +14,13 @@ export const passwordSchema = z
   .regex(/[A-Za-z]/, "Password must include at least one letter.")
   .regex(/\d/, "Password must include at least one number.");
 
-export const authPayloadSchema = z
-  .object({
-    mode: z.enum(["login", "signup"]),
-    contactMode: z.enum(["email", "phone"]),
-    contact: z.string().trim().min(1, "Email or phone is required."),
-    password: passwordSchema,
-  })
-  .superRefine((value, ctx) => {
-    if (value.contactMode === "email") {
-      const result = emailSchema.safeParse(value.contact);
+// POST /users/login/ accepts either a username or an email in the same field.
+export const loginSchema = z.object({
+  username: z.string().trim().min(1, "Enter your username or email."),
+  password: z.string().min(1, "Password is required."),
+});
 
-      if (!result.success) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["contact"],
-          message: "Enter a valid email address.",
-        });
-      }
-
-      return;
-    }
-
-    const rawPhone = value.contact.trim();
-
-    if (!phoneCharacters.test(rawPhone)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["contact"],
-        message: "Phone can include only digits and + ( ) - symbols.",
-      });
-      return;
-    }
-
-    const normalized = normalizePhone(rawPhone);
-
-    if (!e164Phone.test(normalized)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["contact"],
-        message: "Enter a valid phone number including country code.",
-      });
-    }
-  });
-
-export type AuthPayload = z.infer<typeof authPayloadSchema>;
+export type LoginPayload = z.infer<typeof loginSchema>;
 
 export function normalizePhone(phone: string): string {
   const trimmed = phone.trim();
@@ -67,33 +28,6 @@ export function normalizePhone(phone: string): string {
   const digitsOnly = trimmed.replace(/\D/g, "");
 
   return hasPlus ? `+${digitsOnly}` : digitsOnly;
-}
-
-export function normalizeContact(
-  contactMode: AuthPayload["contactMode"],
-  contact: string,
-): string {
-  if (contactMode === "email") {
-    return contact.trim().toLowerCase();
-  }
-
-  return normalizePhone(contact);
-}
-
-export function toFieldErrors(
-  issues: z.ZodIssue[],
-): Partial<Record<"contact" | "password", string>> {
-  const errors: Partial<Record<"contact" | "password", string>> = {};
-
-  for (const issue of issues) {
-    const key = issue.path[0];
-
-    if ((key === "contact" || key === "password") && !errors[key]) {
-      errors[key] = issue.message;
-    }
-  }
-
-  return errors;
 }
 
 const usernameSchema = z
@@ -136,36 +70,3 @@ export const signupSchema = z
   });
 
 export type SignupPayload = z.infer<typeof signupSchema>;
-
-export type SignupFieldErrors = Partial<
-  Record<keyof SignupPayload, string>
->;
-
-const signupFieldKeys = new Set<keyof SignupPayload>([
-  "username",
-  "email",
-  "password",
-  "confirmPassword",
-  "firstName",
-  "lastName",
-  "displayName",
-  "phoneNumber",
-]);
-
-export function toSignupFieldErrors(issues: z.ZodIssue[]): SignupFieldErrors {
-  const errors: SignupFieldErrors = {};
-
-  for (const issue of issues) {
-    const key = issue.path[0];
-
-    if (
-      typeof key === "string" &&
-      signupFieldKeys.has(key as keyof SignupPayload) &&
-      !errors[key as keyof SignupPayload]
-    ) {
-      errors[key as keyof SignupPayload] = issue.message;
-    }
-  }
-
-  return errors;
-}

@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { authenticate, registerAccount } from "@/lib/auth/client";
 import {
-  authPayloadSchema,
+  loginSchema,
   signupSchema,
-  toFieldErrors,
-  toSignupFieldErrors,
-  type SignupFieldErrors,
+  type LoginPayload,
+  type SignupPayload,
 } from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
@@ -57,76 +58,90 @@ function GoogleIcon() {
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
+  // Email vs. phone tab; phone sign-in/sign-up is not implemented yet.
   const [contactMode, setContactMode] = useState<ContactMode>("email");
-  const [contact, setContact] = useState("");
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<
-    Partial<Record<"contact" | "password", string>>
-  >({});
-
-  // Signup-only fields, required by POST /users/register/.
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  // Sign up with email vs. sign up with phone; phone number only applies to the latter.
   const [signupContactMode, setSignupContactMode] =
     useState<ContactMode>("email");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [signupErrors, setSignupErrors] = useState<SignupFieldErrors>({});
 
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const ctaText = useMemo(() => {
-    if (authMode === "login") {
-      return contactMode === "email"
-        ? "Continue with email"
-        : "Continue with phone";
-    }
+  const isPhoneComingSoon =
+    (authMode === "login" && contactMode === "phone") ||
+    (authMode === "signup" && signupContactMode === "phone");
 
-    return "Create account";
-  }, [authMode, contactMode]);
+  // Login form, POST /users/login/ (username field accepts a username or email).
+  const {
+    register: registerLogin,
+    handleSubmit: handleLoginFormSubmit,
+    reset: resetLoginForm,
+    formState: { errors: loginErrors },
+  } = useForm<LoginPayload>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  // Signup form, required by POST /users/register/.
+  const {
+    register: registerSignup,
+    handleSubmit: handleSignupFormSubmit,
+    watch: watchSignup,
+    setValue: setSignupValue,
+    clearErrors: clearSignupErrors,
+    reset: resetSignupForm,
+    formState: { errors: signupErrors },
+  } = useForm<SignupPayload>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      firstName: "",
+      lastName: "",
+      displayName: "",
+      phoneNumber: "",
+    },
+  });
+
+  const signupFirstName = watchSignup("firstName");
+  const signupLastName = watchSignup("lastName");
+
+  const ctaText = useMemo(() => {
+    if (isPhoneComingSoon) return "Coming soon";
+
+    return authMode === "login" ? "Continue with email" : "Create account";
+  }, [authMode, isPhoneComingSoon]);
 
   // Derived in the background: first name + last initial, e.g. "Sam T.".
   const computedDisplayName = useMemo(() => {
-    const trimmedFirst = firstName.trim();
-    const trimmedLast = lastName.trim();
+    const trimmedFirst = signupFirstName.trim();
+    const trimmedLast = signupLastName.trim();
 
     if (!trimmedFirst) return trimmedLast;
     if (!trimmedLast) return trimmedFirst;
 
     return `${trimmedFirst} ${trimmedLast.charAt(0).toUpperCase()}.`;
-  }, [firstName, lastName]);
+  }, [signupFirstName, signupLastName]);
 
   function switchMode(mode: AuthMode) {
     setAuthMode(mode);
-    setErrors({});
-    setSignupErrors({});
+    resetLoginForm();
+    resetSignupForm();
+    setContactMode("email");
+    setSignupContactMode("email");
     setGeneralError("");
   }
 
-  async function handleLoginSubmit() {
-    const payload = {
-      mode: authMode,
-      contactMode,
-      contact,
-      password,
-    };
-
-    const parsed = authPayloadSchema.safeParse(payload);
-
-    if (!parsed.success) {
-      setErrors(toFieldErrors(parsed.error.issues));
-      return;
-    }
-
-    setErrors({});
+  const onLoginSubmit: SubmitHandler<LoginPayload> = async (data) => {
+    setGeneralError("");
     setIsSubmitting(true);
 
     try {
-      const result = await authenticate(parsed.data);
+      const result = await authenticate(data);
 
       if (!result.ok) {
         setGeneralError(result.message);
@@ -139,33 +154,22 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
-  async function handleSignupSubmit() {
-    const payload = {
-      username,
-      email,
-      password,
-      confirmPassword,
-      firstName,
-      lastName,
-      displayName: computedDisplayName,
-      phoneNumber: signupContactMode === "phone" ? phoneNumber : "",
-    };
-
-    const parsed = signupSchema.safeParse(payload);
-
-    if (!parsed.success) {
-      setSignupErrors(toSignupFieldErrors(parsed.error.issues));
-      return;
-    }
-
-    setSignupErrors({});
+  const onSignupSubmit: SubmitHandler<SignupPayload> = async (data) => {
+    setGeneralError("");
     setIsSubmitting(true);
 
-    try {
-      const result = await registerAccount(parsed.data);
+    console.log(data);
 
+    try {
+      const result = await registerAccount({
+        ...data,
+        displayName: computedDisplayName,
+        phoneNumber: signupContactMode === "phone" ? data.phoneNumber : "",
+      });
+
+      console.log(result);
       if (!result.ok) {
         setGeneralError(result.message);
         return;
@@ -177,18 +181,10 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  function noopSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setGeneralError("");
-
-    if (authMode === "login") {
-      await handleLoginSubmit();
-      return;
-    }
-
-    await handleSignupSubmit();
   }
 
   return (
@@ -287,11 +283,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
                   <button
                     type="button"
-                    onClick={() => {
-                      setContactMode("email");
-                      setContact("");
-                      setErrors({});
-                    }}
+                    onClick={() => setContactMode("email")}
                     disabled={isSubmitting}
                     className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       contactMode === "email"
@@ -303,11 +295,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setContactMode("phone");
-                      setContact("");
-                      setErrors({});
-                    }}
+                    onClick={() => setContactMode("phone")}
                     disabled={isSubmitting}
                     className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                       contactMode === "phone"
@@ -334,8 +322,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     type="button"
                     onClick={() => {
                       setSignupContactMode("email");
-                      setPhoneNumber("");
-                      setSignupErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+                      setSignupValue("phoneNumber", "");
+                      clearSignupErrors("phoneNumber");
                     }}
                     disabled={isSubmitting}
                     className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -350,7 +338,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     type="button"
                     onClick={() => {
                       setSignupContactMode("phone");
-                      setSignupErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+                      clearSignupErrors("phoneNumber");
                     }}
                     disabled={isSubmitting}
                     className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -365,37 +353,62 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               </>
             )}
 
-            <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
-              {authMode === "login" ? (
-                contactMode === "email" ? (
+            <form
+              className="mt-4 space-y-4"
+              onSubmit={
+                isPhoneComingSoon
+                  ? noopSubmit
+                  : authMode === "login"
+                    ? handleLoginFormSubmit(onLoginSubmit)
+                    : handleSignupFormSubmit(onSignupSubmit)
+              }
+              noValidate
+            >
+              {isPhoneComingSoon ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                  Phone {authMode === "login" ? "sign-in" : "sign-up"} is coming
+                  soon.
+                </div>
+              ) : authMode === "login" ? (
+                <>
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Email Address
+                      Username or Email
                     </span>
                     <input
-                      type="email"
-                      placeholder="you@example.com"
-                      value={contact}
-                      onChange={(event) => setContact(event.target.value)}
+                      type="text"
+                      placeholder="sam.loopdn"
+                      {...registerLogin("username")}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </label>
-                ) : (
+
+                  {loginErrors.username && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.username.message}
+                    </p>
+                  )}
+
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Phone Number
+                      Password
                     </span>
                     <input
-                      type="tel"
-                      placeholder="+1 (555) 000-0000"
-                      value={contact}
-                      onChange={(event) => setContact(event.target.value)}
+                      type="password"
+                      placeholder="Enter your password"
+                      {...registerLogin("password")}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </label>
-                )
+
+                  {loginErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.password.message}
+                    </p>
+                  )}
+                </>
               ) : (
                 <>
                   <label className="block">
@@ -405,15 +418,16 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <input
                       type="text"
                       placeholder="sam.loopdn"
-                      value={username}
-                      onChange={(event) => setUsername(event.target.value)}
+                      {...registerSignup("username")}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </label>
 
                   {signupErrors.username && (
-                    <p className="text-xs text-rose-600">{signupErrors.username}</p>
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.username.message}
+                    </p>
                   )}
 
                   <label className="block">
@@ -423,15 +437,16 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <input
                       type="email"
                       placeholder="you@example.com"
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
+                      {...registerSignup("email")}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
                   </label>
 
                   {signupErrors.email && (
-                    <p className="text-xs text-rose-600">{signupErrors.email}</p>
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.email.message}
+                    </p>
                   )}
 
                   <div className="grid grid-cols-2 gap-3">
@@ -442,14 +457,13 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                       <input
                         type="text"
                         placeholder="Sam"
-                        value={firstName}
-                        onChange={(event) => setFirstName(event.target.value)}
+                        {...registerSignup("firstName")}
                         disabled={isSubmitting}
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       {signupErrors.firstName && (
                         <p className="mt-1 text-xs text-rose-600">
-                          {signupErrors.firstName}
+                          {signupErrors.firstName.message}
                         </p>
                       )}
                     </label>
@@ -461,77 +475,37 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                       <input
                         type="text"
                         placeholder="Taylor"
-                        value={lastName}
-                        onChange={(event) => setLastName(event.target.value)}
+                        {...registerSignup("lastName")}
                         disabled={isSubmitting}
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       {signupErrors.lastName && (
                         <p className="mt-1 text-xs text-rose-600">
-                          {signupErrors.lastName}
+                          {signupErrors.lastName.message}
                         </p>
                       )}
                     </label>
                   </div>
 
-                  {signupContactMode === "phone" && (
-                    <>
-                      <label className="block">
-                        <span className="mb-1 block text-sm font-medium text-slate-700">
-                          Phone Number
-                        </span>
-                        <input
-                          type="tel"
-                          placeholder="+14155552671"
-                          value={phoneNumber}
-                          onChange={(event) => setPhoneNumber(event.target.value)}
-                          disabled={isSubmitting}
-                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        />
-                      </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Password
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Create a password"
+                      {...registerSignup("password")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
 
-                      {signupErrors.phoneNumber && (
-                        <p className="text-xs text-rose-600">
-                          {signupErrors.phoneNumber}
-                        </p>
-                      )}
-                    </>
+                  {signupErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.password.message}
+                    </p>
                   )}
-                </>
-              )}
 
-              {authMode === "login" && errors.contact && (
-                <p className="text-xs text-rose-600">{errors.contact}</p>
-              )}
-
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Password
-                </span>
-                <input
-                  type="password"
-                  placeholder={
-                    authMode === "signup"
-                      ? "Create a password"
-                      : "Enter your password"
-                  }
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                />
-              </label>
-
-              {errors.password && (
-                <p className="text-xs text-rose-600">{errors.password}</p>
-              )}
-
-              {signupErrors.password && (
-                <p className="text-xs text-rose-600">{signupErrors.password}</p>
-              )}
-
-              {authMode === "signup" && (
-                <>
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-slate-700">
                       Confirm Password
@@ -539,8 +513,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <input
                       type="password"
                       placeholder="Re-enter your password"
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      {...registerSignup("confirmPassword")}
                       disabled={isSubmitting}
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
@@ -548,7 +521,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
                   {signupErrors.confirmPassword && (
                     <p className="text-xs text-rose-600">
-                      {signupErrors.confirmPassword}
+                      {signupErrors.confirmPassword.message}
                     </p>
                   )}
 
@@ -566,7 +539,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isPhoneComingSoon}
                 className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? <LoadingSpinner /> : ctaText}
