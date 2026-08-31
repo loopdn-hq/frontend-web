@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { authenticate } from "@/lib/auth/client";
-import { DUMMY_ACCOUNT } from "@/lib/auth/session";
-import { authPayloadSchema, toFieldErrors } from "@/lib/validation/auth";
+import { useForm, type SubmitHandler } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { authenticate, registerAccount } from "@/lib/auth/client";
+import {
+  loginSchema,
+  signupSchema,
+  type LoginPayload,
+  type SignupPayload,
+} from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 
@@ -23,7 +29,7 @@ const panelTitle: Record<AuthMode, string> = {
 
 const panelSubTitle: Record<AuthMode, string> = {
   login: "Sign in to manage groups, members, and broadcasts.",
-  signup: "Create an account with email or phone to get started.",
+  signup: "Create an account with your email to get started.",
 };
 
 function GoogleIcon() {
@@ -52,48 +58,90 @@ function GoogleIcon() {
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
+  // Email vs. phone tab; phone sign-in/sign-up is not implemented yet.
   const [contactMode, setContactMode] = useState<ContactMode>("email");
-  const [contact, setContact] = useState("");
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<
-    Partial<Record<"contact" | "password", string>>
-  >({});
+  const [signupContactMode, setSignupContactMode] =
+    useState<ContactMode>("email");
+
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const isPhoneComingSoon =
+    (authMode === "login" && contactMode === "phone") ||
+    (authMode === "signup" && signupContactMode === "phone");
+
+  // Login form, POST /users/login/ (username field accepts a username or email).
+  const {
+    register: registerLogin,
+    handleSubmit: handleLoginFormSubmit,
+    reset: resetLoginForm,
+    formState: { errors: loginErrors },
+  } = useForm<LoginPayload>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  // Signup form, required by POST /users/register/.
+  const {
+    register: registerSignup,
+    handleSubmit: handleSignupFormSubmit,
+    watch: watchSignup,
+    setValue: setSignupValue,
+    clearErrors: clearSignupErrors,
+    reset: resetSignupForm,
+    formState: { errors: signupErrors },
+  } = useForm<SignupPayload>({
+    resolver: zodResolver(signupSchema),
+    defaultValues: {
+      username: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+      firstName: "",
+      lastName: "",
+      displayName: "",
+      phoneNumber: "",
+    },
+  });
+
+  const signupFirstName = watchSignup("firstName");
+  const signupLastName = watchSignup("lastName");
+
   const ctaText = useMemo(() => {
-    if (authMode === "login") {
-      return contactMode === "email"
-        ? "Continue with email"
-        : "Continue with phone";
-    }
+    if (isPhoneComingSoon) return "Coming soon";
 
-    return contactMode === "email" ? "Create account" : "Create phone account";
-  }, [authMode, contactMode]);
+    return authMode === "login" ? "Continue with email" : "Create account";
+  }, [authMode, isPhoneComingSoon]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  // Derived in the background: first name + last initial, e.g. "Sam T.".
+  const computedDisplayName = useMemo(() => {
+    const trimmedFirst = signupFirstName.trim();
+    const trimmedLast = signupLastName.trim();
+
+    if (!trimmedFirst) return trimmedLast;
+    if (!trimmedLast) return trimmedFirst;
+
+    return `${trimmedFirst} ${trimmedLast.charAt(0).toUpperCase()}.`;
+  }, [signupFirstName, signupLastName]);
+
+  function switchMode(mode: AuthMode) {
+    setAuthMode(mode);
+    resetLoginForm();
+    resetSignupForm();
+    setContactMode("email");
+    setSignupContactMode("email");
     setGeneralError("");
+  }
 
-    const payload = {
-      mode: authMode,
-      contactMode,
-      contact,
-      password,
-    };
-
-    const parsed = authPayloadSchema.safeParse(payload);
-
-    if (!parsed.success) {
-      setErrors(toFieldErrors(parsed.error.issues));
-      return;
-    }
-
-    setErrors({});
+  const onLoginSubmit: SubmitHandler<LoginPayload> = async (data) => {
+    setGeneralError("");
     setIsSubmitting(true);
 
     try {
-      const result = await authenticate(parsed.data);
+      const result = await authenticate(data);
 
       if (!result.ok) {
         setGeneralError(result.message);
@@ -106,6 +154,37 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const onSignupSubmit: SubmitHandler<SignupPayload> = async (data) => {
+    setGeneralError("");
+    setIsSubmitting(true);
+
+    console.log(data);
+
+    try {
+      const result = await registerAccount({
+        ...data,
+        displayName: computedDisplayName,
+        phoneNumber: signupContactMode === "phone" ? data.phoneNumber : "",
+      });
+
+      console.log(result);
+      if (!result.ok) {
+        setGeneralError(result.message);
+        return;
+      }
+
+      router.push("/home");
+    } catch {
+      setGeneralError("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  function noopSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
   }
 
   return (
@@ -153,7 +232,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1">
               <Link
                 href="/login"
-                onClick={() => setAuthMode("login")}
+                onClick={() => switchMode("login")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "login"
                     ? "bg-white text-sky-700 shadow-sm"
@@ -164,7 +243,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               </Link>
               <Link
                 href="/signup"
-                onClick={() => setAuthMode("signup")}
+                onClick={() => switchMode("signup")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "signup"
                     ? "bg-white text-sky-700 shadow-sm"
@@ -193,110 +272,263 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               Continue with Google
             </button>
 
-            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-              <div className="h-px flex-1 bg-slate-200" />
-              or continue with email or phone
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
+            {authMode === "login" && (
+              <>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or continue with email or phone
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
 
-            <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("email");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "email"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("phone");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "phone"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Phone
-              </button>
-            </div>
-
-            <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
-              {contactMode === "email" ? (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Email Address
-                  </span>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
+                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setContactMode("email")}
                     disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      contactMode === "email"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setContactMode("phone")}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      contactMode === "phone"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Phone
+                  </button>
+                </div>
+              </>
+            )}
+
+            {authMode === "signup" && (
+              <>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or sign up with email or phone
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+
+                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignupContactMode("email");
+                      setSignupValue("phoneNumber", "");
+                      clearSignupErrors("phoneNumber");
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      signupContactMode === "email"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignupContactMode("phone");
+                      clearSignupErrors("phoneNumber");
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      signupContactMode === "phone"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Phone
+                  </button>
+                </div>
+              </>
+            )}
+
+            <form
+              className="mt-4 space-y-4"
+              onSubmit={
+                isPhoneComingSoon
+                  ? noopSubmit
+                  : authMode === "login"
+                    ? handleLoginFormSubmit(onLoginSubmit)
+                    : handleSignupFormSubmit(onSignupSubmit)
+              }
+              noValidate
+            >
+              {isPhoneComingSoon ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
+                  Phone {authMode === "login" ? "sign-in" : "sign-up"} is coming
+                  soon.
+                </div>
+              ) : authMode === "login" ? (
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Username or Email
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="sam.loopdn"
+                      {...registerLogin("username")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {loginErrors.username && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.username.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Password
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Enter your password"
+                      {...registerLogin("password")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {loginErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.password.message}
+                    </p>
+                  )}
+                </>
               ) : (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Phone Number
-                  </span>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
-              )}
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Username
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="sam.loopdn"
+                      {...registerSignup("username")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
 
-              {errors.contact && (
-                <p className="text-xs text-rose-600">{errors.contact}</p>
-              )}
+                  {signupErrors.username && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.username.message}
+                    </p>
+                  )}
 
-              <label className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Password
-                </span>
-                <input
-                  type="password"
-                  placeholder={
-                    authMode === "signup"
-                      ? "Create a password"
-                      : "Enter your password"
-                  }
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  disabled={isSubmitting}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                />
-              </label>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Email Address
+                    </span>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      {...registerSignup("email")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
 
-              {errors.password && (
-                <p className="text-xs text-rose-600">{errors.password}</p>
-              )}
+                  {signupErrors.email && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.email.message}
+                    </p>
+                  )}
 
-              {authMode === "signup" && (
-                <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your{" "}
-                  {contactMode === "email" ? "email" : "phone number"} before
-                  enabling admin actions.
-                </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">
+                        First Name
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Sam"
+                        {...registerSignup("firstName")}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {signupErrors.firstName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.firstName.message}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">
+                        Last Name
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Taylor"
+                        {...registerSignup("lastName")}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {signupErrors.lastName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.lastName.message}
+                        </p>
+                      )}
+                    </label>
+                  </div>
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Password
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Create a password"
+                      {...registerSignup("password")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.password.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Confirm Password
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Re-enter your password"
+                      {...registerSignup("confirmPassword")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.confirmPassword && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.confirmPassword.message}
+                    </p>
+                  )}
+
+                  <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                    We will verify your email before enabling admin actions.
+                  </p>
+                </>
               )}
 
               {generalError && (
@@ -307,7 +539,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isPhoneComingSoon}
                 className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? <LoadingSpinner /> : ctaText}
