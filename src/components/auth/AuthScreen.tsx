@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { authenticate } from "@/lib/auth/client";
-import { DUMMY_ACCOUNT } from "@/lib/auth/session";
-import { authPayloadSchema, toFieldErrors } from "@/lib/validation/auth";
+import { authenticate, registerAccount } from "@/lib/auth/client";
+import {
+  authPayloadSchema,
+  signupSchema,
+  toFieldErrors,
+  toSignupFieldErrors,
+  type SignupFieldErrors,
+} from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 
@@ -23,7 +28,7 @@ const panelTitle: Record<AuthMode, string> = {
 
 const panelSubTitle: Record<AuthMode, string> = {
   login: "Sign in to manage groups, members, and broadcasts.",
-  signup: "Create an account with email or phone to get started.",
+  signup: "Create an account with your email to get started.",
 };
 
 function GoogleIcon() {
@@ -58,6 +63,19 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   const [errors, setErrors] = useState<
     Partial<Record<"contact" | "password", string>>
   >({});
+
+  // Signup-only fields, required by POST /users/register/.
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  // Sign up with email vs. sign up with phone; phone number only applies to the latter.
+  const [signupContactMode, setSignupContactMode] =
+    useState<ContactMode>("email");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [signupErrors, setSignupErrors] = useState<SignupFieldErrors>({});
+
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -68,13 +86,28 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         : "Continue with phone";
     }
 
-    return contactMode === "email" ? "Create account" : "Create phone account";
+    return "Create account";
   }, [authMode, contactMode]);
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setGeneralError("");
+  // Derived in the background: first name + last initial, e.g. "Sam T.".
+  const computedDisplayName = useMemo(() => {
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
 
+    if (!trimmedFirst) return trimmedLast;
+    if (!trimmedLast) return trimmedFirst;
+
+    return `${trimmedFirst} ${trimmedLast.charAt(0).toUpperCase()}.`;
+  }, [firstName, lastName]);
+
+  function switchMode(mode: AuthMode) {
+    setAuthMode(mode);
+    setErrors({});
+    setSignupErrors({});
+    setGeneralError("");
+  }
+
+  async function handleLoginSubmit() {
     const payload = {
       mode: authMode,
       contactMode,
@@ -106,6 +139,56 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleSignupSubmit() {
+    const payload = {
+      username,
+      email,
+      password,
+      confirmPassword,
+      firstName,
+      lastName,
+      displayName: computedDisplayName,
+      phoneNumber: signupContactMode === "phone" ? phoneNumber : "",
+    };
+
+    const parsed = signupSchema.safeParse(payload);
+
+    if (!parsed.success) {
+      setSignupErrors(toSignupFieldErrors(parsed.error.issues));
+      return;
+    }
+
+    setSignupErrors({});
+    setIsSubmitting(true);
+
+    try {
+      const result = await registerAccount(parsed.data);
+
+      if (!result.ok) {
+        setGeneralError(result.message);
+        return;
+      }
+
+      router.push("/home");
+    } catch {
+      setGeneralError("Network error. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGeneralError("");
+
+    if (authMode === "login") {
+      await handleLoginSubmit();
+      return;
+    }
+
+    await handleSignupSubmit();
   }
 
   return (
@@ -153,7 +236,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1">
               <Link
                 href="/login"
-                onClick={() => setAuthMode("login")}
+                onClick={() => switchMode("login")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "login"
                     ? "bg-white text-sky-700 shadow-sm"
@@ -164,7 +247,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               </Link>
               <Link
                 href="/signup"
-                onClick={() => setAuthMode("signup")}
+                onClick={() => switchMode("signup")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "signup"
                     ? "bg-white text-sky-700 shadow-sm"
@@ -193,79 +276,231 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               Continue with Google
             </button>
 
-            <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-              <div className="h-px flex-1 bg-slate-200" />
-              or continue with email or phone
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
+            {authMode === "login" && (
+              <>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or continue with email or phone
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
 
-            <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("email");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "email"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Email
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setContactMode("phone");
-                  setContact("");
-                  setErrors({});
-                }}
-                disabled={isSubmitting}
-                className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                  contactMode === "phone"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
-                } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-              >
-                Phone
-              </button>
-            </div>
+                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactMode("email");
+                      setContact("");
+                      setErrors({});
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      contactMode === "email"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setContactMode("phone");
+                      setContact("");
+                      setErrors({});
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      contactMode === "phone"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Phone
+                  </button>
+                </div>
+              </>
+            )}
+
+            {authMode === "signup" && (
+              <>
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or sign up with email or phone
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+
+                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignupContactMode("email");
+                      setPhoneNumber("");
+                      setSignupErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      signupContactMode === "email"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Email
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSignupContactMode("phone");
+                      setSignupErrors((prev) => ({ ...prev, phoneNumber: undefined }));
+                    }}
+                    disabled={isSubmitting}
+                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                      signupContactMode === "phone"
+                        ? "bg-white text-sky-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    Phone
+                  </button>
+                </div>
+              </>
+            )}
 
             <form className="mt-4 space-y-4" onSubmit={handleSubmit} noValidate>
-              {contactMode === "email" ? (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Email Address
-                  </span>
-                  <input
-                    type="email"
-                    placeholder="you@example.com"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
+              {authMode === "login" ? (
+                contactMode === "email" ? (
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Email Address
+                    </span>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={contact}
+                      onChange={(event) => setContact(event.target.value)}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+                ) : (
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Phone Number
+                    </span>
+                    <input
+                      type="tel"
+                      placeholder="+1 (555) 000-0000"
+                      value={contact}
+                      onChange={(event) => setContact(event.target.value)}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+                )
               ) : (
-                <label className="block">
-                  <span className="mb-1 block text-sm font-medium text-slate-700">
-                    Phone Number
-                  </span>
-                  <input
-                    type="tel"
-                    placeholder="+1 (555) 000-0000"
-                    value={contact}
-                    onChange={(event) => setContact(event.target.value)}
-                    disabled={isSubmitting}
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
-                </label>
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Username
+                    </span>
+                    <input
+                      type="text"
+                      placeholder="sam.loopdn"
+                      value={username}
+                      onChange={(event) => setUsername(event.target.value)}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.username && (
+                    <p className="text-xs text-rose-600">{signupErrors.username}</p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Email Address
+                    </span>
+                    <input
+                      type="email"
+                      placeholder="you@example.com"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.email && (
+                    <p className="text-xs text-rose-600">{signupErrors.email}</p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">
+                        First Name
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Sam"
+                        value={firstName}
+                        onChange={(event) => setFirstName(event.target.value)}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {signupErrors.firstName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.firstName}
+                        </p>
+                      )}
+                    </label>
+
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-slate-700">
+                        Last Name
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Taylor"
+                        value={lastName}
+                        onChange={(event) => setLastName(event.target.value)}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      {signupErrors.lastName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.lastName}
+                        </p>
+                      )}
+                    </label>
+                  </div>
+
+                  {signupContactMode === "phone" && (
+                    <>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-slate-700">
+                          Phone Number
+                        </span>
+                        <input
+                          type="tel"
+                          placeholder="+14155552671"
+                          value={phoneNumber}
+                          onChange={(event) => setPhoneNumber(event.target.value)}
+                          disabled={isSubmitting}
+                          className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        />
+                      </label>
+
+                      {signupErrors.phoneNumber && (
+                        <p className="text-xs text-rose-600">
+                          {signupErrors.phoneNumber}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </>
               )}
 
-              {errors.contact && (
+              {authMode === "login" && errors.contact && (
                 <p className="text-xs text-rose-600">{errors.contact}</p>
               )}
 
@@ -291,12 +526,36 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 <p className="text-xs text-rose-600">{errors.password}</p>
               )}
 
+              {signupErrors.password && (
+                <p className="text-xs text-rose-600">{signupErrors.password}</p>
+              )}
+
               {authMode === "signup" && (
-                <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                  We will verify your{" "}
-                  {contactMode === "email" ? "email" : "phone number"} before
-                  enabling admin actions.
-                </p>
+                <>
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Confirm Password
+                    </span>
+                    <input
+                      type="password"
+                      placeholder="Re-enter your password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.confirmPassword && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.confirmPassword}
+                    </p>
+                  )}
+
+                  <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                    We will verify your email before enabling admin actions.
+                  </p>
+                </>
               )}
 
               {generalError && (

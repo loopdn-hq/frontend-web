@@ -6,7 +6,9 @@ import {
   SESSION_COOKIE_NAME,
   isDummyCredential,
 } from "./session";
-import type { AuthPayload } from "@/lib/validation/auth";
+import type { AuthPayload, SignupPayload } from "@/lib/validation/auth";
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 // Client-side session, so every route can be prerendered to static HTML and
 // served from S3. The previous server-side flow (cookies() in a page, POST
@@ -92,4 +94,55 @@ export async function authenticate(payload: AuthPayload): Promise<AuthResult> {
   setSession(value);
 
   return { ok: true, displayName: displayNameForSession(value) };
+}
+
+// POST /api/v1/users/register/ on the Django API.
+export async function registerAccount(
+  payload: SignupPayload,
+): Promise<AuthResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/register/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: payload.username,
+        email: payload.email,
+        password: payload.password,
+        confirm_password: payload.confirmPassword,
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        display_name: payload.displayName?.trim() || payload.firstName,
+        phone_number: payload.phoneNumber,
+      }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to create your account. Please try again.",
+      };
+    }
+
+    setSession(payload.username);
+
+    return { ok: true, displayName: payload.displayName?.trim() || payload.firstName };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// DRF validation errors are field -> [messages]; surface the first one found.
+function extractErrorMessage(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+
+  for (const value of Object.values(data as Record<string, unknown>)) {
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && typeof value[0] === "string") return value[0];
+  }
+
+  return null;
 }
