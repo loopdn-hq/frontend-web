@@ -16,7 +16,6 @@ import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 
 export type AuthMode = "login" | "signup";
-type ContactMode = "email" | "phone";
 
 type AuthScreenProps = {
   initialMode: AuthMode;
@@ -58,14 +57,9 @@ function GoogleIcon() {
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
-  // Email vs. phone tab; phone sign-in is not implemented yet. Signup always
-  // collects both email and phone in one form.
-  const [contactMode, setContactMode] = useState<ContactMode>("email");
 
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const isPhoneComingSoon = authMode === "login" && contactMode === "phone";
 
   // Login form, POST /users/login/ (username field accepts a username or email).
   const {
@@ -105,11 +99,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   const signupFirstName = watchSignup("firstName");
   const signupLastName = watchSignup("lastName");
 
-  const ctaText = useMemo(() => {
-    if (isPhoneComingSoon) return "Coming soon";
-
-    return authMode === "login" ? "Continue with email" : "Create account";
-  }, [authMode, isPhoneComingSoon]);
+  const ctaText =
+    authMode === "login" ? "Continue with email" : "Create account";
 
   // Derived in the background: first name + last initial, e.g. "Sam T.".
   const computedDisplayName = useMemo(() => {
@@ -126,7 +117,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     setAuthMode(mode);
     resetLoginForm();
     resetSignupForm();
-    setContactMode("email");
     setGeneralError("");
   }
 
@@ -172,10 +162,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
       setIsSubmitting(false);
     }
   };
-
-  function noopSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 sm:px-8">
@@ -263,40 +249,11 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             </button>
 
             {authMode === "login" && (
-              <>
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  or continue with email or phone
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
-
-                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setContactMode("email")}
-                    disabled={isSubmitting}
-                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      contactMode === "email"
-                        ? "bg-white text-sky-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-                  >
-                    Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setContactMode("phone")}
-                    disabled={isSubmitting}
-                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      contactMode === "phone"
-                        ? "bg-white text-sky-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-                  >
-                    Phone
-                  </button>
-                </div>
-              </>
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                <div className="h-px flex-1 bg-slate-200" />
+                or continue with email
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
             )}
 
             {authMode === "signup" && (
@@ -310,20 +267,13 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             <form
               className="mt-4 space-y-4"
               onSubmit={
-                isPhoneComingSoon
-                  ? noopSubmit
-                  : authMode === "login"
-                    ? handleLoginFormSubmit(onLoginSubmit)
-                    : handleSignupFormSubmit(onSignupSubmit)
+                authMode === "login"
+                  ? handleLoginFormSubmit(onLoginSubmit)
+                  : handleSignupFormSubmit(onSignupSubmit)
               }
               noValidate
             >
-              {isPhoneComingSoon ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-10 text-center text-sm text-slate-500">
-                  Phone {authMode === "login" ? "sign-in" : "sign-up"} is coming
-                  soon.
-                </div>
-              ) : authMode === "login" ? (
+              {authMode === "login" ? (
                 <>
                   <label className="block">
                     <span className="mb-1 block text-sm font-medium text-slate-700">
@@ -512,7 +462,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               <button
                 type="submit"
-                disabled={isSubmitting || isPhoneComingSoon}
+                disabled={isSubmitting}
                 className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? <LoadingSpinner /> : ctaText}
