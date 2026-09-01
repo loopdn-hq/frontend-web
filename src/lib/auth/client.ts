@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import { googleLogout } from "@react-oauth/google";
 import {
   ACCESS_TOKEN_KEY,
@@ -193,15 +193,17 @@ export function useSession(): string | null {
   return useSyncExternalStore(subscribe, getSession, () => null);
 }
 
+const emptySubscribe = () => () => {};
+
 // Client-safe auth hook that indicates whether hydration/localStorage has loaded.
 // Guards should never redirect until isLoaded is true.
 export function useAuth(): { session: string | null; isLoaded: boolean } {
-  const [isLoaded, setIsLoaded] = useState(false);
+  const isLoaded = useSyncExternalStore(
+    emptySubscribe,
+    () => typeof window !== "undefined",
+    () => false,
+  );
   const session = useSyncExternalStore(subscribe, getSession, () => null);
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
 
   return { session: isLoaded ? session : null, isLoaded };
 }
