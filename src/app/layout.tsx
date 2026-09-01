@@ -17,8 +17,8 @@ const mono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Loopdn Auth",
-  description: "Loopdn web authentication MVP",
+  title: "Loopd'n",
+  description: "Loopdn: The group chat where everyone stays connected.",
 };
 
 // Applies the saved theme before hydration to avoid a light/dark flash.

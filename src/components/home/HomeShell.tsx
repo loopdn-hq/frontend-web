@@ -2,7 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, fetchUserProfile, usePhoneVerified } from "@/lib/auth/client";
+import {
+  clearSession,
+  fetchUserProfile,
+  usePhoneVerified,
+} from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
@@ -116,7 +120,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
     fetchUserProfile().then((result) => {
       if (cancelled || !result.ok) return;
 
-      console.log(result)
+      console.log(result);
 
       setUserProfile((prev) => ({
         displayName: result.displayName || prev.displayName,

@@ -9,7 +9,11 @@ type LegalLayoutProps = {
 
 // Shared shell for /terms and /privacy - matches the auth screen's visual
 // language but as a scrollable long-form document instead of a card.
-export function LegalLayout({ title, lastUpdated, children }: LegalLayoutProps) {
+export function LegalLayout({
+  title,
+  lastUpdated,
+  children,
+}: LegalLayoutProps) {
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-10 sm:px-8">
       <div className="pointer-events-none absolute -left-16 top-16 h-52 w-52 rounded-full bg-cyan-300/40 blur-3xl" />
@@ -26,7 +30,9 @@ export function LegalLayout({ title, lastUpdated, children }: LegalLayoutProps) 
         <h1 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">
           {title}
         </h1>
-        <p className="mt-1 text-sm text-slate-500">Last updated {lastUpdated}</p>
+        <p className="mt-1 text-sm text-slate-500">
+          Last updated {lastUpdated}
+        </p>
 
         <article className="prose-legal mt-8 space-y-6 text-sm leading-6 text-slate-700 sm:text-base sm:leading-7">
           {children}
