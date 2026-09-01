@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useCallback, useMemo, useState } from "react";
+import { useForm, type SubmitHandler, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { authenticate, registerAccount } from "@/lib/auth/client";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
+import {
+  authenticate,
+  authenticateWithGoogle,
+  registerAccount,
+} from "@/lib/auth/client";
 import {
   loginSchema,
   signupSchema,
@@ -31,35 +36,50 @@ const panelSubTitle: Record<AuthMode, string> = {
   signup: "Create an account with your email and phone number.",
 };
 
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M21.6 12.23c0-.69-.06-1.35-.18-1.99H12v3.76h5.39a4.6 4.6 0 0 1-1.99 3.02v2.5h3.22c1.89-1.74 2.98-4.3 2.98-7.29Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 22c2.7 0 4.96-.9 6.61-2.43l-3.22-2.5c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H.81v2.58A10 10 0 0 0 12 22Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.41 19.88A6.02 6.02 0 0 1 6 16.7V14.1H2.72A9.97 9.97 0 0 0 2 12c0-1.61.39-3.13 1.08-4.46L6.41 10.3A6.04 6.04 0 0 1 6 12c0 .75.13 1.48.41 2.18v5.7Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 3.98c1.47 0 2.8.5 3.84 1.5l2.87-2.87A9.95 9.95 0 0 0 12 2a10 10 0 0 0-9.19 5.54l3.7 2.88A6.03 6.03 0 0 1 12 3.98Z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
-}
-
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
 
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      setGeneralError("");
+      setIsGoogleLoading(true);
+
+      try {
+        const result = await authenticateWithGoogle(credential);
+
+        if (!result.ok) {
+          setGeneralError(result.message);
+          return;
+        }
+
+        // New Google accounts have no phone_number yet - collect one before home.
+        router.push(result.isNewAccount ? "/add-phone/" : "/home/");
+      } catch {
+        setGeneralError("Network error. Please try again.");
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    },
+    [router],
+  );
+
+  function handleGoogleSuccess(credentialResponse: CredentialResponse) {
+    if (!credentialResponse.credential) {
+      setGeneralError("Google didn't return a credential. Please try again.");
+      return;
+    }
+
+    void handleGoogleCredential(credentialResponse.credential);
+  }
+
+  function handleGoogleError() {
+    setGeneralError("Unable to continue with Google. Please try again.");
+  }
 
   // Login form, POST /users/login/ (username field accepts a username or email).
   const {
@@ -77,9 +97,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
   // Signup form, required by POST /users/register/.
   const {
+    control,
     register: registerSignup,
     handleSubmit: handleSignupFormSubmit,
-    watch: watchSignup,
     reset: resetSignupForm,
     formState: { errors: signupErrors },
   } = useForm<SignupPayload>({
@@ -96,8 +116,14 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     },
   });
 
-  const signupFirstName = watchSignup("firstName");
-  const signupLastName = watchSignup("lastName");
+  const signupFirstName = useWatch({
+    control,
+    name: "firstName",
+  });
+  const signupLastName = useWatch({
+    control,
+    name: "lastName",
+  });
 
   const ctaText =
     authMode === "login" ? "Continue with email" : "Create account";
@@ -132,7 +158,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/home");
+      router.push("/home/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -155,7 +181,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/verify-phone");
+      router.push("/verify-phone/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -207,7 +233,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
             <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1">
               <Link
-                href="/login"
+                href="/login/"
                 onClick={() => switchMode("login")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "login"
@@ -218,7 +244,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 Log In
               </Link>
               <Link
-                href="/signup"
+                href="/signup/"
                 onClick={() => switchMode("signup")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "signup"
@@ -237,16 +263,19 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {panelSubTitle[authMode]}
             </p>
 
-            <button
-              type="button"
-              disabled={isSubmitting}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition hover:bg-slate-50 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
-                <GoogleIcon />
-              </span>
-              Continue with Google
-            </button>
+            <div className="flex w-full justify-center [&>div]:w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                width="336"
+                text={authMode === "login" ? "signin_with" : "signup_with"}
+              />
+            </div>
+            {isGoogleLoading && (
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Connecting to Google...
+              </p>
+            )}
 
             {authMode === "login" && (
               <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">

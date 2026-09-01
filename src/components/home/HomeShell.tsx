@@ -144,7 +144,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
   function handleLogout() {
     clearSession();
-    router.push("/login");
+    router.push("/login/");
   }
 
   const handleWebSocketMessage = useCallback(

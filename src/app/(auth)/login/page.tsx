@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (session) {
-      router.replace("/home");
+      router.replace("/home/");
     }
   }, [router, session]);
 

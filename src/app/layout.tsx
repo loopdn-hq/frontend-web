@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
@@ -45,7 +46,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <GoogleOAuthProvider
+          clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""}
+        >
+          <ThemeProvider>{children}</ThemeProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );

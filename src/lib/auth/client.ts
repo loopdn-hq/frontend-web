@@ -24,7 +24,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 const SESSION_EVENT = "loopdn:session";
 
 export type AuthResult =
-  { ok: true; displayName: string } | { ok: false; message: string };
+  | { ok: true; displayName: string; isNewAccount?: boolean }
+  | { ok: false; message: string };
 
 export function getSession(): string | null {
   if (typeof window === "undefined") return null;
@@ -219,6 +220,55 @@ export async function authenticate(payload: LoginPayload): Promise<AuthResult> {
   }
 }
 
+// POST /api/v1/users/google/ — exchanges a Google Identity Services ID token
+// for a session. 201 means a new account was created, 200 an existing one
+// signed in; both come back with the same user/tokens shape as /users/login/.
+export async function authenticateWithGoogle(
+  credential: string,
+): Promise<AuthResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/google/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to continue with Google. Please try again.",
+      };
+    }
+
+    const envelope = data as {
+      data?: {
+        user?: { username?: string; display_name?: string };
+        tokens?: { access?: string; refresh?: string };
+      };
+    };
+    const tokens = envelope.data?.tokens;
+
+    if (tokens?.access && tokens?.refresh) {
+      setTokens(tokens.access, tokens.refresh);
+    }
+
+    const username = envelope.data?.user?.username ?? "";
+    setSession(username);
+
+    return {
+      ok: true,
+      displayName: envelope.data?.user?.display_name || username,
+      isNewAccount: response.status === 201,
+    };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
 // POST /api/v1/users/register/ on the Django API. Registering issues no
 // tokens, so a successful signup immediately logs in with the same credentials.
 export async function registerAccount(
@@ -261,6 +311,50 @@ export async function registerAccount(
     }
 
     return result;
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// PATCH /api/v1/users/me/profile/ — sets phone_number for accounts (e.g. from
+// Google sign-in) that didn't collect one at registration. Requires the
+// access token set by authenticate()/authenticateWithGoogle().
+export async function updatePhoneNumber(
+  phoneNumber: string,
+): Promise<AuthResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to add a phone number.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ phone_number: phoneNumber }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to save that phone number. Please try again.",
+      };
+    }
+
+    setPendingPhone(phoneNumber);
+
+    return { ok: true, displayName: phoneNumber };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }
