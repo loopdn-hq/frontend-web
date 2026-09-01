@@ -117,13 +117,13 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   });
 
   const signupFirstName = useWatch({
-  control,
-  name: "firstName",
-});
+    control,
+    name: "firstName",
+  });
   const signupLastName = useWatch({
-  control,
-  name: "lastName",
-});
+    control,
+    name: "lastName",
+  });
 
   const ctaText =
     authMode === "login" ? "Continue with email" : "Create account";

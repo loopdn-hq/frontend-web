@@ -325,7 +325,10 @@ export async function updatePhoneNumber(
   const accessToken = getAccessToken();
 
   if (!accessToken) {
-    return { ok: false, message: "You must be signed in to add a phone number." };
+    return {
+      ok: false,
+      message: "You must be signed in to add a phone number.",
+    };
   }
 
   try {
