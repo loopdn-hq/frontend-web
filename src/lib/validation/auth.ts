@@ -59,12 +59,13 @@ export const signupSchema = z
       .trim()
       .max(50, "Must be less than 51 characters.")
       .optional(),
-    // Optional here: email signup leaves this blank, phone signup (the other tab) requires it.
+    // Email + phone are both required for signup.
     phoneNumber: z
       .string()
       .trim()
+      .min(1, "Phone number is required.")
       .refine(
-        (value) => value === "" || e164Phone.test(normalizePhone(value)),
+        (value) => e164Phone.test(normalizePhone(value)),
         "Enter a valid phone number including country code, e.g. +14155552671.",
       ),
   })

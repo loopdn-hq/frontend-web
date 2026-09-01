@@ -2,10 +2,11 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession } from "@/lib/auth/client";
+import { clearSession, usePhoneVerified } from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
+import { VerifyPhoneModal } from "./VerifyPhoneModal";
 import {
   UserSettingsModal,
   type UserProfile,
@@ -104,7 +105,19 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isCreateLoopOpen, setIsCreateLoopOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
+  const phoneVerified = usePhoneVerified();
+
+  // Gate actions that need a verified phone (Create Loop, etc.) behind the modal.
+  function requirePhoneVerified(action: () => void) {
+    if (phoneVerified) {
+      action();
+      return;
+    }
+
+    setIsVerifyPhoneOpen(true);
+  }
 
   // Store messages per loop
   const [loopMessages, setLoopMessages] = useState<
@@ -348,7 +361,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
           <button
             type="button"
-            onClick={() => setIsCreateLoopOpen(true)}
+            onClick={() => requirePhoneVerified(() => setIsCreateLoopOpen(true))}
             className="mb-4 w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
           >
             + Create Loop
@@ -584,6 +597,16 @@ export function HomeShell({ displayName }: HomeShellProps) {
         onClose={() => setIsCreateLoopOpen(false)}
         onSuccess={handleCreateLoopSuccess}
       />
+
+      {isVerifyPhoneOpen && (
+        <VerifyPhoneModal
+          onVerified={() => {
+            setIsVerifyPhoneOpen(false);
+            setIsCreateLoopOpen(true);
+          }}
+          onClose={() => setIsVerifyPhoneOpen(false)}
+        />
+      )}
 
       {isAdminPanelOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
