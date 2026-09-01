@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearSession, usePhoneVerified } from "@/lib/auth/client";
+import { clearSession, fetchUserProfile, usePhoneVerified } from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
@@ -108,6 +108,27 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
   const phoneVerified = usePhoneVerified();
+
+  // Fill in email/phone (and a real display name) from the backend profile.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchUserProfile().then((result) => {
+      if (cancelled || !result.ok) return;
+
+      console.log(result)
+
+      setUserProfile((prev) => ({
+        displayName: result.displayName || prev.displayName,
+        email: result.email ?? prev.email,
+        phone: result.phone ?? prev.phone,
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Gate actions that need a verified phone (Create Loop, etc.) behind the modal.
   function requirePhoneVerified(action: () => void) {

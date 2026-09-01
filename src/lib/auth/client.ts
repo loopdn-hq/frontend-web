@@ -360,6 +360,56 @@ export async function updatePhoneNumber(
   }
 }
 
+export type ProfileResult =
+  | { ok: true; displayName?: string; email?: string; phone?: string }
+  | { ok: false; message: string };
+
+// GET /api/v1/users/me/profile/ — the messaging profile (display name,
+// phone, bio, avatar), separate from the base account. Requires the access
+// token set by authenticate()/authenticateWithGoogle().
+export async function fetchUserProfile(): Promise<ProfileResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to load your profile.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: extractErrorMessage(data) ?? "Unable to load your profile.",
+      };
+    }
+
+    const envelope = data as {
+      data?: {
+        display_name?: string;
+        email?: string;
+        phone_number?: string;
+      };
+    };
+
+    return {
+      ok: true,
+      displayName: envelope.data?.display_name,
+      email: envelope.data?.email,
+      phone: envelope.data?.phone_number,
+    };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
 // POST /api/v1/users/me/phone/request-code/ — sends a verification SMS to the
 // signed-in user's phone. Requires the access token set by authenticate().
 export async function requestPhoneVerificationCode(

@@ -501,7 +501,15 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             </form>
 
             <p className="mt-6 text-center text-xs text-slate-500">
-              By continuing, you agree to Loopdn Terms and Privacy Policy.
+              By continuing, you agree to Loopd&apos;n{" "}
+              <Link href="/terms/" className="underline hover:text-slate-700">
+                Terms
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy/" className="underline hover:text-slate-700">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </div>
         </div>
