@@ -274,7 +274,10 @@ export async function requestPhoneVerificationCode(
   const accessToken = getAccessToken();
 
   if (!accessToken) {
-    return { ok: false, message: "You must be signed in to verify a phone number." };
+    return {
+      ok: false,
+      message: "You must be signed in to verify a phone number.",
+    };
   }
 
   try {
@@ -313,7 +316,10 @@ export async function verifyPhoneCode(code: string): Promise<AuthResult> {
   const accessToken = getAccessToken();
 
   if (!accessToken) {
-    return { ok: false, message: "You must be signed in to verify a phone number." };
+    return {
+      ok: false,
+      message: "You must be signed in to verify a phone number.",
+    };
   }
 
   try {
@@ -331,7 +337,9 @@ export async function verifyPhoneCode(code: string): Promise<AuthResult> {
     if (!response.ok) {
       return {
         ok: false,
-        message: extractErrorMessage(data) ?? "That code didn't work. Please try again.",
+        message:
+          extractErrorMessage(data) ??
+          "That code didn't work. Please try again.",
       };
     }
 

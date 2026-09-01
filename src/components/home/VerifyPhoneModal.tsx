@@ -14,7 +14,10 @@ type VerifyPhoneModalProps = {
 
 // Gate for actions that require a verified phone (e.g. Create Loop), shown in
 // place of navigating away from whatever the user was doing.
-export function VerifyPhoneModal({ onVerified, onClose }: VerifyPhoneModalProps) {
+export function VerifyPhoneModal({
+  onVerified,
+  onClose,
+}: VerifyPhoneModalProps) {
   const [phone] = useState(() => getPendingPhone());
   const [sendState, setSendState] = useState<"sending" | "sent" | "error">(
     "sending",

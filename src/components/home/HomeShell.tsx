@@ -361,7 +361,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
           <button
             type="button"
-            onClick={() => requirePhoneVerified(() => setIsCreateLoopOpen(true))}
+            onClick={() =>
+              requirePhoneVerified(() => setIsCreateLoopOpen(true))
+            }
             className="mb-4 w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
           >
             + Create Loop

@@ -44,9 +44,7 @@ export default function VerifyPhonePage() {
       if (cancelled) return;
 
       setState(result.ok ? "sent" : "error");
-      setMessage(
-        result.ok ? `We sent a code to ${phone}.` : result.message,
-      );
+      setMessage(result.ok ? `We sent a code to ${phone}.` : result.message);
     });
 
     return () => {
@@ -90,9 +88,7 @@ export default function VerifyPhonePage() {
       <div className="pointer-events-none absolute -right-10 bottom-12 h-72 w-72 rounded-full bg-sky-400/25 blur-3xl" />
 
       <div className="relative w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
-        <h1 className="text-2xl font-bold text-slate-900">
-          Verify your phone
-        </h1>
+        <h1 className="text-2xl font-bold text-slate-900">Verify your phone</h1>
         <p className="mt-2 text-sm text-slate-600">
           {state === "sending"
             ? `Sending a verification code to ${phone}...`
