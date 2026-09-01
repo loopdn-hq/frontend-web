@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 import {
   ACCESS_TOKEN_KEY,
+  PENDING_PHONE_KEY,
+  PHONE_VERIFIED_KEY,
   REFRESH_TOKEN_KEY,
   SESSION_COOKIE_NAME,
 } from "./session";
@@ -56,11 +58,70 @@ export function setTokens(access: string, refresh: string): void {
   }
 }
 
+export function getAccessToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setPendingPhone(phoneNumber: string): void {
+  try {
+    window.localStorage.setItem(PENDING_PHONE_KEY, phoneNumber);
+  } catch {
+    // ignore
+  }
+}
+
+export function getPendingPhone(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(PENDING_PHONE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingPhone(): void {
+  try {
+    window.localStorage.removeItem(PENDING_PHONE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function setPhoneVerified(verified: boolean): void {
+  try {
+    window.localStorage.setItem(PHONE_VERIFIED_KEY, verified ? "1" : "0");
+    notify();
+  } catch {
+    // ignore
+  }
+}
+
+export function isPhoneVerified(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(PHONE_VERIFIED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// Reactive read of the cached phone_no_verified flag, kept in sync by
+// setPhoneVerified() (verify-phone page, fetchCurrentUser()).
+export function usePhoneVerified(): boolean {
+  return useSyncExternalStore(subscribe, isPhoneVerified, () => false);
+}
+
 export function clearSession(): void {
   try {
     window.localStorage.removeItem(SESSION_COOKIE_NAME);
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
+    window.localStorage.removeItem(PHONE_VERIFIED_KEY);
     notify();
   } catch {
     // ignore
@@ -190,11 +251,135 @@ export async function registerAccount(
       };
     }
 
-    return authenticate({
+    const result = await authenticate({
       username: payload.username,
       password: payload.password,
     });
+
+    if (result.ok) {
+      setPendingPhone(payload.phoneNumber);
+    }
+
+    return result;
   } catch {
     return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// POST /api/v1/users/me/phone/request-code/ — sends a verification SMS to the
+// signed-in user's phone. Requires the access token set by authenticate().
+export async function requestPhoneVerificationCode(
+  phoneNumber: string,
+): Promise<AuthResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to verify a phone number.",
+    };
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/users/me/phone/request-code/`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ phone_number: phoneNumber }),
+      },
+    );
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to send a verification code. Please try again.",
+      };
+    }
+
+    return { ok: true, displayName: phoneNumber };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// POST /api/v1/users/me/phone/verify/ — confirms the code sent by
+// requestPhoneVerificationCode(). Requires the access token set by authenticate().
+export async function verifyPhoneCode(code: string): Promise<AuthResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to verify a phone number.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/phone/verify/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ code }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "That code didn't work. Please try again.",
+      };
+    }
+
+    setPhoneVerified(true);
+    clearPendingPhone();
+
+    return { ok: true, displayName: "" };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// GET /api/v1/users/me/ — refreshes the cached phone_no_verified flag, so
+// gated actions reflect the backend's truth rather than only the local cache.
+export async function fetchCurrentUser(): Promise<void> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) return;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!response.ok) return;
+
+    const envelope = (await response.json().catch(() => null)) as {
+      data?: {
+        phone_no_verified?: boolean;
+        profile?: { phone_no_verified?: boolean };
+      };
+    } | null;
+
+    const verified =
+      envelope?.data?.phone_no_verified ??
+      envelope?.data?.profile?.phone_no_verified ??
+      false;
+
+    setPhoneVerified(verified);
+  } catch {
+    // Keep the cached value; this is a best-effort refresh.
   }
 }
