@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Grotesk, Space_Mono } from "next/font/google";
-import Script from "next/script";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
@@ -44,11 +44,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-        {/* Sign In With Google's Identity Services client, used by AuthScreen. */}
-        <Script src="https://accounts.google.com/gsi/client" async defer />
       </head>
       <body className="min-h-full flex flex-col">
-        <ThemeProvider>{children}</ThemeProvider>
+        <GoogleOAuthProvider
+          clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""}
+        >
+          <ThemeProvider>{children}</ThemeProvider>
+        </GoogleOAuthProvider>
       </body>
     </html>
   );

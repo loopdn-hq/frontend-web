@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm, type SubmitHandler } from "react-hook-form";
+import { useCallback, useMemo, useState } from "react";
+import { useForm, type SubmitHandler, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import {
   authenticate,
   authenticateWithGoogle,
@@ -35,29 +36,6 @@ const panelSubTitle: Record<AuthMode, string> = {
   signup: "Create an account with your email and phone number.",
 };
 
-function GoogleIcon() {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-hidden="true">
-      <path
-        d="M21.6 12.23c0-.69-.06-1.35-.18-1.99H12v3.76h5.39a4.6 4.6 0 0 1-1.99 3.02v2.5h3.22c1.89-1.74 2.98-4.3 2.98-7.29Z"
-        fill="#4285F4"
-      />
-      <path
-        d="M12 22c2.7 0 4.96-.9 6.61-2.43l-3.22-2.5c-.9.6-2.06.96-3.39.96-2.6 0-4.8-1.76-5.59-4.12H.81v2.58A10 10 0 0 0 12 22Z"
-        fill="#34A853"
-      />
-      <path
-        d="M6.41 19.88A6.02 6.02 0 0 1 6 16.7V14.1H2.72A9.97 9.97 0 0 0 2 12c0-1.61.39-3.13 1.08-4.46L6.41 10.3A6.04 6.04 0 0 1 6 12c0 .75.13 1.48.41 2.18v5.7Z"
-        fill="#FBBC05"
-      />
-      <path
-        d="M12 3.98c1.47 0 2.8.5 3.84 1.5l2.87-2.87A9.95 9.95 0 0 0 12 2a10 10 0 0 0-9.19 5.54l3.7 2.88A6.03 6.03 0 0 1 12 3.98Z"
-        fill="#EA4335"
-      />
-    </svg>
-  );
-}
-
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
@@ -79,7 +57,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           return;
         }
 
-        router.push("/home/");
+        // New Google accounts have no phone_number yet - collect one before home.
+        router.push(result.isNewAccount ? "/add-phone/" : "/home/");
       } catch {
         setGeneralError("Network error. Please try again.");
       } finally {
@@ -89,44 +68,18 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     [router],
   );
 
-  // Google Identity Services loads async (see layout.tsx); initialize once it's ready.
-  useEffect(() => {
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
-
-    let cancelled = false;
-
-    function init() {
-      if (cancelled || !window.google) return;
-
-      window.google.accounts.id.initialize({
-        client_id: clientId!,
-        callback: (response) => {
-          void handleGoogleCredential(response.credential);
-        },
-      });
+  function handleGoogleSuccess(credentialResponse: CredentialResponse) {
+    if (!credentialResponse.credential) {
+      setGeneralError("Google didn't return a credential. Please try again.");
+      return;
     }
 
-    if (window.google) {
-      init();
-    } else {
-      const interval = setInterval(() => {
-        if (window.google) {
-          clearInterval(interval);
-          init();
-        }
-      }, 100);
+    void handleGoogleCredential(credentialResponse.credential);
+  }
 
-      return () => {
-        cancelled = true;
-        clearInterval(interval);
-      };
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [handleGoogleCredential]);
+  function handleGoogleError() {
+    setGeneralError("Unable to continue with Google. Please try again.");
+  }
 
   // Login form, POST /users/login/ (username field accepts a username or email).
   const {
@@ -144,9 +97,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
   // Signup form, required by POST /users/register/.
   const {
+    control,
     register: registerSignup,
     handleSubmit: handleSignupFormSubmit,
-    watch: watchSignup,
     reset: resetSignupForm,
     formState: { errors: signupErrors },
   } = useForm<SignupPayload>({
@@ -163,8 +116,14 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     },
   });
 
-  const signupFirstName = watchSignup("firstName");
-  const signupLastName = watchSignup("lastName");
+  const signupFirstName = useWatch({
+  control,
+  name: "firstName",
+});
+  const signupLastName = useWatch({
+  control,
+  name: "lastName",
+});
 
   const ctaText =
     authMode === "login" ? "Continue with email" : "Create account";
@@ -229,15 +188,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
       setIsSubmitting(false);
     }
   };
-
-  function handleGoogleClick() {
-    if (!window.google) {
-      setGeneralError("Google sign-in is still loading. Please try again.");
-      return;
-    }
-
-    window.google.accounts.id.prompt();
-  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 sm:px-8">
@@ -313,17 +263,19 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {panelSubTitle[authMode]}
             </p>
 
-            <button
-              type="button"
-              onClick={handleGoogleClick}
-              disabled={isSubmitting || isGoogleLoading}
-              className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition hover:bg-slate-50 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
-                <GoogleIcon />
-              </span>
-              {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
-            </button>
+            <div className="flex w-full justify-center [&>div]:w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                width="336"
+                text={authMode === "login" ? "signin_with" : "signup_with"}
+              />
+            </div>
+            {isGoogleLoading && (
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Connecting to Google...
+              </p>
+            )}
 
             {authMode === "login" && (
               <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">

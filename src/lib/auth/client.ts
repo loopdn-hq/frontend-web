@@ -24,7 +24,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 const SESSION_EVENT = "loopdn:session";
 
 export type AuthResult =
-  { ok: true; displayName: string } | { ok: false; message: string };
+  | { ok: true; displayName: string; isNewAccount?: boolean }
+  | { ok: false; message: string };
 
 export function getSession(): string | null {
   if (typeof window === "undefined") return null;
@@ -261,6 +262,7 @@ export async function authenticateWithGoogle(
     return {
       ok: true,
       displayName: envelope.data?.user?.display_name || username,
+      isNewAccount: response.status === 201,
     };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
@@ -309,6 +311,47 @@ export async function registerAccount(
     }
 
     return result;
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// PATCH /api/v1/users/me/profile/ — sets phone_number for accounts (e.g. from
+// Google sign-in) that didn't collect one at registration. Requires the
+// access token set by authenticate()/authenticateWithGoogle().
+export async function updatePhoneNumber(
+  phoneNumber: string,
+): Promise<AuthResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return { ok: false, message: "You must be signed in to add a phone number." };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({ phone_number: phoneNumber }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to save that phone number. Please try again.",
+      };
+    }
+
+    setPendingPhone(phoneNumber);
+
+    return { ok: true, displayName: phoneNumber };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }
