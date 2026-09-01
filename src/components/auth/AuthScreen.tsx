@@ -132,7 +132,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/home");
+      router.push("/home/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -155,7 +155,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/verify-phone");
+      router.push("/verify-phone/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -207,7 +207,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
             <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1">
               <Link
-                href="/login"
+                href="/login/"
                 onClick={() => switchMode("login")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "login"
@@ -218,7 +218,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 Log In
               </Link>
               <Link
-                href="/signup"
+                href="/signup/"
                 onClick={() => switchMode("signup")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "signup"

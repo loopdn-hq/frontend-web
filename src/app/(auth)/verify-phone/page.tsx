@@ -25,12 +25,12 @@ export default function VerifyPhonePage() {
   // No signed-in session or nothing pending to verify - nowhere for this page to work from.
   useEffect(() => {
     if (!session) {
-      router.replace("/login");
+      router.replace("/login/");
       return;
     }
 
     if (!phone) {
-      router.replace("/home");
+      router.replace("/home/");
     }
   }, [router, session, phone]);
 
@@ -74,7 +74,7 @@ export default function VerifyPhonePage() {
         return;
       }
 
-      router.push("/home");
+      router.push("/home/");
     } finally {
       setIsVerifying(false);
     }
@@ -144,7 +144,7 @@ export default function VerifyPhonePage() {
         </button>
 
         <Link
-          href="/home"
+          href="/home/"
           className="mt-4 block text-center text-xs text-slate-500 underline hover:text-slate-700"
         >
           Skip for now

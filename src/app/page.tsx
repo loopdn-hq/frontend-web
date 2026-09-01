@@ -9,7 +9,7 @@ export default function RootPage() {
   const session = useSession();
 
   useEffect(() => {
-    router.replace(session ? "/home" : "/login");
+    router.replace(session ? "/home/" : "/login/");
   }, [router, session]);
 
   return null;
