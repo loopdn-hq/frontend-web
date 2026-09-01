@@ -2,22 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { updatePhoneNumber, useSession } from "@/lib/auth/client";
+import { updatePhoneNumber, useAuth } from "@/lib/auth/client";
 
 // New Google accounts have no phone_number yet - collect one here, then hand
 // off to /verify-phone/ to confirm it.
 export default function AddPhonePage() {
   const router = useRouter();
-  const session = useSession();
+  const { session, isLoaded } = useAuth();
   const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!session) {
+    if (isLoaded && !session) {
       router.replace("/login/");
     }
-  }, [router, session]);
+  }, [router, isLoaded, session]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();

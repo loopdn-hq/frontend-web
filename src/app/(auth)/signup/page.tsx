@@ -3,19 +3,19 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthScreen } from "@/components/auth/AuthScreen";
-import { useSession } from "@/lib/auth/client";
+import { useAuth } from "@/lib/auth/client";
 
 export default function SignupPage() {
   const router = useRouter();
-  const session = useSession();
+  const { session, isLoaded } = useAuth();
 
   useEffect(() => {
-    if (session) {
+    if (isLoaded && session) {
       router.replace("/home/");
     }
-  }, [router, session]);
+  }, [router, isLoaded, session]);
 
-  if (session) return null;
+  if (!isLoaded || session) return null;
 
   return <AuthScreen initialMode="signup" />;
 }

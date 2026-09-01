@@ -120,8 +120,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
     fetchUserProfile().then((result) => {
       if (cancelled || !result.ok) return;
 
-      console.log(result);
-
       setUserProfile((prev) => ({
         displayName: result.displayName || prev.displayName,
         email: result.email ?? prev.email,

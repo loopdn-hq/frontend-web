@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import {
   ACCESS_TOKEN_KEY,
   PENDING_PHONE_KEY,
@@ -30,7 +30,8 @@ export type AuthResult =
 export function getSession(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.localStorage.getItem(SESSION_COOKIE_NAME);
+    const val = window.localStorage.getItem(SESSION_COOKIE_NAME);
+    return val && val.trim().length > 0 ? val : null;
   } catch {
     return null;
   }
@@ -42,7 +43,11 @@ function notify(): void {
 
 export function setSession(value: string): void {
   try {
-    window.localStorage.setItem(SESSION_COOKIE_NAME, value);
+    if (!value || value.trim().length === 0) {
+      window.localStorage.removeItem(SESSION_COOKIE_NAME);
+    } else {
+      window.localStorage.setItem(SESSION_COOKIE_NAME, value);
+    }
     notify();
   } catch {
     // Private browsing or storage disabled. The route guards then treat the
@@ -145,6 +150,19 @@ function subscribe(onChange: () => void): () => void {
 // snapshot is null, so the prerendered HTML is always the signed-out view.
 export function useSession(): string | null {
   return useSyncExternalStore(subscribe, getSession, () => null);
+}
+
+// Client-safe auth hook that indicates whether hydration/localStorage has loaded.
+// Guards should never redirect until isLoaded is true.
+export function useAuth(): { session: string | null; isLoaded: boolean } {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const session = useSyncExternalStore(subscribe, getSession, () => null);
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
+
+  return { session: isLoaded ? session : null, isLoaded };
 }
 
 export function displayNameForSession(session: string | null): string {

@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   getPendingPhone,
   requestPhoneVerificationCode,
-  useSession,
+  useAuth,
   verifyPhoneCode,
 } from "@/lib/auth/client";
 
@@ -14,7 +14,7 @@ type SendState = "sending" | "sent" | "error";
 
 export default function VerifyPhonePage() {
   const router = useRouter();
-  const session = useSession();
+  const { session, isLoaded } = useAuth();
   const [phone] = useState<string | null>(() => getPendingPhone());
   const [state, setState] = useState<SendState>("sending");
   const [message, setMessage] = useState("");
@@ -24,15 +24,15 @@ export default function VerifyPhonePage() {
 
   // No signed-in session or nothing pending to verify - nowhere for this page to work from.
   useEffect(() => {
-    if (!session) {
+    if (isLoaded && !session) {
       router.replace("/login/");
       return;
     }
 
-    if (!phone) {
+    if (isLoaded && !phone) {
       router.replace("/home/");
     }
-  }, [router, session, phone]);
+  }, [router, isLoaded, session, phone]);
 
   // Auto-send the code as soon as we know which phone number to verify.
   useEffect(() => {

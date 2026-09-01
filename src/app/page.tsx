@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { displayNameForSession, useSession } from "@/lib/auth/client";
+import { displayNameForSession, useAuth } from "@/lib/auth/client";
 
 export default function RootPage() {
-  const session = useSession();
+  const { session } = useAuth();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] text-slate-800">
