@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { authenticate, registerAccount } from "@/lib/auth/client";
+import {
+  authenticate,
+  authenticateWithGoogle,
+  registerAccount,
+} from "@/lib/auth/client";
 import {
   loginSchema,
   signupSchema,
@@ -60,6 +64,69 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  const handleGoogleCredential = useCallback(
+    async (credential: string) => {
+      setGeneralError("");
+      setIsGoogleLoading(true);
+
+      try {
+        const result = await authenticateWithGoogle(credential);
+
+        if (!result.ok) {
+          setGeneralError(result.message);
+          return;
+        }
+
+        router.push("/home/");
+      } catch {
+        setGeneralError("Network error. Please try again.");
+      } finally {
+        setIsGoogleLoading(false);
+      }
+    },
+    [router],
+  );
+
+  // Google Identity Services loads async (see layout.tsx); initialize once it's ready.
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    let cancelled = false;
+
+    function init() {
+      if (cancelled || !window.google) return;
+
+      window.google.accounts.id.initialize({
+        client_id: clientId!,
+        callback: (response) => {
+          void handleGoogleCredential(response.credential);
+        },
+      });
+    }
+
+    if (window.google) {
+      init();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google) {
+          clearInterval(interval);
+          init();
+        }
+      }, 100);
+
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [handleGoogleCredential]);
 
   // Login form, POST /users/login/ (username field accepts a username or email).
   const {
@@ -163,6 +230,15 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     }
   };
 
+  function handleGoogleClick() {
+    if (!window.google) {
+      setGeneralError("Google sign-in is still loading. Please try again.");
+      return;
+    }
+
+    window.google.accounts.id.prompt();
+  }
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 sm:px-8">
       <div className="pointer-events-none absolute -left-16 top-16 h-52 w-52 rounded-full bg-cyan-300/40 blur-3xl" />
@@ -239,13 +315,14 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
             <button
               type="button"
-              disabled={isSubmitting}
+              onClick={handleGoogleClick}
+              disabled={isSubmitting || isGoogleLoading}
               className="flex w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-[0_8px_22px_rgba(15,23,42,0.05)] transition hover:bg-slate-50 hover:shadow-[0_10px_24px_rgba(15,23,42,0.08)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200">
                 <GoogleIcon />
               </span>
-              Continue with Google
+              {isGoogleLoading ? "Connecting to Google..." : "Continue with Google"}
             </button>
 
             {authMode === "login" && (

@@ -219,6 +219,54 @@ export async function authenticate(payload: LoginPayload): Promise<AuthResult> {
   }
 }
 
+// POST /api/v1/users/google/ — exchanges a Google Identity Services ID token
+// for a session. 201 means a new account was created, 200 an existing one
+// signed in; both come back with the same user/tokens shape as /users/login/.
+export async function authenticateWithGoogle(
+  credential: string,
+): Promise<AuthResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/google/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ credential }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to continue with Google. Please try again.",
+      };
+    }
+
+    const envelope = data as {
+      data?: {
+        user?: { username?: string; display_name?: string };
+        tokens?: { access?: string; refresh?: string };
+      };
+    };
+    const tokens = envelope.data?.tokens;
+
+    if (tokens?.access && tokens?.refresh) {
+      setTokens(tokens.access, tokens.refresh);
+    }
+
+    const username = envelope.data?.user?.username ?? "";
+    setSession(username);
+
+    return {
+      ok: true,
+      displayName: envelope.data?.user?.display_name || username,
+    };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
 // POST /api/v1/users/register/ on the Django API. Registering issues no
 // tokens, so a successful signup immediately logs in with the same credentials.
 export async function registerAccount(
