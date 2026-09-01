@@ -2,11 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  fetchUserProfile,
-  logout,
-  usePhoneVerified,
-} from "@/lib/auth/client";
+import { fetchUserProfile, logout, usePhoneVerified } from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
