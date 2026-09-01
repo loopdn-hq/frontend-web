@@ -29,7 +29,7 @@ const panelTitle: Record<AuthMode, string> = {
 
 const panelSubTitle: Record<AuthMode, string> = {
   login: "Sign in to manage groups, members, and broadcasts.",
-  signup: "Create an account with your email to get started.",
+  signup: "Create an account with your email and phone number.",
 };
 
 function GoogleIcon() {
@@ -58,17 +58,14 @@ function GoogleIcon() {
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
-  // Email vs. phone tab; phone sign-in/sign-up is not implemented yet.
+  // Email vs. phone tab; phone sign-in is not implemented yet. Signup always
+  // collects both email and phone in one form.
   const [contactMode, setContactMode] = useState<ContactMode>("email");
-  const [signupContactMode, setSignupContactMode] =
-    useState<ContactMode>("email");
 
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isPhoneComingSoon =
-    (authMode === "login" && contactMode === "phone") ||
-    (authMode === "signup" && signupContactMode === "phone");
+  const isPhoneComingSoon = authMode === "login" && contactMode === "phone";
 
   // Login form, POST /users/login/ (username field accepts a username or email).
   const {
@@ -89,8 +86,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     register: registerSignup,
     handleSubmit: handleSignupFormSubmit,
     watch: watchSignup,
-    setValue: setSignupValue,
-    clearErrors: clearSignupErrors,
     reset: resetSignupForm,
     formState: { errors: signupErrors },
   } = useForm<SignupPayload>({
@@ -132,7 +127,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     resetLoginForm();
     resetSignupForm();
     setContactMode("email");
-    setSignupContactMode("email");
     setGeneralError("");
   }
 
@@ -160,22 +154,18 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
     setGeneralError("");
     setIsSubmitting(true);
 
-    console.log(data);
-
     try {
       const result = await registerAccount({
         ...data,
         displayName: computedDisplayName,
-        phoneNumber: signupContactMode === "phone" ? data.phoneNumber : "",
       });
 
-      console.log(result);
       if (!result.ok) {
         setGeneralError(result.message);
         return;
       }
 
-      router.push("/home");
+      router.push("/verify-phone");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -310,47 +300,11 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             )}
 
             {authMode === "signup" && (
-              <>
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  or sign up with email or phone
-                  <div className="h-px flex-1 bg-slate-200" />
-                </div>
-
-                <div className="mt-4 flex gap-2 rounded-xl bg-sky-50 p-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignupContactMode("email");
-                      setSignupValue("phoneNumber", "");
-                      clearSignupErrors("phoneNumber");
-                    }}
-                    disabled={isSubmitting}
-                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      signupContactMode === "email"
-                        ? "bg-white text-sky-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-                  >
-                    Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSignupContactMode("phone");
-                      clearSignupErrors("phoneNumber");
-                    }}
-                    disabled={isSubmitting}
-                    className={`w-1/2 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      signupContactMode === "phone"
-                        ? "bg-white text-sky-700 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700"
-                    } ${isSubmitting ? "cursor-not-allowed opacity-50" : ""}`}
-                  >
-                    Phone
-                  </button>
-                </div>
-              </>
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
+                <div className="h-px flex-1 bg-slate-200" />
+                or sign up with email
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
             )}
 
             <form
@@ -449,6 +403,25 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     </p>
                   )}
 
+                  <label className="block">
+                    <span className="mb-1 block text-sm font-medium text-slate-700">
+                      Phone Number
+                    </span>
+                    <input
+                      type="tel"
+                      placeholder="+14155552671"
+                      {...registerSignup("phoneNumber")}
+                      disabled={isSubmitting}
+                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    />
+                  </label>
+
+                  {signupErrors.phoneNumber && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.phoneNumber.message}
+                    </p>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
                       <span className="mb-1 block text-sm font-medium text-slate-700">
@@ -526,7 +499,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   )}
 
                   <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    We will verify your email before enabling admin actions.
+                    We&apos;ll text a verification code to your phone next.
                   </p>
                 </>
               )}
