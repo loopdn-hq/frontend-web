@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
+import { googleLogout } from "@react-oauth/google";
 import {
   ACCESS_TOKEN_KEY,
   PENDING_PHONE_KEY,
@@ -73,6 +74,15 @@ export function getAccessToken(): string | null {
   }
 }
 
+export function getRefreshToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(REFRESH_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
 export function setPendingPhone(phoneNumber: string): void {
   try {
     window.localStorage.setItem(PENDING_PHONE_KEY, phoneNumber);
@@ -124,6 +134,12 @@ export function usePhoneVerified(): boolean {
 
 export function clearSession(): void {
   try {
+    googleLogout();
+  } catch {
+    // ignore if GIS not loaded
+  }
+
+  try {
     window.localStorage.removeItem(SESSION_COOKIE_NAME);
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
@@ -132,6 +148,31 @@ export function clearSession(): void {
   } catch {
     // ignore
   }
+}
+
+// Signs out the user: notifies the backend to blacklist the refresh token,
+// invokes googleLogout() to revoke Google session tokens in GIS, and clears
+// local storage.
+export async function logout(): Promise<void> {
+  const accessToken = getAccessToken();
+  const refreshToken = getRefreshToken();
+
+  if (accessToken && refreshToken) {
+    try {
+      await fetch(`${API_BASE_URL}/users/logout/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+    } catch {
+      // Best-effort network logout; proceed to clear local state regardless
+    }
+  }
+
+  clearSession();
 }
 
 // "storage" only fires in *other* tabs, so setSession/clearSession dispatch

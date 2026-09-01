@@ -3,8 +3,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
-  clearSession,
   fetchUserProfile,
+  logout,
   usePhoneVerified,
 } from "@/lib/auth/client";
 import { CreateLoopModal } from "./CreateLoopModal";
@@ -165,8 +165,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
     ? loopMessages.get(selectedConversationId) || []
     : [];
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
+    await logout();
     router.push("/login/");
   }
 
