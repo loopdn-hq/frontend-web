@@ -11,11 +11,12 @@ The app currently includes:
 - Session-based redirect logic for authenticated users
 - A dashboard for viewing and creating loops
 - Create-loop modal and configuration form
-- Group messaging UI and mock WebSocket status handling
+- Group messaging UI with REST history/send and Django Channels WebSocket updates
 - Admin settings and member moderation mock panels
 - User settings modal
 
-This is an MVP frontend intended to connect with a backend service later, with demo-mode auth and mock data used where backend integration is still pending.
+This is an MVP frontend connected to the Django API. Group settings and member
+moderation remain mocked.
 
 ## Tech Stack
 
@@ -93,9 +94,13 @@ src/
 
 ## Notes
 
-- Authentication currently uses demo credentials for the MVP experience.
-- Real backend integration for persistence, WebSocket messaging, and production auth is planned.
-- The frontend is designed to be easy to connect to Django or another backend API layer in the next phase.
+- Set `NEXT_PUBLIC_API_BASE_URL` to the backend API root, for example
+  `http://127.0.0.1:8000/api/v1` for local development.
+- The browser connects to `/ws/chat/?token=<access token>` for Django Channels.
+  Set `NEXT_PUBLIC_WS_HOST` only when the WebSocket host differs from the API
+  host. Redis configuration such as `REDIS_URL` and `CELERY_BROKER_URL` belongs
+  to the backend and must not be exposed to the frontend.
+- Group settings and member moderation intentionally use mocked data.
 
 ## Scripts
 

@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect } from "react";
+import { getAccessToken } from "@/lib/auth/client";
 import { useWebSocket } from "@/lib/websocket/useWebSocket";
 
 type WebSocketMessage = {
-  type: "message" | "system" | "member_join" | "member_leave" | "error";
-  data: Record<string, unknown>;
+  type: string;
+  [key: string]: unknown;
 };
 
 type LoopWebSocketManagerProps = {
-  loopId: string | number;
+  loopId?: string | number;
   onMessage?: (message: WebSocketMessage) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -25,25 +26,20 @@ declare global {
 }
 
 export function LoopWebSocketManager({
-  loopId,
   onMessage,
   onConnected,
   onDisconnected,
   onError,
   children,
 }: LoopWebSocketManagerProps) {
-  const protocol =
-    typeof window !== "undefined" && window.location.protocol === "https:"
-      ? "wss:"
-      : "ws:";
-  const host =
-    typeof window !== "undefined" ? window.location.host : "localhost:8000";
-  const wsHost = process.env.NEXT_PUBLIC_WS_HOST || host;
-  const url = `${protocol}//${wsHost}/ws/loop/${loopId}/`;
-
-  // No backend WebSocket server configured yet — skip connecting so we don't
-  // spam the console with errors/reconnect attempts against nothing.
-  const wsEnabled = Boolean(process.env.NEXT_PUBLIC_WS_HOST);
+  const accessToken = getAccessToken();
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const protocol = apiBaseUrl?.startsWith("https:") ? "wss:" : "ws:";
+  const configuredHost = process.env.NEXT_PUBLIC_WS_HOST;
+  const apiHost = apiBaseUrl ? new URL(apiBaseUrl).host : "127.0.0.1:8000";
+  const wsHost = configuredHost || apiHost;
+  const url = `${protocol}//${wsHost}/ws/chat/?token=${encodeURIComponent(accessToken || "")}`;
+  const wsEnabled = Boolean(accessToken);
 
   const { status, error, send } = useWebSocket({
     url,

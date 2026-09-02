@@ -26,6 +26,24 @@ export type Conversation = {
   active?: boolean;
 };
 
+export type ConversationAttachment = {
+  id?: string | number;
+  url: string;
+  originalName: string;
+  contentType?: string;
+};
+
+export type ConversationMessage = {
+  id: string | number;
+  conversationId: string | number;
+  sender: string;
+  senderUsername?: string;
+  text: string;
+  createdAt: string;
+  attachments: ConversationAttachment[];
+  mine: boolean;
+};
+
 type ApiObject = Record<string, unknown>;
 
 function getErrorMessage(payload: unknown): string | null {
@@ -91,6 +109,72 @@ function normalizeConversation(item: ApiObject): Conversation | null {
   };
 }
 
+function normalizeAttachment(item: ApiObject): ConversationAttachment | null {
+  const url = item.url;
+  if (typeof url !== "string") return null;
+
+  return {
+    id:
+      typeof item.id === "string" || typeof item.id === "number"
+        ? item.id
+        : undefined,
+    url,
+    originalName: asText(item.original_name, "Attachment"),
+    contentType: asText(item.content_type) || undefined,
+  };
+}
+
+function normalizeMessage(item: ApiObject): ConversationMessage | null {
+  const id = item.id;
+  const conversationId = item.conversation;
+  if (
+    (typeof id !== "string" && typeof id !== "number") ||
+    (typeof conversationId !== "string" && typeof conversationId !== "number")
+  ) {
+    return null;
+  }
+
+  const sender = item.sender;
+  const senderName =
+    sender && typeof sender === "object"
+      ? asText(
+          (sender as ApiObject).display_label,
+          asText((sender as ApiObject).username, "Unknown"),
+        )
+      : asText(sender, "Unknown");
+  const senderUsername =
+    sender && typeof sender === "object"
+      ? asText((sender as ApiObject).username) || undefined
+      : typeof sender === "string"
+        ? sender
+        : undefined;
+
+  return {
+    id,
+    conversationId,
+    sender: senderName,
+    senderUsername,
+    text: asText(item.text),
+    createdAt: asText(item.created_at),
+    mine: item.mine === true,
+    attachments: Array.isArray(item.attachments)
+      ? item.attachments
+          .filter(isApiObject)
+          .map(normalizeAttachment)
+          .filter(
+            (attachment): attachment is ConversationAttachment =>
+              attachment !== null,
+          )
+      : [],
+  };
+}
+
+function getObjectData(payload: unknown): ApiObject | null {
+  if (!payload || typeof payload !== "object") return null;
+  const data = (payload as ApiObject).data;
+  return isApiObject(data) ? data : null;
+}
+
 async function authorizedRequest(
   input: string,
   init: RequestInit = {},
@@ -151,7 +235,7 @@ export async function fetchConversations(): Promise<
   { ok: true; conversations: Conversation[] } | { ok: false; message: string }
 > {
   try {
-    const response = await authorizedRequest("/chat/conversations");
+    const response = await authorizedRequest("/chat/conversations/");
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       return {
@@ -174,6 +258,114 @@ export async function fetchConversations(): Promise<
         error instanceof Error
           ? error.message
           : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function fetchConversation(
+  conversationId: string | number,
+): Promise<{ ok: true; conversation: Conversation } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}`,
+    );
+    const data = await response.json().catch(() => null);
+    const conversation = getObjectData(data);
+    const normalized = conversation ? normalizeConversation(conversation) : null;
+    if (!response.ok || !normalized) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load this conversation.",
+      };
+    }
+    return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function fetchMessageHistory(
+  conversationId: string | number,
+): Promise<
+  | { ok: true; messages: ConversationMessage[] }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/messages/`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load message history.",
+      };
+    }
+
+    const items = getConversationItems(data);
+    return {
+      ok: true,
+      messages: items
+        .map(normalizeMessage)
+        .filter(
+          (message): message is ConversationMessage => message !== null,
+        )
+        .reverse(),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function sendConversationMessage(
+  conversationId: string | number,
+  text: string,
+  attachments: File[] = [],
+): Promise<
+  | { ok: true; message: ConversationMessage }
+  | { ok: false; message: string }
+> {
+  try {
+    const hasAttachments = attachments.length > 0;
+    const request: RequestInit = {
+      method: "POST",
+      body: hasAttachments
+        ? (() => {
+            const formData = new FormData();
+            if (text.trim()) formData.append("text", text.trim());
+            attachments.forEach((file) => formData.append("attachments", file));
+            return formData;
+          })()
+        : JSON.stringify({ text: text.trim() }),
+    };
+    if (!hasAttachments) {
+      request.headers = { "Content-Type": "application/json" };
+    }
+
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/messages/`,
+      request,
+    );
+    const data = await response.json().catch(() => null);
+    const messageData = getObjectData(data);
+    const message = messageData ? normalizeMessage(messageData) : null;
+    if (!response.ok || !message) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to send this message.",
+      };
+    }
+    return { ok: true, message };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Network error. Please try again.",
     };
   }
 }

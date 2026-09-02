@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
 type WebSocketMessage = {
-  type: "message" | "system" | "member_join" | "member_leave" | "error";
-  data: Record<string, unknown>;
+  type: string;
+  [key: string]: unknown;
 };
 
 type UseWebSocketOptions = {
