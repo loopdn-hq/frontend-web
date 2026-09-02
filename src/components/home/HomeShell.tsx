@@ -2,7 +2,11 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { fetchUserProfile, logout, usePhoneVerified } from "@/lib/auth/client";
+import { fetchUserProfile, logout } from "@/lib/auth/client";
+import {
+  fetchConversations,
+  type Conversation,
+} from "@/lib/chat/conversations";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
@@ -11,16 +15,6 @@ import {
   UserSettingsModal,
   type UserProfile,
 } from "@/components/settings/UserSettingsModal";
-
-type Conversation = {
-  id: string | number;
-  name: string;
-  preview: string;
-  unread: number;
-  active?: boolean;
-  isAdmin?: boolean;
-  communicationMode?: "chat" | "broadcast";
-};
 
 type Message = {
   id: string | number;
@@ -107,7 +101,24 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
-  const phoneVerified = usePhoneVerified();
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchConversations().then((result) => {
+      if (cancelled || !result.ok) return;
+      setConversations(() =>
+        result.conversations.map((conversation, index) => ({
+          ...conversation,
+          active: index === 0,
+        })),
+      );
+      setSelectedConversationId(result.conversations[0]?.id ?? null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Fill in email/phone (and a real display name) from the backend profile.
   useEffect(() => {
@@ -130,12 +141,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
   // Gate actions that need a verified phone (Create Loop, etc.) behind the modal.
   function requirePhoneVerified(action: () => void) {
-    if (phoneVerified) {
-      action();
-      return;
-    }
+    // if (phoneVerified) {
+    action();
+    //   return;
+    // }
 
-    setIsVerifyPhoneOpen(true);
+    // setIsVerifyPhoneOpen(true);
   }
 
   // Store messages per loop
@@ -154,7 +165,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
-  const isAdmin = selectedConversation?.isAdmin || false;
 
   // Get messages for selected loop
   const currentMessages = selectedConversationId
@@ -268,31 +278,24 @@ export function HomeShell({ displayName }: HomeShellProps) {
     setMessageInput("");
   }, [messageInput, selectedConversationId, displayName]);
 
-  function handleCreateLoopSuccess(loopData: {
-    name: string;
-    description: string;
-    joining_method: string;
-    communication_mode: string;
-    broadcast_reply_mode?: string;
-  }) {
-    // Add the new loop to conversations with the provided data
-    const newLoop: Conversation = {
-      id: Date.now(),
-      name: loopData.name,
-      preview: loopData.description || "New Loop",
-      unread: 0,
-      active: true,
-      isAdmin: true,
-      communicationMode:
-        loopData.communication_mode === "broadcast" ? "broadcast" : "chat",
-    };
+  async function handleCreateLoopSuccess() {
+    const result = await fetchConversations();
+    if (!result.ok) return;
 
-    // Update conversations list with the new loop
-    const updatedConversations = [...conversations, newLoop];
-    setConversations(updatedConversations);
-
-    // Select the newly created loop
-    setSelectedConversationId(newLoop.id);
+    setConversations(
+      result.conversations.map((conversation) => ({
+        ...conversation,
+        active: false,
+      })),
+    );
+    const newestConversation = result.conversations.at(-1);
+    setSelectedConversationId(newestConversation?.id ?? null);
+    setConversations((current) =>
+      current.map((conversation) => ({
+        ...conversation,
+        active: conversation.id === newestConversation?.id,
+      })),
+    );
     setIsCreateLoopOpen(false);
   }
 
@@ -313,7 +316,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
         type="button"
         onClick={() => handleSelectConversation(conversation.id)}
         className={`w-full rounded-xl p-3 text-left transition ${
-          conversation.active
+          conversation?.active
             ? "bg-sky-600 text-white shadow-[0_8px_25px_rgba(13,108,190,0.35)]"
             : "bg-white text-slate-700 hover:bg-sky-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         }`}
@@ -321,8 +324,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">{conversation.name}</p>
-              {conversation.isAdmin && (
+              <p className="text-sm font-semibold">{conversation?.name}</p>
+              {conversation?.isAdmin && (
                 <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">
                   ADMIN
                 </span>
@@ -482,7 +485,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 </div>
               )}
 
-              {isAdmin && (
+              {selectedConversationId && (
                 <button
                   type="button"
                   onClick={() => setIsAdminPanelOpen(true)}

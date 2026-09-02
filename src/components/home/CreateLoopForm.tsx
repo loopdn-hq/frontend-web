@@ -2,21 +2,40 @@
 
 import Image from "next/image";
 import { useState, useRef } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
+import {
+  createConversation,
+  type BroadcastReplyMode,
+  type CommunicationMode,
+  type CreateConversationPayload,
+  type JoiningMethod,
+} from "@/lib/chat/conversations";
 
-type JoiningMethod = "open" | "code" | "admin_approval" | "invite_only";
-type CommunicationMode = "chat" | "broadcast";
-type BroadcastReplyMode = "private" | "group_wide" | "disabled";
+const createLoopSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Loop name is required")
+    .min(3, "Loop name must be at least 3 characters")
+    .max(50, "Loop name must be 50 characters or less"),
+  description: z
+    .string()
+    .trim()
+    .max(500, "Description must be 500 characters or less"),
+  joining_method: z.enum(["open", "code", "admin_approval", "invite_only"]),
+  communication_mode: z.enum(["chat", "broadcast"]),
+  broadcast_reply_mode: z.enum(["private", "group_wide", "disabled"]),
+  image: z.custom<File>().optional(),
+});
+
+type CreateLoopFormValues = z.infer<typeof createLoopSchema>;
 
 type CreateLoopFormProps = {
   onClose: () => void;
-  onSuccess?: (loopData: {
-    name: string;
-    description: string;
-    joining_method: JoiningMethod;
-    communication_mode: CommunicationMode;
-    broadcast_reply_mode?: BroadcastReplyMode;
-  }) => void;
+  onSuccess?: (loopData: CreateConversationPayload) => void;
 };
 
 const joiningMethods: Array<{
@@ -86,108 +105,82 @@ const broadcastReplyModes: Array<{
 ];
 
 export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
-  const [loopName, setLoopName] = useState("");
-  const [description, setDescription] = useState("");
-  const [joiningMethod, setJoiningMethod] = useState<JoiningMethod>("open");
-  const [communicationMode, setCommunicationMode] =
-    useState<CommunicationMode>("chat");
-  const [broadcastReplyMode, setBroadcastReplyMode] =
-    useState<BroadcastReplyMode>("private");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    setError,
+    clearErrors,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<CreateLoopFormValues>({
+    resolver: zodResolver(createLoopSchema),
+    defaultValues: {
+      name: "",
+      description: "",
+      joining_method: "open",
+      communication_mode: "chat",
+      broadcast_reply_mode: "private",
+    },
+  });
+
+  const communicationMode = useWatch({ control, name: "communication_mode" });
+  const imageField = register("image", { onChange: handleImageSelect });
 
   function handleImageSelect(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
-        setErrors({ ...errors, image: "Please select an image file" });
+        setError("image", { message: "Please select an image file" });
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        setErrors({ ...errors, image: "Image size must be less than 5MB" });
+        setError("image", { message: "Image size must be less than 5MB" });
         return;
       }
       setImage(file);
+      setValue("image", file);
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target?.result as string);
       };
       reader.readAsDataURL(file);
-      setErrors({ ...errors, image: "" });
+      clearErrors("image");
     }
   }
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setErrors({});
-
-    // Validation
-    const newErrors: Record<string, string> = {};
-    if (!loopName.trim()) newErrors.loopName = "Loop name is required";
-    if (loopName.trim().length < 3)
-      newErrors.loopName = "Loop name must be at least 3 characters";
-    if (loopName.trim().length > 50)
-      newErrors.loopName = "Loop name must be 50 characters or less";
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
-    }
-
-    setIsSubmitting(true);
-
+  async function onSubmit(values: CreateLoopFormValues) {
     try {
-      // For now, we'll prepare the data for Django backend
-      // Once connected, this will send to the backend
-      const formData = new FormData();
-      formData.append("name", loopName);
-      formData.append("description", description);
-      formData.append("joining_method", joiningMethod);
-      formData.append("communication_mode", communicationMode);
-      if (communicationMode === "broadcast") {
-        formData.append("broadcast_reply_mode", broadcastReplyMode);
-      }
-      if (image) {
-        formData.append("image", image);
-      }
-
-      // Placeholder for backend integration
-      console.log("Loop creation data ready:", {
-        name: loopName,
-        description,
-        joining_method: joiningMethod,
-        communication_mode: communicationMode,
+      const payload: CreateConversationPayload = {
+        name: values.name,
+        description: values.description,
+        joining_method: values.joining_method,
+        communication_mode: values.communication_mode,
         broadcast_reply_mode:
-          communicationMode === "broadcast" ? broadcastReplyMode : null,
-        image: image ? image.name : null,
-      });
-
-      // Simulated API call - will be replaced with actual Django endpoint
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-
-      // Success - pass loop data to parent
-      onSuccess?.({
-        name: loopName,
-        description,
-        joining_method: joiningMethod,
-        communication_mode: communicationMode,
-        broadcast_reply_mode:
-          communicationMode === "broadcast" ? broadcastReplyMode : undefined,
-      });
+          values.communication_mode === "broadcast"
+            ? values.broadcast_reply_mode
+            : undefined,
+        image: image ?? undefined,
+      };
+      const result = await createConversation(payload);
+      if (!result.ok) {
+        setError("root.server", { message: result.message });
+        return;
+      }
+      onSuccess?.(payload);
       onClose();
-    } catch (error) {
-      console.error("Error creating loop:", error);
-      setErrors({ submit: "Failed to create loop. Please try again." });
-    } finally {
-      setIsSubmitting(false);
+    } catch {
+      setError("root.server", {
+        message: "Failed to create loop. Please try again.",
+      });
     }
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
       {/* Loop Name */}
       <div>
         <label className="block">
@@ -197,14 +190,13 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           <input
             type="text"
             placeholder="e.g., Family HQ, Neighborhood Watch"
-            value={loopName}
-            onChange={(e) => setLoopName(e.target.value)}
+            {...register("name")}
             disabled={isSubmitting}
             className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 dark:text-slate-200 dark:bg-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
           />
         </label>
-        {errors.loopName && (
-          <p className="mt-1 text-xs text-rose-600">{errors.loopName}</p>
+        {errors.name && (
+          <p className="mt-1 text-xs text-rose-600">{errors.name.message}</p>
         )}
       </div>
 
@@ -216,8 +208,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           </span>
           <textarea
             placeholder="What is this Loop about? (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            {...register("description")}
             disabled={isSubmitting}
             rows={3}
             className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 dark:text-slate-200 dark:bg-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
@@ -271,16 +262,19 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
             )}
           </div>
           <input
-            ref={fileInputRef}
+            {...imageField}
+            ref={(element) => {
+              imageField.ref(element);
+              fileInputRef.current = element;
+            }}
             type="file"
             accept="image/*"
-            onChange={handleImageSelect}
             disabled={isSubmitting}
             className="hidden"
           />
         </label>
         {errors.image && (
-          <p className="mt-1 text-xs text-rose-600">{errors.image}</p>
+          <p className="mt-1 text-xs text-rose-600">{errors.image.message}</p>
         )}
       </div>
 
@@ -298,10 +292,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
               >
                 <input
                   type="radio"
-                  name="joiningMethod"
+                  {...register("joining_method")}
                   value={method.value}
-                  checked={joiningMethod === method.value}
-                  onChange={() => setJoiningMethod(method.value)}
                   disabled={isSubmitting}
                   className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                 />
@@ -333,10 +325,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
               >
                 <input
                   type="radio"
-                  name="communicationMode"
+                  {...register("communication_mode")}
                   value={mode.value}
-                  checked={communicationMode === mode.value}
-                  onChange={() => setCommunicationMode(mode.value)}
                   disabled={isSubmitting}
                   className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                 />
@@ -369,10 +359,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
                 >
                   <input
                     type="radio"
-                    name="broadcastReplyMode"
+                    {...register("broadcast_reply_mode")}
                     value={mode.value}
-                    checked={broadcastReplyMode === mode.value}
-                    onChange={() => setBroadcastReplyMode(mode.value)}
                     disabled={isSubmitting}
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
@@ -392,9 +380,9 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       )}
 
       {/* Error Message */}
-      {errors.submit && (
+      {errors.root?.server && (
         <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {errors.submit}
+          {errors.root.server.message}
         </div>
       )}
 

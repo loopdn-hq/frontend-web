@@ -1,17 +1,12 @@
 "use client";
 
 import { CreateLoopForm } from "./CreateLoopForm";
+import type { CreateConversationPayload } from "@/lib/chat/conversations";
 
 type CreateLoopModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (loopData: {
-    name: string;
-    description: string;
-    joining_method: string;
-    communication_mode: string;
-    broadcast_reply_mode?: string;
-  }) => void;
+  onSuccess?: (loopData: CreateConversationPayload) => void;
 };
 
 export function CreateLoopModal({
