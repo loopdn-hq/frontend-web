@@ -318,24 +318,24 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
   const toUiMessage = useCallback(
     (message: ConversationMessage): Message => {
-    return {
-      id: message.id,
-      sender: message.sender,
-      senderUsername: message.senderUsername,
-      text: message.text,
-      mine:
-        message.mine ||
-        Boolean(
-          currentUsername && message.senderUsername === currentUsername,
-        ),
-      time: message.createdAt
-        ? new Date(message.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : "",
-      attachments: message.attachments,
-    };
+      return {
+        id: message.id,
+        sender: message.sender,
+        senderUsername: message.senderUsername,
+        text: message.text,
+        mine:
+          message.mine ||
+          Boolean(
+            currentUsername && message.senderUsername === currentUsername,
+          ),
+        time: message.createdAt
+          ? new Date(message.createdAt).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "",
+        attachments: message.attachments,
+      };
     },
     [currentUsername],
   );
@@ -426,16 +426,20 @@ export function HomeShell({ displayName }: HomeShellProps) {
               }
               const rawAttachment = attachment as Record<string, unknown>;
               const url = rawAttachment.url as string;
-              return [{
-                id:
-                  typeof rawAttachment.id === "string" ||
-                  typeof rawAttachment.id === "number"
-                    ? rawAttachment.id
-                    : undefined,
-                url,
-                originalName: String(rawAttachment.original_name ?? "Attachment"),
-                contentType: String(rawAttachment.content_type ?? ""),
-              } satisfies ConversationAttachment];
+              return [
+                {
+                  id:
+                    typeof rawAttachment.id === "string" ||
+                    typeof rawAttachment.id === "number"
+                      ? rawAttachment.id
+                      : undefined,
+                  url,
+                  originalName: String(
+                    rawAttachment.original_name ?? "Attachment",
+                  ),
+                  contentType: String(rawAttachment.content_type ?? ""),
+                } satisfies ConversationAttachment,
+              ];
             })
           : [];
         const newMessage = toUiMessage({
@@ -455,15 +459,16 @@ export function HomeShell({ displayName }: HomeShellProps) {
             (currentUsername !== null &&
               String(
                 rawSender && typeof rawSender === "object"
-                  ? (rawSender as Record<string, unknown>).username ?? ""
-                  : rawSender ?? "",
+                  ? ((rawSender as Record<string, unknown>).username ?? "")
+                  : (rawSender ?? ""),
               ) === currentUsername),
         });
 
         setLoopMessages((prev) => {
           const map = new Map(prev);
           const messages = map.get(selectedConversationId) || [];
-          if (messages.some((existing) => existing.id === newMessage.id)) return prev;
+          if (messages.some((existing) => existing.id === newMessage.id))
+            return prev;
           map.set(selectedConversationId, [...messages, newMessage]);
           return map;
         });
@@ -525,7 +530,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
   );
 
   const handleSendMessage = useCallback(async () => {
-    if ((!messageInput.trim() && messageAttachments.length === 0) || !selectedConversationId || isSendingMessage) return;
+    if (
+      (!messageInput.trim() && messageAttachments.length === 0) ||
+      !selectedConversationId ||
+      isSendingMessage
+    )
+      return;
     setIsSendingMessage(true);
     setMessageError(null);
     const result = await sendConversationMessage(
@@ -540,7 +550,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
         const next = new Map(previous);
         const messages = next.get(selectedConversationId) || [];
         if (!messages.some((message) => message.id === result.message.id)) {
-          next.set(selectedConversationId, [...messages, toUiMessage(result.message)]);
+          next.set(selectedConversationId, [
+            ...messages,
+            toUiMessage(result.message),
+          ]);
         }
         return next;
       });
@@ -891,10 +904,14 @@ export function HomeShell({ displayName }: HomeShellProps) {
             ) : (
               <div className="relative rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
                 {messageError && (
-                  <p className="px-2 pb-2 text-xs text-rose-600">{messageError}</p>
+                  <p className="px-2 pb-2 text-xs text-rose-600">
+                    {messageError}
+                  </p>
                 )}
                 {isMessagesLoading && (
-                  <p className="px-2 pb-2 text-xs text-slate-500">Loading messages...</p>
+                  <p className="px-2 pb-2 text-xs text-slate-500">
+                    Loading messages...
+                  </p>
                 )}
                 {messageAttachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-2 pb-2">
@@ -904,7 +921,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
                         type="button"
                         onClick={() =>
                           setMessageAttachments((current) =>
-                            current.filter((_, fileIndex) => fileIndex !== index),
+                            current.filter(
+                              (_, fileIndex) => fileIndex !== index,
+                            ),
                           )
                         }
                         className="max-w-full truncate rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-rose-100 hover:text-rose-700"
@@ -916,12 +935,19 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   </div>
                 )}
                 <div className="flex gap-2">
-                  <label className="flex cursor-pointer items-center px-2 text-slate-500" title="Attach files">
+                  <label
+                    className="flex cursor-pointer items-center px-2 text-slate-500"
+                    title="Attach files"
+                  >
                     <span aria-hidden="true">📎</span>
                     <input
                       type="file"
                       multiple
-                      onChange={(event) => setMessageAttachments(Array.from(event.target.files ?? []))}
+                      onChange={(event) =>
+                        setMessageAttachments(
+                          Array.from(event.target.files ?? []),
+                        )
+                      }
                       disabled={isSendingMessage}
                       className="hidden"
                     />
@@ -936,28 +962,31 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   >
                     😊
                   </button>
-                <input
-                  type="text"
-                  placeholder="Type a message..."
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
+                  <input
+                    type="text"
+                    placeholder="Type a message..."
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    disabled={isSendingMessage}
+                    className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSendMessage}
+                    disabled={
+                      isSendingMessage ||
+                      (!messageInput.trim() && messageAttachments.length === 0)
                     }
-                  }}
-                  disabled={isSendingMessage}
-                  className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleSendMessage}
-                  disabled={isSendingMessage || (!messageInput.trim() && messageAttachments.length === 0)}
-                  className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
-                >
-                  {isSendingMessage ? "Sending..." : "Send"}
-                </button>
+                    className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    {isSendingMessage ? "Sending..." : "Send"}
+                  </button>
                 </div>
                 {showEmojiPicker && (
                   <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(30,89,138,0.18)] dark:border-slate-700 dark:bg-slate-800">
@@ -975,17 +1004,17 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       </button>
                     </div>
                     <div className="grid grid-cols-8 gap-1 sm:grid-cols-10">
-                    {messageEmojis.map((emoji, index) => (
-                      <button
-                        key={`${emoji}-${index}`}
-                        type="button"
-                        onClick={() => appendEmoji(emoji)}
-                        className="flex aspect-square items-center justify-center rounded-lg text-lg hover:bg-sky-100 dark:hover:bg-slate-700"
-                        aria-label={`Insert ${emoji}`}
-                      >
-                        {emoji}
-                      </button>
-                    ))}
+                      {messageEmojis.map((emoji, index) => (
+                        <button
+                          key={`${emoji}-${index}`}
+                          type="button"
+                          onClick={() => appendEmoji(emoji)}
+                          className="flex aspect-square items-center justify-center rounded-lg text-lg hover:bg-sky-100 dark:hover:bg-slate-700"
+                          aria-label={`Insert ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}

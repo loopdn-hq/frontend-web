@@ -264,14 +264,18 @@ export async function fetchConversations(): Promise<
 
 export async function fetchConversation(
   conversationId: string | number,
-): Promise<{ ok: true; conversation: Conversation } | { ok: false; message: string }> {
+): Promise<
+  { ok: true; conversation: Conversation } | { ok: false; message: string }
+> {
   try {
     const response = await authorizedRequest(
       `/chat/conversations/${conversationId}`,
     );
     const data = await response.json().catch(() => null);
     const conversation = getObjectData(data);
-    const normalized = conversation ? normalizeConversation(conversation) : null;
+    const normalized = conversation
+      ? normalizeConversation(conversation)
+      : null;
     if (!response.ok || !normalized) {
       return {
         ok: false,
@@ -282,7 +286,10 @@ export async function fetchConversation(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Network error. Please try again.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
     };
   }
 }
@@ -290,8 +297,7 @@ export async function fetchConversation(
 export async function fetchMessageHistory(
   conversationId: string | number,
 ): Promise<
-  | { ok: true; messages: ConversationMessage[] }
-  | { ok: false; message: string }
+  { ok: true; messages: ConversationMessage[] } | { ok: false; message: string }
 > {
   try {
     const response = await authorizedRequest(
@@ -310,15 +316,16 @@ export async function fetchMessageHistory(
       ok: true,
       messages: items
         .map(normalizeMessage)
-        .filter(
-          (message): message is ConversationMessage => message !== null,
-        )
+        .filter((message): message is ConversationMessage => message !== null)
         .reverse(),
     };
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Network error. Please try again.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
     };
   }
 }
@@ -328,8 +335,7 @@ export async function sendConversationMessage(
   text: string,
   attachments: File[] = [],
 ): Promise<
-  | { ok: true; message: ConversationMessage }
-  | { ok: false; message: string }
+  { ok: true; message: ConversationMessage } | { ok: false; message: string }
 > {
   try {
     const hasAttachments = attachments.length > 0;
@@ -365,7 +371,10 @@ export async function sendConversationMessage(
   } catch (error) {
     return {
       ok: false,
-      message: error instanceof Error ? error.message : "Network error. Please try again.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
     };
   }
 }
