@@ -24,6 +24,19 @@ export type Conversation = {
   isAdmin: boolean;
   communicationMode: CommunicationMode;
   active?: boolean;
+  participants: ConversationParticipant[];
+};
+
+export type ConversationParticipant = {
+  id: string;
+  name: string;
+  username?: string;
+  email?: string;
+  phone?: string;
+  role: "admin" | "moderator" | "member";
+  joinedAt: string;
+  isBlocked?: boolean;
+  lastActive?: string;
 };
 
 export type ConversationAttachment = {
@@ -68,6 +81,9 @@ function getConversationItems(payload: unknown): ApiObject[] {
   if (data && typeof data === "object") {
     const results = (data as ApiObject).results;
     if (Array.isArray(results)) return results.filter(isApiObject);
+    if ("id" in data && ("name" in data || "title" in data)) {
+      return [data as ApiObject];
+    }
   }
   return [];
 }
@@ -80,6 +96,32 @@ function asText(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+function normalizeParticipant(item: unknown): ConversationParticipant | null {
+  if (!isApiObject(item)) return null;
+  const user = isApiObject(item.user) ? item.user : item;
+  const id = user.id;
+  if (typeof id !== "string" && typeof id !== "number") return null;
+  const profile = isApiObject(user.profile) ? user.profile : user;
+  const username = asText(user.username) || undefined;
+  const name = asText(
+    user.display_label,
+    asText(profile.display_label, username ?? "Member"),
+  );
+  const role = item.role === "admin" || item.role === "moderator" ? item.role : "member";
+
+  return {
+    id: String(id),
+    name,
+    username,
+    email: asText(user.email) || undefined,
+    phone: asText(user.phone_number, asText(user.phone)) || undefined,
+    role,
+    joinedAt: asText(item.joined_at, "Recently"),
+    isBlocked: item.is_blocked === true,
+    lastActive: asText(profile.last_seen_at) || undefined,
+  };
+}
+
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
   if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
@@ -88,14 +130,15 @@ function normalizeConversation(item: ApiObject): Conversation | null {
 
   const communicationMode =
     item.communication_mode === "broadcast" ? "broadcast" : "chat";
+  const lastMessage = isApiObject(item.last_message) ? item.last_message : null;
   const preview = asText(
-    item.last_message,
+    lastMessage?.text,
     asText(item.description, "New Loop"),
   );
 
   return {
     id,
-    name: asText(item.name),
+    name: asText(item.title, asText(item.name)),
     description: asText(item.description),
     preview,
     unread:
@@ -104,8 +147,22 @@ function normalizeConversation(item: ApiObject): Conversation | null {
         : typeof item.unread === "number"
           ? item.unread
           : 0,
-    isAdmin: item.is_admin === true || item.role === "admin",
+    isAdmin:
+      item.is_admin === true ||
+      (Array.isArray(item.participants) &&
+        item.participants.some(
+          (participant) =>
+            isApiObject(participant) && participant.role === "admin",
+        )),
     communicationMode,
+    participants: Array.isArray(item.participants)
+      ? item.participants
+          .map(normalizeParticipant)
+          .filter(
+            (participant): participant is ConversationParticipant =>
+              participant !== null,
+          )
+      : [],
   };
 }
 
@@ -135,16 +192,21 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
   }
 
   const sender = item.sender;
+  const senderObject = isApiObject(sender) ? sender : null;
+  const senderProfile =
+    senderObject && isApiObject(senderObject.profile)
+      ? senderObject.profile
+      : senderObject;
   const senderName =
-    sender && typeof sender === "object"
+    senderObject
       ? asText(
-          (sender as ApiObject).display_label,
-          asText((sender as ApiObject).username, "Unknown"),
+          senderObject.display_label,
+          asText(senderProfile?.display_label, asText(senderObject.username, "Unknown")),
         )
       : asText(sender, "Unknown");
   const senderUsername =
-    sender && typeof sender === "object"
-      ? asText((sender as ApiObject).username) || undefined
+    senderObject
+      ? asText(senderObject.username) || undefined
       : typeof sender === "string"
         ? sender
         : undefined;
@@ -283,6 +345,38 @@ export async function fetchConversation(
       };
     }
     return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function addConversationMembers(
+  conversationId: string | number,
+  members: string[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/members/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ members }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to add members to this Loop.",
+      };
+    }
+    return { ok: true };
   } catch (error) {
     return {
       ok: false,

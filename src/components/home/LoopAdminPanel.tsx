@@ -59,13 +59,15 @@ export function LoopAdminPanel({
     <div className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5">
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900">
-            {loopSettings.name} Admin Panel
-          </h1>
-          <p className="mt-2 text-slate-600">
-            Manage your Loop&apos;s settings and members
-          </p>
+        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">
+              {loopSettings.name} Admin Panel
+            </h1>
+            <p className="mt-2 text-slate-600">
+              Manage your Loop&apos;s settings and members
+            </p>
+          </div>
         </div>
 
         {/* Tabs */}
