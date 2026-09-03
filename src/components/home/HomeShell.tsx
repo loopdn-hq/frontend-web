@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { fetchUserProfile, getSession, logout } from "@/lib/auth/client";
 import {
   addConversationMembers,
@@ -915,9 +916,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       {message.attachments.map((attachment) => (
                         <div key={attachment.id ?? attachment.url}>
                           {attachment.contentType?.startsWith("image/") && (
-                            <img
+                            <Image
                               src={attachment.url}
                               alt={attachment.originalName}
+                              width={400}
+                              height={224}
+                              unoptimized
                               className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
                             />
                           )}

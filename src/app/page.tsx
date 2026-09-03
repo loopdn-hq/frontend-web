@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { displayNameForSession, useAuth } from "@/lib/auth/client";
 
@@ -16,11 +17,15 @@ export default function RootPage() {
       {/* Header / Nav */}
       <header className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 sm:px-8">
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="text-xl font-bold tracking-tight text-slate-900 transition hover:opacity-80"
-          >
-            Loopd&apos;n
+          <Link href="/" className="transition hover:opacity-80">
+            <Image
+              src="/full-logo.png"
+              alt="Loopd'n"
+              width={200}
+              height={40}
+              priority
+              className="h-8 w-auto sm:h-10"
+            />
           </Link>
         </div>
 
