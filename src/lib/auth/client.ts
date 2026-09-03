@@ -724,6 +724,164 @@ export async function verifyPhoneCode(code: string): Promise<AuthResult> {
   }
 }
 
+export type FieldErrors = Record<string, string[]>;
+
+// Every field in `data` on a DRF-style error response is a string or an
+// array of strings; normalized here to string[] so callers can render every
+// message for a field, not just the first one.
+function extractFieldErrors(payload: unknown): FieldErrors {
+  if (!payload || typeof payload !== "object") return {};
+
+  const data = (payload as Envelope).data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return {};
+
+  const result: FieldErrors = {};
+  for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+    if (typeof value === "string") {
+      result[key] = [value];
+    } else if (Array.isArray(value)) {
+      const messages = value.filter((v): v is string => typeof v === "string");
+      if (messages.length > 0) result[key] = messages;
+    }
+  }
+  return result;
+}
+
+export type ForgotPasswordResult = { ok: true } | { ok: false };
+
+// POST /api/v1/users/forgot-password/ — anti-enumeration: whether the email
+// matched an account is never revealed, so any response the backend actually
+// sent (found, not found, rate-limited, ...) resolves the same way and the
+// caller shows one generic message regardless. Only a genuine request
+// failure (offline, timeout, CORS, 5xx) resolves differently, so the caller
+// can tell the user something actually went wrong instead of lying to them.
+export async function requestPasswordReset(
+  email: string,
+): Promise<ForgotPasswordResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/forgot-password/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    return { ok: response.status < 500 };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export type ResetPasswordResult =
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      fieldErrors: FieldErrors;
+      invalidOrExpired: boolean;
+    };
+
+// POST /api/v1/users/reset-password/ — confirms the uid/token from the email
+// link and sets the new password.
+export async function resetPassword(payload: {
+  uid: string;
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+}): Promise<ResetPasswordResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/reset-password/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: payload.uid,
+        token: payload.token,
+        new_password: payload.newPassword,
+        confirm_password: payload.confirmPassword,
+      }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      const fieldErrors = extractFieldErrors(data);
+      const message =
+        extractErrorMessage(data) ??
+        "Unable to reset your password. Please try again.";
+
+      // A bad/tampered uid or an invalid-or-expired token always comes back
+      // as data.uid / data.token (confirmed against the backend), so this
+      // checks those keys directly rather than guessing from message text.
+      const invalidOrExpired = Boolean(fieldErrors.uid || fieldErrors.token);
+
+      return { ok: false, message, fieldErrors, invalidOrExpired };
+    }
+
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Network error. Please try again.",
+      fieldErrors: {},
+      invalidOrExpired: false,
+    };
+  }
+}
+
+export type ChangePasswordResult =
+  { ok: true } | { ok: false; message: string; fieldErrors: FieldErrors };
+
+// POST /api/v1/users/change-password/ — requires the signed-in user's access
+// token; the backend re-checks old_password itself.
+export async function changePassword(payload: {
+  oldPassword: string;
+  newPassword: string;
+}): Promise<ChangePasswordResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to change your password.",
+      fieldErrors: {},
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/change-password/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        old_password: payload.oldPassword,
+        new_password: payload.newPassword,
+      }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      await handleUnauthorizedResponse(response);
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to change your password. Please try again.",
+        fieldErrors: extractFieldErrors(data),
+      };
+    }
+
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      message: "Network error. Please try again.",
+      fieldErrors: {},
+    };
+  }
+}
+
 // GET /api/v1/users/me/ — refreshes the cached phone_no_verified flag, so
 // gated actions reflect the backend's truth rather than only the local cache.
 export async function fetchCurrentUser(): Promise<void> {

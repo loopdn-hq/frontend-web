@@ -75,3 +75,31 @@ export const signupSchema = z
   });
 
 export type SignupPayload = z.infer<typeof signupSchema>;
+
+// POST /users/forgot-password/
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export type ForgotPasswordPayload = z.infer<typeof forgotPasswordSchema>;
+
+// POST /users/reset-password/
+export const resetPasswordSchema = z
+  .object({
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, "Confirm your new password."),
+  })
+  .refine((value) => value.newPassword === value.confirmPassword, {
+    message: "Passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+export type ResetPasswordPayload = z.infer<typeof resetPasswordSchema>;
+
+// POST /users/change-password/ — no confirm field, per the backend contract.
+export const changePasswordSchema = z.object({
+  oldPassword: z.string().min(1, "Enter your current password."),
+  newPassword: passwordSchema,
+});
+
+export type ChangePasswordPayload = z.infer<typeof changePasswordSchema>;
