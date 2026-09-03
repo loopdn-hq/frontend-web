@@ -2,8 +2,11 @@
 
 import { useState } from "react";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
+import { changePassword, type FieldErrors } from "@/lib/auth/client";
+import { changePasswordSchema } from "@/lib/validation/auth";
 
-type SettingsTab = "profile" | "appearance" | "notifications" | "privacy";
+type SettingsTab =
+  "profile" | "security" | "appearance" | "notifications" | "privacy";
 
 export type UserProfile = {
   displayName: string;
@@ -86,6 +89,7 @@ export function UserSettingsModal({
               {(
                 [
                   { id: "profile", label: "👤 Profile" },
+                  { id: "security", label: "🔑 Security" },
                   { id: "appearance", label: "🎨 Appearance" },
                   { id: "notifications", label: "🔔 Notifications" },
                   { id: "privacy", label: "🔒 Privacy" },
@@ -109,6 +113,7 @@ export function UserSettingsModal({
               {activeTab === "profile" && (
                 <ProfileSettings profile={profile} onSave={onSaveProfile} />
               )}
+              {activeTab === "security" && <ChangePasswordSettings />}
               {activeTab === "appearance" && <AppearanceSettings />}
               {activeTab === "notifications" && (
                 <NotificationSettings
@@ -224,6 +229,118 @@ function ProfileSettings({
         )}
       </div>
     </div>
+  );
+}
+
+function ChangePasswordSettings() {
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [generalError, setGeneralError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGeneralError("");
+    setFieldErrors({});
+    setSaved(false);
+
+    const parsed = changePasswordSchema.safeParse({ oldPassword, newPassword });
+    if (!parsed.success) {
+      const issues: FieldErrors = {};
+      for (const issue of parsed.error.issues) {
+        const key =
+          issue.path[0] === "oldPassword" ? "old_password" : "new_password";
+        issues[key] = [...(issues[key] ?? []), issue.message];
+      }
+      setFieldErrors(issues);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const result = await changePassword({ oldPassword, newPassword });
+
+      if (!result.ok) {
+        setFieldErrors(result.fieldErrors);
+        setGeneralError(result.message);
+        return;
+      }
+
+      setOldPassword("");
+      setNewPassword("");
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const oldPasswordErrors = fieldErrors.old_password ?? [];
+  const newPasswordErrors = fieldErrors.new_password ?? [];
+
+  return (
+    <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Current Password
+        </label>
+        <input
+          type="password"
+          value={oldPassword}
+          onChange={(e) => setOldPassword(e.target.value)}
+          autoComplete="current-password"
+          disabled={isSaving}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        />
+        {oldPasswordErrors.map((message) => (
+          <p key={message} className="mt-1 text-xs text-rose-600">
+            {message}
+          </p>
+        ))}
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          New Password
+        </label>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          autoComplete="new-password"
+          disabled={isSaving}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        />
+        {newPasswordErrors.map((message) => (
+          <p key={message} className="mt-1 text-xs text-rose-600">
+            {message}
+          </p>
+        ))}
+      </div>
+
+      {generalError && (
+        <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
+          {generalError}
+        </p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={isSaving || !oldPassword || !newPassword}
+          className="rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          {isSaving ? "Saving..." : "Change Password"}
+        </button>
+        {saved && (
+          <p className="text-xs font-medium text-emerald-600">
+            Password changed ✓
+          </p>
+        )}
+      </div>
+    </form>
   );
 }
 
