@@ -1,4 +1,4 @@
-import { getAccessToken } from "@/lib/auth/client";
+import { getAccessToken, handleUnauthorizedResponse } from "@/lib/auth/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -107,7 +107,8 @@ function normalizeParticipant(item: unknown): ConversationParticipant | null {
     user.display_label,
     asText(profile.display_label, username ?? "Member"),
   );
-  const role = item.role === "admin" || item.role === "moderator" ? item.role : "member";
+  const role =
+    item.role === "admin" || item.role === "moderator" ? item.role : "member";
 
   return {
     id: String(id),
@@ -197,19 +198,20 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     senderObject && isApiObject(senderObject.profile)
       ? senderObject.profile
       : senderObject;
-  const senderName =
-    senderObject
-      ? asText(
-          senderObject.display_label,
-          asText(senderProfile?.display_label, asText(senderObject.username, "Unknown")),
-        )
-      : asText(sender, "Unknown");
-  const senderUsername =
-    senderObject
-      ? asText(senderObject.username) || undefined
-      : typeof sender === "string"
-        ? sender
-        : undefined;
+  const senderName = senderObject
+    ? asText(
+        senderObject.display_label,
+        asText(
+          senderProfile?.display_label,
+          asText(senderObject.username, "Unknown"),
+        ),
+      )
+    : asText(sender, "Unknown");
+  const senderUsername = senderObject
+    ? asText(senderObject.username) || undefined
+    : typeof sender === "string"
+      ? sender
+      : undefined;
 
   return {
     id,
@@ -244,13 +246,16 @@ async function authorizedRequest(
   const accessToken = getAccessToken();
   if (!accessToken) throw new Error("You must be signed in to manage loops.");
 
-  return fetch(`${API_BASE_URL}${input}`, {
+  const response = await fetch(`${API_BASE_URL}${input}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${accessToken}`,
       ...init.headers,
     },
   });
+
+  await handleUnauthorizedResponse(response);
+  return response;
 }
 
 export async function createConversation(

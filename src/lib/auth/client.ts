@@ -175,6 +175,17 @@ export async function logout(): Promise<void> {
   clearSession();
 }
 
+let unauthorizedLogout: Promise<void> | null = null;
+
+export function handleUnauthorizedResponse(response: Response): Promise<void> {
+  if (response.status !== 401) return Promise.resolve();
+
+  unauthorizedLogout ??= logout().finally(() => {
+    unauthorizedLogout = null;
+  });
+  return unauthorizedLogout;
+}
+
 // "storage" only fires in *other* tabs, so setSession/clearSession dispatch
 // SESSION_EVENT for this one.
 function subscribe(onChange: () => void): () => void {
@@ -405,6 +416,7 @@ export async function updatePhoneNumber(
     const data: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+      await handleUnauthorizedResponse(response);
       return {
         ok: false,
         message:
@@ -446,6 +458,7 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
     const data: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+      await handleUnauthorizedResponse(response);
       return {
         ok: false,
         message: extractErrorMessage(data) ?? "Unable to load your profile.",
@@ -501,6 +514,7 @@ export async function requestPhoneVerificationCode(
     const data: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+      await handleUnauthorizedResponse(response);
       return {
         ok: false,
         message:
@@ -540,6 +554,7 @@ export async function verifyPhoneCode(code: string): Promise<AuthResult> {
     const data: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+      await handleUnauthorizedResponse(response);
       return {
         ok: false,
         message:
@@ -569,7 +584,10 @@ export async function fetchCurrentUser(): Promise<void> {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      await handleUnauthorizedResponse(response);
+      return;
+    }
 
     const envelope = (await response.json().catch(() => null)) as {
       data?: {
