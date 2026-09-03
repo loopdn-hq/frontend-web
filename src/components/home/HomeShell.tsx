@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { fetchUserProfile, getSession, logout } from "@/lib/auth/client";
@@ -318,7 +318,78 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [voiceRecordError, setVoiceRecordError] = useState<string | null>(
+    null,
+  );
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const currentUsername = getSession();
+
+  const stopVoiceStream = useCallback(() => {
+    mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mediaStreamRef.current = null;
+  }, []);
+
+  // Records to a File the same shape file uploads produce, so it rides the
+  // existing attachments pipeline (pill list, FormData upload, playback).
+  const handleStartRecording = useCallback(async () => {
+    if (isSendingMessage || isRecordingVoice) return;
+    setVoiceRecordError(null);
+
+    if (typeof MediaRecorder === "undefined") {
+      setVoiceRecordError("Voice messages aren't supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      recordedChunksRef.current = [];
+
+      const recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        stopVoiceStream();
+        const mimeType = recorder.mimeType || "audio/webm";
+        const blob = new Blob(recordedChunksRef.current, { type: mimeType });
+        recordedChunksRef.current = [];
+        if (blob.size === 0) return;
+
+        const extension = mimeType.includes("ogg") ? "ogg" : "webm";
+        const file = new File(
+          [blob],
+          `voice-message-${Date.now()}.${extension}`,
+          { type: mimeType },
+        );
+        setMessageAttachments((current) => [...current, file]);
+      };
+
+      mediaRecorderRef.current = recorder;
+      recorder.start();
+      setIsRecordingVoice(true);
+    } catch {
+      setVoiceRecordError("Microphone access was denied.");
+      stopVoiceStream();
+    }
+  }, [isSendingMessage, isRecordingVoice, stopVoiceStream]);
+
+  const handleStopRecording = useCallback(() => {
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+    setIsRecordingVoice(false);
+  }, []);
+
+  // Release the microphone if the component unmounts mid-recording.
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop();
+      stopVoiceStream();
+    };
+  }, [stopVoiceStream]);
 
   const toUiMessage = useCallback(
     (message: ConversationMessage): Message => {
@@ -915,6 +986,13 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     <div className="mt-2 space-y-1">
                       {message.attachments.map((attachment) => (
                         <div key={attachment.id ?? attachment.url}>
+                          {attachment.contentType?.startsWith("audio/") && (
+                            <audio
+                              controls
+                              src={attachment.url}
+                              className="mb-1 max-w-full"
+                            />
+                          )}
                           {attachment.contentType?.startsWith("image/") && (
                             <Image
                               src={attachment.url}
@@ -959,6 +1037,17 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 {messageError && (
                   <p className="px-2 pb-2 text-xs text-rose-600">
                     {messageError}
+                  </p>
+                )}
+                {voiceRecordError && (
+                  <p className="px-2 pb-2 text-xs text-rose-600">
+                    {voiceRecordError}
+                  </p>
+                )}
+                {isRecordingVoice && (
+                  <p className="flex items-center gap-2 px-2 pb-2 text-xs text-rose-600">
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
+                    Recording voice message...
                   </p>
                 )}
                 {isMessagesLoading && (
@@ -1014,6 +1103,28 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     aria-label="Add emoji"
                   >
                     😊
+                  </button>
+                  <button
+                    type="button"
+                    onClick={
+                      isRecordingVoice
+                        ? handleStopRecording
+                        : handleStartRecording
+                    }
+                    disabled={isSendingMessage}
+                    className={`px-1 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
+                    title={
+                      isRecordingVoice
+                        ? "Stop recording"
+                        : "Record a voice message"
+                    }
+                    aria-label={
+                      isRecordingVoice
+                        ? "Stop recording"
+                        : "Record a voice message"
+                    }
+                  >
+                    {isRecordingVoice ? "⏹️" : "🎙️"}
                   </button>
                   <input
                     type="text"
