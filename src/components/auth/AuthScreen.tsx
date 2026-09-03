@@ -181,7 +181,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/verify-phone/");
+      router.push("/verify-email/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -483,7 +483,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   )}
 
                   <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
-                    We&apos;ll text a verification code to your phone next.
+                    We&apos;ll email you a verification code next, then text one
+                    to your phone.
                   </p>
                 </>
               )}

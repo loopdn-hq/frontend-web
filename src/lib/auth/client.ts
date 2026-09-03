@@ -4,6 +4,9 @@ import { useSyncExternalStore } from "react";
 import { googleLogout } from "@react-oauth/google";
 import {
   ACCESS_TOKEN_KEY,
+  EMAIL_VERIFIED_KEY,
+  PENDING_EMAIL_KEY,
+  PENDING_LOGIN_KEY,
   PENDING_PHONE_KEY,
   PHONE_VERIFIED_KEY,
   REFRESH_TOKEN_KEY,
@@ -105,6 +108,79 @@ export function clearPendingPhone(): void {
     window.localStorage.removeItem(PENDING_PHONE_KEY);
   } catch {
     // ignore
+  }
+}
+
+export function setPendingEmail(email: string): void {
+  try {
+    window.localStorage.setItem(PENDING_EMAIL_KEY, email);
+  } catch {
+    // ignore
+  }
+}
+
+export function getPendingEmail(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(PENDING_EMAIL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingEmail(): void {
+  try {
+    window.localStorage.removeItem(PENDING_EMAIL_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export function setEmailVerified(verified: boolean): void {
+  try {
+    window.localStorage.setItem(EMAIL_VERIFIED_KEY, verified ? "1" : "0");
+    notify();
+  } catch {
+    // ignore
+  }
+}
+
+export function isEmailVerified(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(EMAIL_VERIFIED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+// Reactive read of the cached email_verified flag.
+export function useEmailVerified(): boolean {
+  return useSyncExternalStore(subscribe, isEmailVerified, () => false);
+}
+
+// sessionStorage (tab-scoped, cleared on read) so a freshly registered
+// account can log in automatically once /verify-email confirms the code,
+// without persisting the password anywhere longer-lived than that.
+function stashPendingCredentials(username: string, password: string): void {
+  try {
+    window.sessionStorage.setItem(
+      PENDING_LOGIN_KEY,
+      JSON.stringify({ username, password }),
+    );
+  } catch {
+    // ignore
+  }
+}
+
+function consumePendingCredentials(): LoginPayload | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_LOGIN_KEY);
+    window.sessionStorage.removeItem(PENDING_LOGIN_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as LoginPayload;
+  } catch {
+    return null;
   }
 }
 
@@ -341,8 +417,10 @@ export async function authenticateWithGoogle(
   }
 }
 
-// POST /api/v1/users/register/ on the Django API. Registering issues no
-// tokens, so a successful signup immediately logs in with the same credentials.
+// POST /api/v1/users/register/ on the Django API. Registration issues no
+// tokens and sends the first email verification code itself. Login is
+// deferred until the email is confirmed (see verifyEmailCode()), so the
+// credentials are stashed in sessionStorage just long enough for that.
 export async function registerAccount(
   payload: SignupPayload,
 ): Promise<AuthResult> {
@@ -373,16 +451,82 @@ export async function registerAccount(
       };
     }
 
-    const result = await authenticate({
-      username: payload.username,
-      password: payload.password,
+    setPendingPhone(payload.phoneNumber);
+    setPendingEmail(payload.email);
+    stashPendingCredentials(payload.username, payload.password);
+
+    return { ok: true, displayName: payload.displayName || payload.username };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// POST /api/v1/users/resend-code/ — re-sends the email verification code.
+export async function resendEmailVerificationCode(
+  email: string,
+): Promise<AuthResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/resend-code/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
     });
 
-    if (result.ok) {
-      setPendingPhone(payload.phoneNumber);
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "Unable to send a verification code. Please try again.",
+      };
     }
 
-    return result;
+    return { ok: true, displayName: email };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+// POST /api/v1/users/verify-email/ — confirms the code sent at registration
+// (or by resendEmailVerificationCode()). On success, logs in in the
+// background with the credentials stashed by registerAccount() so the caller
+// lands with an established session, then clears the pending state.
+export async function verifyEmailCode(
+  email: string,
+  code: string,
+): Promise<AuthResult> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/verify-email/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, code }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        message:
+          extractErrorMessage(data) ??
+          "That code didn't work. Please try again.",
+      };
+    }
+
+    setEmailVerified(true);
+    clearPendingEmail();
+
+    const credentials = consumePendingCredentials();
+    if (!credentials) {
+      return {
+        ok: false,
+        message: "Email verified. Please log in to continue.",
+      };
+    }
+
+    return authenticate(credentials);
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }
@@ -592,7 +736,8 @@ export async function fetchCurrentUser(): Promise<void> {
     const envelope = (await response.json().catch(() => null)) as {
       data?: {
         phone_no_verified?: boolean;
-        profile?: { phone_no_verified?: boolean };
+        email_verified?: boolean;
+        profile?: { phone_no_verified?: boolean; email_verified?: boolean };
       };
     } | null;
 
@@ -602,6 +747,13 @@ export async function fetchCurrentUser(): Promise<void> {
       false;
 
     setPhoneVerified(verified);
+
+    const emailVerified =
+      envelope?.data?.email_verified ??
+      envelope?.data?.profile?.email_verified ??
+      false;
+
+    setEmailVerified(emailVerified);
   } catch {
     // Keep the cached value; this is a best-effort refresh.
   }
