@@ -319,9 +319,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [messageError, setMessageError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
-  const [voiceRecordError, setVoiceRecordError] = useState<string | null>(
-    null,
-  );
+  const [voiceRecordError, setVoiceRecordError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
