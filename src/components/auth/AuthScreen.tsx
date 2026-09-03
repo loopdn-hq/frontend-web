@@ -10,6 +10,8 @@ import {
   authenticate,
   authenticateWithGoogle,
   registerAccount,
+  setPendingEmail,
+  stashPendingCredentials,
 } from "@/lib/auth/client";
 import {
   loginSchema,
@@ -154,6 +156,13 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
       const result = await authenticate(data);
 
       if (!result.ok) {
+        if (result.emailNotVerified) {
+          setPendingEmail(data.username);
+          stashPendingCredentials(data.username, data.password);
+          router.push("/verify-email/");
+          return;
+        }
+
         setGeneralError(result.message);
         return;
       }

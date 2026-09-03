@@ -29,7 +29,7 @@ const SESSION_EVENT = "loopdn:session";
 
 export type AuthResult =
   | { ok: true; displayName: string; isNewAccount?: boolean }
-  | { ok: false; message: string };
+  | { ok: false; message: string; emailNotVerified?: boolean };
 
 export function getSession(): string | null {
   if (typeof window === "undefined") return null;
@@ -160,9 +160,13 @@ export function useEmailVerified(): boolean {
 }
 
 // sessionStorage (tab-scoped, cleared on read) so a freshly registered
-// account can log in automatically once /verify-email confirms the code,
-// without persisting the password anywhere longer-lived than that.
-function stashPendingCredentials(username: string, password: string): void {
+// account (or one caught mid-login by "verify your email") can log in
+// automatically once /verify-email confirms the code, without persisting the
+// password anywhere longer-lived than that.
+export function stashPendingCredentials(
+  username: string,
+  password: string,
+): void {
   try {
     window.sessionStorage.setItem(
       PENDING_LOGIN_KEY,
@@ -338,9 +342,13 @@ export async function authenticate(payload: LoginPayload): Promise<AuthResult> {
     const data: unknown = await response.json().catch(() => null);
 
     if (!response.ok) {
+      const message =
+        extractErrorMessage(data) ?? "Incorrect username or password.";
+
       return {
         ok: false,
-        message: extractErrorMessage(data) ?? "Incorrect username or password.",
+        message,
+        emailNotVerified: message.toLowerCase().includes("verify your email"),
       };
     }
 
