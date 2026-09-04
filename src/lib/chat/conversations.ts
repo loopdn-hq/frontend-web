@@ -120,7 +120,12 @@ function asText(value: unknown, fallback = ""): string {
 function normalizeParticipant(item: unknown): ConversationParticipant | null {
   if (!isApiObject(item)) return null;
   const user = isApiObject(item.user) ? item.user : item;
-  const id = user.id;
+  // The membership row's own id, not the account's - every action endpoint
+  // (remove/role/requests) looks a participant up by Participant.pk, and
+  // that differs from the user's id as soon as an account has more than one
+  // membership. When item IS the user object (no nested `user` key), this is
+  // the same value user.id would have given, so the fallback path is unaffected.
+  const id = item.id;
   if (typeof id !== "string" && typeof id !== "number") return null;
   const profile = isApiObject(user.profile) ? user.profile : user;
   const username = asText(user.username) || undefined;
