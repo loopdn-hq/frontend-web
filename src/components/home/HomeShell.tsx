@@ -7,15 +7,18 @@ import { fetchUserProfile, getSession, logout } from "@/lib/auth/client";
 import {
   addConversationMembers,
   fetchConversation,
+  fetchConversationParticipants,
   fetchConversations,
   fetchJoinCode,
   fetchJoinRequests,
   fetchMessageHistory,
   inviteConversationMemberByPhone,
+  joinConversation,
   joinConversationWithCode,
   leaveConversation,
   removeConversationMember,
   respondToJoinRequest,
+  searchConversations,
   sendConversationMessage,
   updateGroupSettings,
   updateMemberRole,
@@ -35,6 +38,7 @@ import {
   UserSettingsModal,
   type UserProfile,
 } from "@/components/settings/UserSettingsModal";
+import { Code, Plus } from "lucide-react";
 
 type Message = {
   id: string | number;
@@ -250,9 +254,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isJoinLoopOpen, setIsJoinLoopOpen] = useState(false);
   const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
-  const [isLeaveLoopConfirmOpen, setIsLeaveLoopConfirmOpen] = useState(false);
-  const [isLeavingLoop, setIsLeavingLoop] = useState(false);
-  const [leaveLoopError, setLeaveLoopError] = useState("");
   const [groupSettings, setGroupSettings] = useState<GroupSettings | null>(
     null,
   );
@@ -261,6 +262,16 @@ export function HomeShell({ displayName }: HomeShellProps) {
     [],
   );
   const [isJoinRequestsLoading, setIsJoinRequestsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Conversation[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [pendingConversation, setPendingConversation] =
+    useState<Conversation | null>(null);
+  const [pendingJoinCode, setPendingJoinCode] = useState("");
+  const [isJoiningPending, setIsJoiningPending] = useState(false);
+  const [pendingJoinError, setPendingJoinError] = useState("");
+  const [pendingJoinRequestSent, setPendingJoinRequestSent] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
@@ -447,6 +458,32 @@ export function HomeShell({ displayName }: HomeShellProps) {
     : [];
 
   useEffect(() => {
+    const query = searchQuery.trim();
+    if (!query) return;
+
+    let cancelled = false;
+    const timeout = setTimeout(() => {
+      setIsSearching(true);
+      searchConversations(query).then((result) => {
+        if (cancelled) return;
+        setIsSearching(false);
+        if (!result.ok) {
+          setSearchError(result.message);
+          setSearchResults([]);
+          return;
+        }
+        setSearchError("");
+        setSearchResults(result.conversations);
+      });
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
     if (!selectedConversationId) return;
     let cancelled = false;
 
@@ -460,6 +497,31 @@ export function HomeShell({ displayName }: HomeShellProps) {
       cancelled = true;
     };
   }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    let cancelled = false;
+
+    fetchConversationParticipants(selectedConversationId).then((result) => {
+      if (cancelled || !result.ok) return;
+      const isAdmin = result.participants.some(
+        (participant) =>
+          participant.role === "admin" &&
+          participant.username === currentUsername,
+      );
+      setConversations((current) =>
+        current.map((conversation) =>
+          conversation.id === selectedConversationId
+            ? { ...conversation, participants: result.participants, isAdmin }
+            : conversation,
+        ),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationId, currentUsername]);
 
   useEffect(() => {
     if (
@@ -514,8 +576,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
       if (!selectedConversationId) return;
-
-      console.log("WebSocket message received:", message);
 
       if (message.type === "message.new") {
         const eventMessage = message.message;
@@ -625,7 +685,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
         map.set(selectedConversationId, "connected");
         return map;
       });
-      console.log(`WebSocket connected for loop ${selectedConversationId}`);
     }
   }, [selectedConversationId]);
 
@@ -636,7 +695,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
         map.set(selectedConversationId, "disconnected");
         return map;
       });
-      console.log(`WebSocket disconnected for loop ${selectedConversationId}`);
     }
   }, [selectedConversationId]);
 
@@ -701,6 +759,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
     const result = await fetchConversations();
     if (!result.ok) return;
 
+    setPendingConversation(null);
     setConversations(
       result.conversations.map((conversation) => ({
         ...conversation,
@@ -745,6 +804,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
     const result = await joinConversationWithCode(code);
     if (!result.ok) throw new Error(result.message);
 
+    setPendingConversation(null);
     setConversations((current) => {
       const withoutJoined = current.filter(
         (conversation) => conversation.id !== result.conversation.id,
@@ -773,6 +833,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
   }
 
   function handleSelectConversation(conversationId: string | number) {
+    setPendingConversation(null);
     setSelectedConversationId(conversationId);
     setConversations(
       conversations.map((c) => ({
@@ -782,14 +843,57 @@ export function HomeShell({ displayName }: HomeShellProps) {
     );
   }
 
+  function handleSelectSearchResult(conversation: Conversation) {
+    setPendingJoinError("");
+    setPendingJoinCode("");
+    setPendingJoinRequestSent(false);
+    setSelectedConversationId(null);
+    setPendingConversation(conversation);
+  }
+
+  async function handleJoinPending() {
+    if (!pendingConversation) return;
+    setIsJoiningPending(true);
+    setPendingJoinError("");
+    const result = await joinConversation(pendingConversation.id);
+    setIsJoiningPending(false);
+    if (!result.ok) {
+      setPendingJoinError(result.message);
+      return;
+    }
+    if (result.status === "pending") {
+      setPendingJoinRequestSent(true);
+      return;
+    }
+
+    setPendingConversation(null);
+    await refreshConversations();
+    setSelectedConversationId(result.conversation.id);
+  }
+
+  async function handleJoinPendingWithCode() {
+    if (!pendingJoinCode.trim()) {
+      setPendingJoinError("Enter a join code.");
+      return;
+    }
+    setIsJoiningPending(true);
+    setPendingJoinError("");
+    const result = await joinConversationWithCode(pendingJoinCode.trim());
+    setIsJoiningPending(false);
+    if (!result.ok) {
+      setPendingJoinError(result.message);
+      return;
+    }
+
+    setPendingConversation(null);
+    await refreshConversations();
+    setSelectedConversationId(result.conversation.id);
+  }
+
   async function handleLeaveLoop() {
     if (!selectedConversationId) return;
-    setIsLeavingLoop(true);
-    setLeaveLoopError("");
     const result = await leaveConversation(selectedConversationId);
-    setIsLeavingLoop(false);
     if (!result.ok) {
-      setLeaveLoopError(result.message);
       return;
     }
 
@@ -808,7 +912,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
       );
       return remaining[0]?.id ?? null;
     });
-    setIsLeaveLoopConfirmOpen(false);
   }
 
   function renderConversationButton(conversation: Conversation) {
@@ -852,9 +955,15 @@ export function HomeShell({ displayName }: HomeShellProps) {
       </button>
     );
   }
-
-  const chatLoops = conversations.filter((c) => c.mode !== "broadcast");
-  const broadcastLoops = conversations.filter((c) => c.mode === "broadcast");
+  const chatLoops = conversations.filter(
+    (c) => c.settings?.mode !== "broadcast",
+  );
+  const broadcastLoops = conversations.filter(
+    (c) => c.settings?.mode === "broadcast",
+  );
+  const canPostMessage =
+    selectedConversation?.settings?.sms_delivery_enabled ||
+    selectedConversation?.isAdmin;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
@@ -862,85 +971,153 @@ export function HomeShell({ displayName }: HomeShellProps) {
         <aside className="border-b border-sky-100 bg-white/85 p-4 md:border-r md:border-b-0 md:p-5 dark:border-slate-800 dark:bg-slate-900/85">
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2 justify-between w-full">
-              <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
-                Loopd&apos;n
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsUserSettingsOpen(true)}
-                className="py-1.5 px-0 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                ⚙️
-              </button>
+              <div className="flex items-center gap-2 justify-center">
+                <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
+                  Loopd&apos;n
+                </p>
+                <p
+                  title={displayName}
+                  className="rounded-xl bg-cyan-50 px-3 py-2 max-w-[120px] truncate text-xs text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
+                >
+                  {displayName}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 w-auto">
+                <button
+                  type="button"
+                  title="Create Loop"
+                  onClick={() =>
+                    requirePhoneVerified(() => setIsCreateLoopOpen(true))
+                  }
+                  className="flex items-center justify-center w-8 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-2 py-1 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
+                >
+                  <Plus className="h-5 w-5 font-bold" />
+                </button>
+                <button
+                  type="button"
+                  title="User Settings"
+                  onClick={() => setIsUserSettingsOpen(true)}
+                  className="py-1.5 px-0 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  ⚙️
+                </button>
+              </div>
             </div>
           </div>
 
-          <p className="mb-4 rounded-xl bg-cyan-50 px-3 py-2 text-xs text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300">
-            Signed in as {displayName}
-          </p>
-
-          <button
-            type="button"
-            onClick={() =>
-              requirePhoneVerified(() => setIsCreateLoopOpen(true))
-            }
-            className="mb-4 w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
-          >
-            + Create Loop
-          </button>
-
-          <button
-            type="button"
-            onClick={() => requirePhoneVerified(() => setIsJoinLoopOpen(true))}
-            className="mb-4 w-full rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-800 dark:text-sky-400 dark:hover:bg-slate-700"
-          >
-            Join with Code
-          </button>
-
-          <div className="space-y-5">
-            {conversations.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50 p-6 text-center dark:border-sky-800 dark:bg-sky-950/30">
-                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  No Loops yet
-                </p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                  Click Create Loop above to get started
-                </p>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                    Chat Loops
-                  </p>
-                  {chatLoops.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                      No chat loops yet
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {chatLoops.map(renderConversationButton)}
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                    Broadcast Loops
-                  </p>
-                  {broadcastLoops.length === 0 ? (
-                    <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                      No broadcast loops yet
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {broadcastLoops.map(renderConversationButton)}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+          <div className="mb-4 flex gap-2">
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearchQuery(value);
+                if (!value.trim()) {
+                  setSearchResults([]);
+                  setSearchError("");
+                }
+              }}
+              placeholder="Search Loops..."
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+            <button
+              type="button"
+              title="Join Loop with Code"
+              onClick={() =>
+                requirePhoneVerified(() => setIsJoinLoopOpen(true))
+              }
+              className="flex items-center justify-center w-10 rounded-xl border border-sky-200 bg-white px-2 p-1 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-800 dark:text-sky-400 dark:hover:bg-slate-700"
+            >
+              <Code className="h-5 w-5" />
+            </button>
           </div>
+
+          {searchQuery.trim() ? (
+            <div className="space-y-2">
+              {isSearching ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                  Searching...
+                </p>
+              ) : searchError ? (
+                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-4 text-center text-xs text-rose-700">
+                  {searchError}
+                </p>
+              ) : searchResults.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                  No Loops found
+                </p>
+              ) : (
+                searchResults.map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    type="button"
+                    onClick={() => handleSelectSearchResult(conversation)}
+                    className={`w-full rounded-xl p-3 text-left transition ${
+                      pendingConversation?.id === conversation.id
+                        ? "bg-sky-600 text-white shadow-[0_8px_25px_rgba(13,108,190,0.35)]"
+                        : "bg-white text-slate-700 hover:bg-sky-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <p className="text-sm font-semibold">{conversation.name}</p>
+                    <p
+                      className={`mt-0.5 text-xs ${
+                        pendingConversation?.id === conversation.id
+                          ? "text-sky-100"
+                          : "text-slate-500 dark:text-slate-400"
+                      }`}
+                    >
+                      {conversation.description || "No description"}
+                    </p>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {conversations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50 p-6 text-center dark:border-sky-800 dark:bg-sky-950/30">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    No Loops yet
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    Click Create Loop above to get started
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
+                      Chat Loops
+                    </p>
+                    {chatLoops.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                        No chat loops yet
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {chatLoops.map(renderConversationButton)}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
+                      Broadcast Loops
+                    </p>
+                    {broadcastLoops.length === 0 ? (
+                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                        No broadcast loops yet
+                      </p>
+                    ) : (
+                      <div className="space-y-2 max-h-50 overflow-y-auto">
+                        {broadcastLoops.map(renderConversationButton)}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </aside>
 
         <section className="flex min-h-0 min-w-0 flex-col bg-[linear-gradient(180deg,#fafeff_0%,#f5faff_100%)] dark:bg-[linear-gradient(180deg,#0e1626_0%,#0b1220_100%)]">
@@ -960,7 +1137,9 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 Group
               </p>
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {selectedConversation?.name || "Select a Loop"}
+                {selectedConversation?.name ||
+                  pendingConversation?.name ||
+                  "Select a Loop"}
               </h2>
             </div>
             <div className="flex items-center gap-3">
@@ -1046,37 +1225,75 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       />
                     </svg>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLeaveLoopError("");
-                      setIsLeaveLoopConfirmOpen(true);
-                    }}
-                    title="Leave Loop"
-                    aria-label="Leave Loop"
-                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                  </button>
                 </div>
               )}
             </div>
           </header>
 
           <div className="min-h-0 max-h-[calc(94vh-150px)] flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-6">
-            {!selectedConversation ? (
+            {pendingConversation ? (
+              <div className="flex h-full items-center justify-center">
+                <div className="w-full max-w-sm rounded-2xl border border-sky-200 bg-white p-6 text-center shadow-[0_10px_30px_rgba(14,88,148,0.15)] dark:border-slate-700 dark:bg-slate-800">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {pendingConversation.name}
+                  </h3>
+                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                    {pendingConversation.description || "No description"}
+                  </p>
+
+                  {pendingJoinRequestSent ? (
+                    <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                      Request sent. An admin needs to approve your request to
+                      join.
+                    </p>
+                  ) : pendingConversation.joinMode === "code" ? (
+                    <div className="mt-4 space-y-3">
+                      <input
+                        type="text"
+                        value={pendingJoinCode}
+                        onChange={(event) =>
+                          setPendingJoinCode(event.target.value)
+                        }
+                        placeholder="Enter join code"
+                        disabled={isJoiningPending}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm uppercase tracking-widest text-slate-800 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleJoinPendingWithCode}
+                        disabled={isJoiningPending || !pendingJoinCode.trim()}
+                        className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isJoiningPending ? "Joining..." : "Submit Code"}
+                      </button>
+                    </div>
+                  ) : pendingConversation.joinMode === "invite" ? (
+                    <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+                      This Loop is invite-only. Ask a member to invite you.
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleJoinPending}
+                      disabled={isJoiningPending}
+                      className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isJoiningPending
+                        ? "Joining..."
+                        : pendingConversation.joinMode === "approval"
+                          ? "Request to Join"
+                          : "Join Group"}
+                    </button>
+                  )}
+
+                  {pendingJoinError && (
+                    <p className="mt-3 text-xs text-rose-600">
+                      {pendingJoinError}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : !selectedConversation ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
                   <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-sky-100 p-4 dark:bg-sky-950/40">
@@ -1173,7 +1390,13 @@ export function HomeShell({ displayName }: HomeShellProps) {
           </div>
 
           <footer className="shrink-0 border-t border-sky-100 p-4 dark:border-slate-800">
-            {!selectedConversation ? (
+            {pendingConversation ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Join this Loop to start chatting
+                </p>
+              </div>
+            ) : !selectedConversation ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   Select or create a Loop to start chatting
@@ -1223,82 +1446,90 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2">
-                  <label
-                    className="flex cursor-pointer items-center px-2 text-slate-500"
-                    title="Attach files"
-                  >
-                    <span aria-hidden="true">📎</span>
-                    <input
-                      type="file"
-                      multiple
-                      onChange={(event) =>
-                        setMessageAttachments(
-                          Array.from(event.target.files ?? []),
-                        )
+                {canPostMessage ? (
+                  <div className="flex gap-2">
+                    <label
+                      className="flex cursor-pointer items-center px-2 text-slate-500"
+                      title="Attach files"
+                    >
+                      <span aria-hidden="true">📎</span>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={(event) =>
+                          setMessageAttachments(
+                            Array.from(event.target.files ?? []),
+                          )
+                        }
+                        disabled={isSendingMessage}
+                        className="hidden"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowEmojiPicker((current) => !current)}
+                      disabled={isSendingMessage}
+                      className="px-1 text-slate-500"
+                      title="Add emoji"
+                      aria-label="Add emoji"
+                    >
+                      😊
+                    </button>
+                    <button
+                      type="button"
+                      onClick={
+                        isRecordingVoice
+                          ? handleStopRecording
+                          : handleStartRecording
                       }
                       disabled={isSendingMessage}
-                      className="hidden"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowEmojiPicker((current) => !current)}
-                    disabled={isSendingMessage}
-                    className="px-1 text-slate-500"
-                    title="Add emoji"
-                    aria-label="Add emoji"
-                  >
-                    😊
-                  </button>
-                  <button
-                    type="button"
-                    onClick={
-                      isRecordingVoice
-                        ? handleStopRecording
-                        : handleStartRecording
-                    }
-                    disabled={isSendingMessage}
-                    className={`px-1 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
-                    title={
-                      isRecordingVoice
-                        ? "Stop recording"
-                        : "Record a voice message"
-                    }
-                    aria-label={
-                      isRecordingVoice
-                        ? "Stop recording"
-                        : "Record a voice message"
-                    }
-                  >
-                    {isRecordingVoice ? "⏹️" : "🎙️"}
-                  </button>
-                  <input
-                    type="text"
-                    placeholder="Type a message..."
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage();
+                      className={`px-1 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
+                      title={
+                        isRecordingVoice
+                          ? "Stop recording"
+                          : "Record a voice message"
                       }
-                    }}
-                    disabled={isSendingMessage}
-                    className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSendMessage}
-                    disabled={
-                      isSendingMessage ||
-                      (!messageInput.trim() && messageAttachments.length === 0)
-                    }
-                    className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
-                  >
-                    {isSendingMessage ? "Sending..." : "Send"}
-                  </button>
-                </div>
+                      aria-label={
+                        isRecordingVoice
+                          ? "Stop recording"
+                          : "Record a voice message"
+                      }
+                    >
+                      {isRecordingVoice ? "⏹️" : "🎙️"}
+                    </button>
+                    <input
+                      type="text"
+                      placeholder="Type a message..."
+                      value={messageInput}
+                      onChange={(e) => setMessageInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      disabled={isSendingMessage}
+                      className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendMessage}
+                      disabled={
+                        isSendingMessage ||
+                        (!messageInput.trim() &&
+                          messageAttachments.length === 0)
+                      }
+                      className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    >
+                      {isSendingMessage ? "Sending..." : "Send"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-center text-sm text-slate-500 dark:text-slate-400">
+                    Only Admins Can Post Messages
+                  </div>
+                )}
+
                 {showEmojiPicker && (
                   <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(30,89,138,0.18)] dark:border-slate-700 dark:bg-slate-800">
                     <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700">
@@ -1346,45 +1577,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
         onClose={() => setIsJoinLoopOpen(false)}
         onJoin={handleJoinLoop}
       />
-
-      {isLeaveLoopConfirmOpen && selectedConversation && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(14,88,148,0.25)] dark:border-slate-700 dark:bg-slate-900">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-              Leave {selectedConversation.name}?
-            </h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
-              You will no longer receive messages from this Loop. You&apos;ll
-              need to be re-added or rejoin to come back.
-            </p>
-
-            {leaveLoopError && (
-              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                {leaveLoopError}
-              </p>
-            )}
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setIsLeaveLoopConfirmOpen(false)}
-                disabled={isLeavingLoop}
-                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleLeaveLoop}
-                disabled={isLeavingLoop}
-                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isLeavingLoop ? "Leaving..." : "Leave Loop"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {selectedConversationId && selectedConversation && (
         <AddMembersModal
@@ -1439,6 +1631,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   settings={groupSettings}
                   isSettingsLoading={isGroupSettingsLoading}
                   canEditSettings={canEditGroupSettings}
+                  handleLeaveLoop={handleLeaveLoop}
+                  selectedConversation={
+                    selectedConversation as { id?: string; name?: string }
+                  }
                   members={selectedConversation?.participants ?? mockMembers}
                   pendingRequests={joinRequests.map((request) => ({
                     id: request.id,
@@ -1537,7 +1733,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
         profile={userProfile}
         onSaveProfile={async (profile) => {
           setUserProfile(profile);
-          console.log("Saving profile:", profile);
           // Will connect to Django backend
         }}
         onSaveNotifications={async (prefs) => {
