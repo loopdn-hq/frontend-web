@@ -9,10 +9,14 @@ const e164Phone = /^\+?[1-9]\d{7,14}$/;
 
 export const passwordSchema = z
   .string()
-  .min(8, "Password must be at least 8 characters.")
+  .min(8, "Password must be more than 8 characters.")
   .max(72, "Password must be less than 73 characters.")
-  .regex(/[A-Za-z]/, "Password must include at least one letter.")
-  .regex(/\d/, "Password must include at least one number.");
+  .regex(/[A-Z]/, "Password must include at least one capital letter.")
+  .regex(/\d/, "Password must include at least one number.")
+  .regex(
+    /[^A-Za-z0-9]/,
+    "Password must include at least one special character.",
+  );
 
 // POST /users/login/ accepts either a username or an email in the same field.
 export const loginSchema = z.object({

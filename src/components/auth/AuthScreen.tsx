@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import { useForm, type SubmitHandler, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { Eye, EyeOff } from "lucide-react";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import {
   authenticate,
@@ -45,6 +46,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   const [generalError, setGeneralError] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleGoogleCredential = useCallback(
     async (credential: string) => {
@@ -336,13 +340,30 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <span className="mb-1 block text-sm font-medium text-slate-700">
                       Password
                     </span>
-                    <input
-                      type="password"
-                      placeholder="Enter your password"
-                      {...registerLogin("password")}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showLoginPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        {...registerLogin("password")}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((value) => !value)}
+                        disabled={isSubmitting}
+                        aria-label={
+                          showLoginPassword ? "Hide password" : "Show password"
+                        }
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                      >
+                        {showLoginPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </label>
 
                   {loginErrors.password && (
@@ -457,13 +478,30 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <span className="mb-1 block text-sm font-medium text-slate-700">
                       Password
                     </span>
-                    <input
-                      type="password"
-                      placeholder="Create a password"
-                      {...registerSignup("password")}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showSignupPassword ? "text" : "password"}
+                        placeholder="Create a password"
+                        {...registerSignup("password")}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowSignupPassword((value) => !value)}
+                        disabled={isSubmitting}
+                        aria-label={
+                          showSignupPassword ? "Hide password" : "Show password"
+                        }
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                      >
+                        {showSignupPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </label>
 
                   {signupErrors.password && (
@@ -476,13 +514,34 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <span className="mb-1 block text-sm font-medium text-slate-700">
                       Confirm Password
                     </span>
-                    <input
-                      type="password"
-                      placeholder="Re-enter your password"
-                      {...registerSignup("confirmPassword")}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Re-enter your password"
+                        {...registerSignup("confirmPassword")}
+                        disabled={isSubmitting}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowConfirmPassword((value) => !value)
+                        }
+                        disabled={isSubmitting}
+                        aria-label={
+                          showConfirmPassword
+                            ? "Hide password"
+                            : "Show password"
+                        }
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-5 w-5" />
+                        ) : (
+                          <Eye className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                   </label>
 
                   {signupErrors.confirmPassword && (
