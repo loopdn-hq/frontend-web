@@ -164,7 +164,8 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     return null;
   }
 
-  const mode: ConversationMode = item.mode === "broadcast" ? "broadcast" : "chat";
+  const mode: ConversationMode =
+    item.mode === "broadcast" ? "broadcast" : "chat";
   const joinModeRaw = item.join_mode;
   const joinMode: JoinMode | null =
     joinModeRaw === "open" ||
@@ -673,7 +674,8 @@ export async function updateMemberRole(
     if (!response.ok) {
       return {
         ok: false,
-        message: getErrorMessage(data) ?? "Unable to update this member's role.",
+        message:
+          getErrorMessage(data) ?? "Unable to update this member's role.",
       };
     }
     return { ok: true };

@@ -119,7 +119,9 @@ export function LoopAdminPanel({
               />
             ) : (
               <p className="py-8 text-center text-sm text-slate-500">
-                {isSettingsLoading ? "Loading settings…" : "Unable to load settings."}
+                {isSettingsLoading
+                  ? "Loading settings…"
+                  : "Unable to load settings."}
               </p>
             ))}
 
@@ -129,7 +131,8 @@ export function LoopAdminPanel({
                 <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
                   <h3 className="mb-3 text-sm font-semibold text-amber-900">
                     Pending Requests
-                    {pendingRequests.length > 0 && ` (${pendingRequests.length})`}
+                    {pendingRequests.length > 0 &&
+                      ` (${pendingRequests.length})`}
                   </h3>
                   {isPendingRequestsLoading ? (
                     <p className="text-sm text-amber-800">Loading requests…</p>

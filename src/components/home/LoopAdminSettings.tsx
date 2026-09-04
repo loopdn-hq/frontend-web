@@ -161,10 +161,26 @@ export function LoopAdminSettings({
         <div className="space-y-3">
           {(
             [
-              { value: "open", label: "Open", description: "Anyone with the link can join" },
-              { value: "code", label: "Code Required", description: "Members need a code to join" },
-              { value: "approval", label: "Admin Approval", description: "Members request access; admin approves" },
-              { value: "invite", label: "Invite Only", description: "Only invited members can join" },
+              {
+                value: "open",
+                label: "Open",
+                description: "Anyone with the link can join",
+              },
+              {
+                value: "code",
+                label: "Code Required",
+                description: "Members need a code to join",
+              },
+              {
+                value: "approval",
+                label: "Admin Approval",
+                description: "Members request access; admin approves",
+              },
+              {
+                value: "invite",
+                label: "Invite Only",
+                description: "Only invited members can join",
+              },
             ] as const
           ).map((option) => (
             <label
