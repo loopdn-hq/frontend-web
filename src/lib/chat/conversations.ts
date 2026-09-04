@@ -393,6 +393,78 @@ export async function fetchConversations(): Promise<
   }
 }
 
+export async function searchConversations(
+  query: string,
+): Promise<
+  { ok: true; conversations: Conversation[] } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/search/?q=${encodeURIComponent(query)}`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to search Loops.",
+      };
+    }
+    return {
+      ok: true,
+      conversations: getConversationItems(data)
+        .map(normalizeConversation)
+        .filter(
+          (conversation): conversation is Conversation => conversation !== null,
+        ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function joinConversation(
+  conversationId: string | number,
+): Promise<
+  | { ok: true; status: "joined"; conversation: Conversation }
+  | { ok: true; status: "pending" }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/join/`,
+      { method: "POST" },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to join this Loop.",
+      };
+    }
+    const conversationData = getObjectData(data);
+    const normalized = conversationData
+      ? normalizeConversation(conversationData)
+      : null;
+    return normalized
+      ? { ok: true, status: "joined", conversation: normalized }
+      : { ok: true, status: "pending" };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function fetchConversation(
   conversationId: string | number,
 ): Promise<
@@ -582,6 +654,56 @@ export async function joinConversationWithCode(
       };
     }
     return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function fetchConversationParticipants(
+  conversationId: string | number,
+  options: { page?: number; size?: number } = {},
+): Promise<
+  | { ok: true; participants: ConversationParticipant[]; isAdmin: boolean }
+  | { ok: false; message: string }
+> {
+  try {
+    const page = options.page ?? 1;
+    const size = options.size ?? 100;
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/participants/?page=${page}&size=${size}`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load members.",
+      };
+    }
+
+    const items = getConversationItems(data);
+    const participants = items
+      .map(normalizeParticipant)
+      .filter(
+        (participant): participant is ConversationParticipant =>
+          participant !== null,
+      );
+
+    const currentUsername = getSession();
+    const isAdmin =
+      currentUsername != null &&
+      items.some((item) => {
+        if (!isApiObject(item) || item.role !== "admin") return false;
+        const user = isApiObject(item.user) ? item.user : item;
+        return asText(user.username) === currentUsername;
+      });
+
+    return { ok: true, participants, isAdmin };
   } catch (error) {
     return {
       ok: false,

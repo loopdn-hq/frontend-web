@@ -23,6 +23,7 @@ type MemberModerationProps = {
   onUnblockMember?: (memberId: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
+  canEdit?: boolean;
 };
 
 export function MemberModeration({
@@ -33,6 +34,7 @@ export function MemberModeration({
   onUnblockMember,
   onRemoveMember,
   isLoading = false,
+  canEdit = false,
 }: MemberModerationProps) {
   const [expandedMemberId, setExpandedMemberId] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
@@ -172,6 +174,7 @@ export function MemberModeration({
               onRemove={() => handleRemoveMember(member.id)}
               isActionInProgress={actionInProgress === member.id}
               isLoading={isLoading}
+              canEdit={canEdit}
             />
           ))
         )}
@@ -219,6 +222,7 @@ function MemberCard({
   onRemove,
   isActionInProgress,
   isLoading,
+  canEdit,
 }: {
   member: Member;
   isExpanded: boolean;
@@ -229,6 +233,7 @@ function MemberCard({
   onRemove: () => Promise<void>;
   isActionInProgress: boolean;
   isLoading: boolean;
+  canEdit?: boolean;
 }) {
   return (
     <div
@@ -241,7 +246,7 @@ function MemberCard({
       {/* Main Row */}
       <button
         onClick={onToggleExpand}
-        className="w-full px-6 py-4 text-left hover:opacity-80"
+        className={`w-full px-6 py-4 text-left hover:opacity-80 ${canEdit ? "" : "!cursor-not-allowed"}`}
         disabled={isActionInProgress || isLoading}
       >
         <div className="flex items-center justify-between">
@@ -290,7 +295,7 @@ function MemberCard({
       </button>
 
       {/* Expanded Section */}
-      {isExpanded && (
+      {isExpanded && canEdit && (
         <div className="border-t border-slate-200 px-6 py-4">
           <div className="space-y-4">
             {/* Join Date */}
