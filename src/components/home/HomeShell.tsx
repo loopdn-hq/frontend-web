@@ -6,14 +6,27 @@ import Image from "next/image";
 import { fetchUserProfile, getSession, logout } from "@/lib/auth/client";
 import {
   addConversationMembers,
+  fetchConversation,
   fetchConversations,
+  fetchJoinCode,
+  fetchJoinRequests,
   fetchMessageHistory,
+  inviteConversationMemberByPhone,
+  joinConversationWithCode,
+  leaveConversation,
+  removeConversationMember,
+  respondToJoinRequest,
   sendConversationMessage,
+  updateGroupSettings,
+  updateMemberRole,
   type Conversation,
   type ConversationAttachment,
   type ConversationMessage,
+  type ConversationParticipant,
+  type GroupSettings,
 } from "@/lib/chat/conversations";
 import { CreateLoopModal } from "./CreateLoopModal";
+import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
 import { LoopAdminPanel } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
@@ -187,19 +200,6 @@ const messageEmojis = [
 ];
 
 // Mock data for admin panel
-const mockLoopSettings = {
-  id: "1",
-  name: "Family HQ",
-  posting_permission: "everyone" as const,
-  reply_permission: "group" as const,
-  voice_enabled: true,
-  media_enabled: true,
-  reactions_enabled: true,
-  member_invitation_permission: "everyone" as const,
-  new_member_history_visibility: "full" as const,
-  plan_type: "ad_free" as const,
-};
-
 const mockMembers = [
   {
     id: "1",
@@ -247,8 +247,20 @@ export function HomeShell({ displayName }: HomeShellProps) {
     string | number | null
   >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
   const [isCreateLoopOpen, setIsCreateLoopOpen] = useState(false);
+  const [isJoinLoopOpen, setIsJoinLoopOpen] = useState(false);
   const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+  const [isLeaveLoopConfirmOpen, setIsLeaveLoopConfirmOpen] = useState(false);
+  const [isLeavingLoop, setIsLeavingLoop] = useState(false);
+  const [leaveLoopError, setLeaveLoopError] = useState("");
+  const [groupSettings, setGroupSettings] = useState<GroupSettings | null>(
+    null,
+  );
+  const [isGroupSettingsLoading, setIsGroupSettingsLoading] = useState(true);
+  const [joinRequests, setJoinRequests] = useState<ConversationParticipant[]>(
+    [],
+  );
+  const [isJoinRequestsLoading, setIsJoinRequestsLoading] = useState(true);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
@@ -421,11 +433,54 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
+  const isSelectedConversationAdmin = selectedConversation?.isAdmin === true;
+  const canAddMembers =
+    isSelectedConversationAdmin ||
+    groupSettings?.add_member_permission !== "admins";
+  const canEditGroupSettings =
+    isSelectedConversationAdmin ||
+    groupSettings?.edit_group_permission !== "admins";
 
   // Get messages for selected loop
   const currentMessages = selectedConversationId
     ? loopMessages.get(selectedConversationId) || []
     : [];
+
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    let cancelled = false;
+
+    fetchConversation(selectedConversationId).then((result) => {
+      if (cancelled) return;
+      setIsGroupSettingsLoading(false);
+      setGroupSettings(result.ok ? result.conversation.settings : null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    if (
+      !isAdminPanelOpen ||
+      !selectedConversationId ||
+      groupSettings?.join_mode !== "approval"
+    ) {
+      return;
+    }
+    let cancelled = false;
+
+    fetchJoinRequests(selectedConversationId).then((result) => {
+      if (cancelled) return;
+      setIsJoinRequestsLoading(false);
+      setJoinRequests(result.ok ? result.requests : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdminPanelOpen, selectedConversationId, groupSettings?.join_mode]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -670,7 +725,42 @@ export function HomeShell({ displayName }: HomeShellProps) {
       members,
     );
     if (!result.ok) throw new Error(result.message);
+    await refreshConversations();
+  }
 
+  async function handleInvitePhone(invite: {
+    phone_number: string;
+    display_name?: string;
+  }) {
+    if (!selectedConversationId) return;
+    const result = await inviteConversationMemberByPhone(
+      selectedConversationId,
+      invite,
+    );
+    if (!result.ok) throw new Error(result.message);
+    await refreshConversations();
+  }
+
+  async function handleJoinLoop(code: string) {
+    const result = await joinConversationWithCode(code);
+    if (!result.ok) throw new Error(result.message);
+
+    setConversations((current) => {
+      const withoutJoined = current.filter(
+        (conversation) => conversation.id !== result.conversation.id,
+      );
+      return [
+        ...withoutJoined.map((conversation) => ({
+          ...conversation,
+          active: false,
+        })),
+        { ...result.conversation, active: true },
+      ];
+    });
+    setSelectedConversationId(result.conversation.id);
+  }
+
+  async function refreshConversations() {
     const refreshed = await fetchConversations();
     if (refreshed.ok) {
       setConversations(
@@ -690,6 +780,35 @@ export function HomeShell({ displayName }: HomeShellProps) {
         active: c.id === conversationId,
       })),
     );
+  }
+
+  async function handleLeaveLoop() {
+    if (!selectedConversationId) return;
+    setIsLeavingLoop(true);
+    setLeaveLoopError("");
+    const result = await leaveConversation(selectedConversationId);
+    setIsLeavingLoop(false);
+    if (!result.ok) {
+      setLeaveLoopError(result.message);
+      return;
+    }
+
+    setConversations((current) => {
+      const remaining = current.filter(
+        (conversation) => conversation.id !== selectedConversationId,
+      );
+      return remaining.map((conversation, index) => ({
+        ...conversation,
+        active: index === 0,
+      }));
+    });
+    setSelectedConversationId((current) => {
+      const remaining = conversations.filter(
+        (conversation) => conversation.id !== current,
+      );
+      return remaining[0]?.id ?? null;
+    });
+    setIsLeaveLoopConfirmOpen(false);
   }
 
   function renderConversationButton(conversation: Conversation) {
@@ -734,12 +853,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
     );
   }
 
-  const chatLoops = conversations.filter(
-    (c) => c.communicationMode !== "broadcast",
-  );
-  const broadcastLoops = conversations.filter(
-    (c) => c.communicationMode === "broadcast",
-  );
+  const chatLoops = conversations.filter((c) => c.mode !== "broadcast");
+  const broadcastLoops = conversations.filter((c) => c.mode === "broadcast");
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
@@ -772,6 +887,14 @@ export function HomeShell({ displayName }: HomeShellProps) {
             className="mb-4 w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
           >
             + Create Loop
+          </button>
+
+          <button
+            type="button"
+            onClick={() => requirePhoneVerified(() => setIsJoinLoopOpen(true))}
+            className="mb-4 w-full rounded-xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-800 dark:text-sky-400 dark:hover:bg-slate-700"
+          >
+            Join with Code
           </button>
 
           <div className="space-y-5">
@@ -873,27 +996,29 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
               {selectedConversationId && (
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsAddMembersOpen(true)}
-                    title="Add members"
-                    aria-label="Add members"
-                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {canAddMembers && (
+                    <button
+                      type="button"
+                      onClick={() => setIsAddMembersOpen(true)}
+                      title="Add members"
+                      aria-label="Add members"
+                      className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 19a4 4 0 00-8 0m4-8a4 4 0 100-8 4 4 0 000 8zm6 3v6m3-3h-6"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 19a4 4 0 00-8 0m4-8a4 4 0 100-8 4 4 0 000 8zm6 3v6m3-3h-6"
+                        />
+                      </svg>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsAdminPanelOpen(true)}
@@ -918,6 +1043,30 @@ export function HomeShell({ displayName }: HomeShellProps) {
                         strokeLinejoin="round"
                         strokeWidth={2}
                         d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeaveLoopError("");
+                      setIsLeaveLoopConfirmOpen(true);
+                    }}
+                    title="Leave Loop"
+                    aria-label="Leave Loop"
+                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
                       />
                     </svg>
                   </button>
@@ -1192,6 +1341,51 @@ export function HomeShell({ displayName }: HomeShellProps) {
         onSuccess={handleCreateLoopSuccess}
       />
 
+      <JoinLoopModal
+        isOpen={isJoinLoopOpen}
+        onClose={() => setIsJoinLoopOpen(false)}
+        onJoin={handleJoinLoop}
+      />
+
+      {isLeaveLoopConfirmOpen && selectedConversation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(14,88,148,0.25)] dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              Leave {selectedConversation.name}?
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              You will no longer receive messages from this Loop. You&apos;ll
+              need to be re-added or rejoin to come back.
+            </p>
+
+            {leaveLoopError && (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {leaveLoopError}
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsLeaveLoopConfirmOpen(false)}
+                disabled={isLeavingLoop}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleLeaveLoop}
+                disabled={isLeavingLoop}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLeavingLoop ? "Leaving..." : "Leave Loop"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedConversationId && selectedConversation && (
         <AddMembersModal
           isOpen={isAddMembersOpen}
@@ -1199,6 +1393,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
           currentMemberCount={selectedConversation.participants.length}
           onClose={() => setIsAddMembersOpen(false)}
           onAddMembers={handleAddMembers}
+          onInvitePhone={handleInvitePhone}
         />
       )}
 
@@ -1240,27 +1435,94 @@ export function HomeShell({ displayName }: HomeShellProps) {
               {/* Admin Panel Content */}
               <div className="p-6">
                 <LoopAdminPanel
-                  loopSettings={mockLoopSettings}
+                  loopName={selectedConversation?.name ?? "Loop"}
+                  settings={groupSettings}
+                  isSettingsLoading={isGroupSettingsLoading}
+                  canEditSettings={canEditGroupSettings}
                   members={selectedConversation?.participants ?? mockMembers}
+                  pendingRequests={joinRequests.map((request) => ({
+                    id: request.id,
+                    name: request.name,
+                    username: request.username,
+                    phone: request.phone,
+                  }))}
+                  isPendingRequestsLoading={isJoinRequestsLoading}
+                  onApproveRequest={async (participantId) => {
+                    if (!selectedConversationId) return;
+                    const result = await respondToJoinRequest(
+                      selectedConversationId,
+                      participantId,
+                      "approve",
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    setJoinRequests((current) =>
+                      current.filter((request) => request.id !== participantId),
+                    );
+                    await refreshConversations();
+                  }}
+                  onDeclineRequest={async (participantId) => {
+                    if (!selectedConversationId) return;
+                    const result = await respondToJoinRequest(
+                      selectedConversationId,
+                      participantId,
+                      "decline",
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    setJoinRequests((current) =>
+                      current.filter((request) => request.id !== participantId),
+                    );
+                  }}
                   onSaveSettings={async (settings) => {
-                    console.log("Saving settings:", settings);
-                    // Will connect to Django backend
+                    if (!selectedConversationId) return;
+                    const result = await updateGroupSettings(
+                      selectedConversationId,
+                      { settings },
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    setGroupSettings(result.conversation.settings);
+                  }}
+                  onFetchJoinCode={async () => {
+                    if (!selectedConversationId) {
+                      throw new Error("No Loop selected.");
+                    }
+                    const result = await fetchJoinCode(selectedConversationId);
+                    if (!result.ok) throw new Error(result.message);
+                    return result.code;
                   }}
                   onUpdateMemberRole={async (memberId, role) => {
-                    console.log(`Updating member ${memberId} role to ${role}`);
-                    // Will connect to Django backend
+                    if (!selectedConversationId) return;
+                    const result = await updateMemberRole(
+                      selectedConversationId,
+                      memberId,
+                      role,
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    await refreshConversations();
                   }}
                   onBlockMember={async (memberId) => {
-                    console.log(`Blocking member ${memberId}`);
-                    // Will connect to Django backend
+                    if (!selectedConversationId) return;
+                    const result = await removeConversationMember(
+                      selectedConversationId,
+                      memberId,
+                      true,
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    await refreshConversations();
                   }}
-                  onUnblockMember={async (memberId) => {
-                    console.log(`Unblocking member ${memberId}`);
-                    // Will connect to Django backend
+                  onUnblockMember={async () => {
+                    throw new Error(
+                      "Unblocking a member is not supported yet.",
+                    );
                   }}
                   onRemoveMember={async (memberId) => {
-                    console.log(`Removing member ${memberId}`);
-                    // Will connect to Django backend
+                    if (!selectedConversationId) return;
+                    const result = await removeConversationMember(
+                      selectedConversationId,
+                      memberId,
+                      false,
+                    );
+                    if (!result.ok) throw new Error(result.message);
+                    await refreshConversations();
                   }}
                 />
               </div>

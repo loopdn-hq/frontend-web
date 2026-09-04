@@ -8,6 +8,10 @@ type AddMembersModalProps = {
   currentMemberCount: number;
   onClose: () => void;
   onAddMembers: (members: string[]) => Promise<void>;
+  onInvitePhone: (invite: {
+    phone_number: string;
+    display_name?: string;
+  }) => Promise<void>;
 };
 
 export function AddMembersModal({
@@ -16,14 +20,18 @@ export function AddMembersModal({
   currentMemberCount,
   onClose,
   onAddMembers,
+  onInvitePhone,
 }: AddMembersModalProps) {
+  const [tab, setTab] = useState<"app" | "phone">("app");
   const [value, setValue] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmitApp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const members = Array.from(
       new Set(
@@ -35,7 +43,7 @@ export function AddMembersModal({
     );
 
     if (members.length === 0) {
-      setError("Enter at least one username or phone number.");
+      setError("Enter at least one username, email, or phone number.");
       return;
     }
 
@@ -50,6 +58,34 @@ export function AddMembersModal({
         submissionError instanceof Error
           ? submissionError.message
           : "Unable to add members.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleSubmitPhone(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!phoneNumber.trim()) {
+      setError("Enter a phone number to invite.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError("");
+    try {
+      await onInvitePhone({
+        phone_number: phoneNumber.trim(),
+        display_name: displayName.trim() || undefined,
+      });
+      setPhoneNumber("");
+      setDisplayName("");
+      onClose();
+    } catch (submissionError) {
+      setError(
+        submissionError instanceof Error
+          ? submissionError.message
+          : "Unable to send this invite.",
       );
     } finally {
       setIsSubmitting(false);
@@ -83,54 +119,147 @@ export function AddMembersModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <div>
-            <label
-              htmlFor="member-identifiers"
-              className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200"
-            >
-              Usernames or phone numbers
-            </label>
-            <textarea
-              id="member-identifiers"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder="alex\n+14155552671"
-              rows={5}
-              autoFocus
-              disabled={isSubmitting}
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-              Separate multiple people with commas or new lines.
-            </p>
-          </div>
+        <div className="mt-5 flex gap-2 rounded-xl border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-800">
+          <button
+            type="button"
+            onClick={() => setTab("app")}
+            disabled={isSubmitting}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              tab === "app"
+                ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            }`}
+          >
+            Loopdn Account
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab("phone")}
+            disabled={isSubmitting}
+            className={`flex-1 rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              tab === "phone"
+                ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            }`}
+          >
+            Via Phone
+          </button>
+        </div>
 
-          {error && (
-            <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
-              {error}
-            </p>
-          )}
+        {tab === "app" ? (
+          <form onSubmit={handleSubmitApp} className="mt-5 space-y-4">
+            <div>
+              <label
+                htmlFor="member-identifiers"
+                className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200"
+              >
+                Usernames, emails, or phone numbers
+              </label>
+              <textarea
+                id="member-identifiers"
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+                placeholder="alex\n+14155552671"
+                rows={5}
+                autoFocus
+                disabled={isSubmitting}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                Separate multiple people with commas or new lines.
+              </p>
+            </div>
 
-          <div className="flex gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting}
-              className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || !value.trim()}
-              className="flex-1 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isSubmitting ? "Adding..." : "Add members"}
-            </button>
-          </div>
-        </form>
+            {error && (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !value.trim()}
+                className="flex-1 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Adding..." : "Add members"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmitPhone} className="mt-5 space-y-4">
+            <div>
+              <label
+                htmlFor="invite-phone"
+                className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200"
+              >
+                Phone number
+              </label>
+              <input
+                id="invite-phone"
+                type="tel"
+                value={phoneNumber}
+                onChange={(event) => setPhoneNumber(event.target.value)}
+                placeholder="+14155552671"
+                autoFocus
+                disabled={isSubmitting}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="invite-display-name"
+                className="mb-2 block text-sm font-semibold text-slate-800 dark:text-slate-200"
+              >
+                Display name (optional)
+              </label>
+              <input
+                id="invite-display-name"
+                type="text"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                placeholder="Mom"
+                disabled={isSubmitting}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+
+            {error && (
+              <p className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {error}
+              </p>
+            )}
+
+            <div className="flex gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSubmitting}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSubmitting || !phoneNumber.trim()}
+                className="flex-1 rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isSubmitting ? "Sending..." : "Send invite"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
 }
+

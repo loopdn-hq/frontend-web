@@ -1,28 +1,49 @@
-import { getAccessToken, handleUnauthorizedResponse } from "@/lib/auth/client";
+import {
+  getAccessToken,
+  getSession,
+  handleUnauthorizedResponse,
+} from "@/lib/auth/client";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
-export type JoiningMethod = "open" | "code" | "admin_approval" | "invite_only";
-export type CommunicationMode = "chat" | "broadcast";
-export type BroadcastReplyMode = "private" | "group_wide" | "disabled";
+export type JoinMode = "open" | "code" | "approval" | "invite";
+export type ConversationMode = "chat" | "broadcast";
+export type GroupMemberPermission = "members" | "admins";
+
+export type GroupSettings = {
+  mode: ConversationMode;
+  join_mode: JoinMode;
+  add_member_permission: GroupMemberPermission;
+  edit_group_permission: GroupMemberPermission;
+  sms_delivery_enabled: boolean;
+  sms_replies_enabled: boolean;
+  voice_messages_enabled: boolean;
+};
+
+export type CreateConversationInvite = {
+  phone_number: string;
+  display_name?: string;
+};
 
 export type CreateConversationPayload = {
   name: string;
-  description: string;
-  joining_method: JoiningMethod;
-  communication_mode: CommunicationMode;
-  broadcast_reply_mode?: BroadcastReplyMode;
-  image?: File;
+  description?: string;
+  members?: string[];
+  invite?: CreateConversationInvite[];
+  settings: GroupSettings;
 };
 
 export type Conversation = {
   id: string | number;
   name: string;
   description: string;
+  mode: ConversationMode;
+  joinMode: JoinMode | null;
+  logoImage: string | null;
+  settings: GroupSettings | null;
   preview: string;
   unread: number;
   isAdmin: boolean;
-  communicationMode: CommunicationMode;
   active?: boolean;
   participants: ConversationParticipant[];
 };
@@ -123,14 +144,35 @@ function normalizeParticipant(item: unknown): ConversationParticipant | null {
   };
 }
 
+function isCurrentUserAdmin(item: ApiObject): boolean {
+  if (item.is_admin === true) return true;
+  if (item.is_admin === false) return false;
+
+  const currentUsername = getSession();
+  if (!currentUsername || !Array.isArray(item.participants)) return false;
+
+  return item.participants.some((participant) => {
+    if (!isApiObject(participant) || participant.role !== "admin") return false;
+    const user = isApiObject(participant.user) ? participant.user : participant;
+    return asText(user.username) === currentUsername;
+  });
+}
+
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
   if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
     return null;
   }
 
-  const communicationMode =
-    item.communication_mode === "broadcast" ? "broadcast" : "chat";
+  const mode: ConversationMode = item.mode === "broadcast" ? "broadcast" : "chat";
+  const joinModeRaw = item.join_mode;
+  const joinMode: JoinMode | null =
+    joinModeRaw === "open" ||
+    joinModeRaw === "code" ||
+    joinModeRaw === "approval" ||
+    joinModeRaw === "invite"
+      ? joinModeRaw
+      : null;
   const lastMessage = isApiObject(item.last_message) ? item.last_message : null;
   const preview = asText(
     lastMessage?.text,
@@ -141,6 +183,12 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     id,
     name: asText(item.title, asText(item.name)),
     description: asText(item.description),
+    mode,
+    joinMode,
+    logoImage: asText(item.image_url, asText(item.logo_image)) || null,
+    settings: isApiObject(item.settings)
+      ? normalizeGroupSettings(item.settings)
+      : null,
     preview,
     unread:
       typeof item.unread_count === "number"
@@ -148,14 +196,7 @@ function normalizeConversation(item: ApiObject): Conversation | null {
         : typeof item.unread === "number"
           ? item.unread
           : 0,
-    isAdmin:
-      item.is_admin === true ||
-      (Array.isArray(item.participants) &&
-        item.participants.some(
-          (participant) =>
-            isApiObject(participant) && participant.role === "admin",
-        )),
-    communicationMode,
+    isAdmin: isCurrentUserAdmin(item),
     participants: Array.isArray(item.participants)
       ? item.participants
           .map(normalizeParticipant)
@@ -239,6 +280,25 @@ function getObjectData(payload: unknown): ApiObject | null {
   return isApiObject(data) ? data : null;
 }
 
+function normalizeGroupSettings(item: ApiObject): GroupSettings {
+  return {
+    mode: item.mode === "broadcast" ? "broadcast" : "chat",
+    join_mode:
+      item.join_mode === "open" ||
+      item.join_mode === "code" ||
+      item.join_mode === "invite"
+        ? item.join_mode
+        : "approval",
+    add_member_permission:
+      item.add_member_permission === "members" ? "members" : "admins",
+    edit_group_permission:
+      item.edit_group_permission === "members" ? "members" : "admins",
+    sms_delivery_enabled: item.sms_delivery_enabled !== false,
+    sms_replies_enabled: item.sms_replies_enabled !== false,
+    voice_messages_enabled: item.voice_messages_enabled === true,
+  };
+}
+
 async function authorizedRequest(
   input: string,
   init: RequestInit = {},
@@ -261,23 +321,19 @@ async function authorizedRequest(
 export async function createConversation(
   payload: CreateConversationPayload,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const body = new FormData();
-  body.append("name", payload.name);
-  body.append("description", payload.description);
-  body.append("joining_method", payload.joining_method);
-  body.append("communication_mode", payload.communication_mode);
-  if (
-    payload.communication_mode === "broadcast" &&
-    payload.broadcast_reply_mode
-  ) {
-    body.append("broadcast_reply_mode", payload.broadcast_reply_mode);
-  }
-  if (payload.image) body.append("image", payload.image);
+  const body: ApiObject = {
+    name: payload.name,
+    settings: payload.settings,
+  };
+  if (payload.description) body.description = payload.description;
+  if (payload.members?.length) body.members = payload.members;
+  if (payload.invite?.length) body.invite = payload.invite;
 
   try {
     const response = await authorizedRequest("/chat/conversations/group/", {
       method: "POST",
-      body,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -336,7 +392,7 @@ export async function fetchConversation(
 > {
   try {
     const response = await authorizedRequest(
-      `/chat/conversations/${conversationId}`,
+      `/chat/conversations/${conversationId}/`,
     );
     const data = await response.json().catch(() => null);
     const conversation = getObjectData(data);
@@ -347,6 +403,48 @@ export async function fetchConversation(
       return {
         ok: false,
         message: getErrorMessage(data) ?? "Unable to load this conversation.",
+      };
+    }
+    return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function updateGroupSettings(
+  conversationId: string | number,
+  payload: {
+    name?: string;
+    description?: string;
+    settings?: Partial<GroupSettings>;
+  },
+): Promise<
+  { ok: true; conversation: Conversation } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/settings/`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    const conversationData = getObjectData(data);
+    const normalized = conversationData
+      ? normalizeConversation(conversationData)
+      : null;
+    if (!response.ok || !normalized) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to update Loop settings.",
       };
     }
     return { ok: true, conversation: normalized };
@@ -379,6 +477,263 @@ export async function addConversationMembers(
       return {
         ok: false,
         message: getErrorMessage(data) ?? "Unable to add members to this Loop.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function inviteConversationMemberByPhone(
+  conversationId: string | number,
+  invite: CreateConversationInvite,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/invite/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(invite),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to send this invite.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function fetchJoinCode(
+  conversationId: string | number,
+): Promise<{ ok: true; code: string } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/join-code/`,
+    );
+    const data = await response.json().catch(() => null);
+    const codeData = getObjectData(data);
+    const code = codeData ? asText(codeData.code) : "";
+    if (!response.ok || !code) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load the join code.",
+      };
+    }
+    return { ok: true, code };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function joinConversationWithCode(
+  code: string,
+): Promise<
+  { ok: true; conversation: Conversation } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest("/chat/conversations/join/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await response.json().catch(() => null);
+    const conversationData = getObjectData(data);
+    const normalized = conversationData
+      ? normalizeConversation(conversationData)
+      : null;
+    if (!response.ok || !normalized) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to join this Loop.",
+      };
+    }
+    return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function fetchJoinRequests(
+  conversationId: string | number,
+): Promise<
+  | { ok: true; requests: ConversationParticipant[] }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/requests/`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load pending requests.",
+      };
+    }
+    return {
+      ok: true,
+      requests: getConversationItems(data)
+        .map(normalizeParticipant)
+        .filter(
+          (participant): participant is ConversationParticipant =>
+            participant !== null,
+        ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function respondToJoinRequest(
+  conversationId: string | number,
+  participantId: string | number,
+  decision: "approve" | "decline",
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/requests/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId, decision }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to update this request.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function updateMemberRole(
+  conversationId: string | number,
+  participantId: string | number,
+  role: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/role/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId, role }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to update this member's role.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function removeConversationMember(
+  conversationId: string | number,
+  participantId: string | number,
+  block: boolean,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/remove/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId, block }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to remove this member.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+export async function leaveConversation(
+  conversationId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/leave/`,
+      { method: "POST" },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to leave this Loop.",
       };
     }
     return { ok: true };

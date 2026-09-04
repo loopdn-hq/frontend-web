@@ -1,41 +1,48 @@
 "use client";
 
 import { useState } from "react";
-
-type PostingPermission = "everyone" | "admins" | "selected_roles";
-type ReplyPermission = "group" | "admins_only" | "disabled";
-type MemberInvitationPermission = "everyone" | "admins_only" | "disabled";
-type HistoryVisibility = "full" | "from_join" | "none";
-type PlanType = "sponsored_free" | "ad_free";
-
-type LoopSettings = {
-  id: string;
-  name: string;
-  posting_permission: PostingPermission;
-  reply_permission: ReplyPermission;
-  voice_enabled: boolean;
-  media_enabled: boolean;
-  reactions_enabled: boolean;
-  member_invitation_permission: MemberInvitationPermission;
-  new_member_history_visibility: HistoryVisibility;
-  plan_type: PlanType;
-};
+import type { GroupSettings } from "@/lib/chat/conversations";
 
 type LoopAdminSettingsProps = {
-  loopSettings: LoopSettings;
-  onSave?: (settings: Partial<LoopSettings>) => Promise<void>;
+  loopName: string;
+  settings: GroupSettings;
+  onSave?: (settings: Partial<GroupSettings>) => Promise<void>;
+  onFetchJoinCode?: () => Promise<string>;
+  canEdit?: boolean;
   isLoading?: boolean;
 };
 
 export function LoopAdminSettings({
-  loopSettings,
+  loopName,
+  settings: initialSettings,
   onSave,
+  onFetchJoinCode,
+  canEdit = true,
   isLoading = false,
 }: LoopAdminSettingsProps) {
-  const [settings, setSettings] = useState<Partial<LoopSettings>>(loopSettings);
+  const [settings, setSettings] = useState<GroupSettings>(initialSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setError] = useState<string>("");
   const [successMessage, setSuccessMessage] = useState<string>("");
+  const [joinCode, setJoinCode] = useState<string>("");
+  const [isLoadingJoinCode, setIsLoadingJoinCode] = useState(false);
+  const [joinCodeError, setJoinCodeError] = useState<string>("");
+
+  async function handleShowJoinCode() {
+    if (!onFetchJoinCode) return;
+
+    setIsLoadingJoinCode(true);
+    setJoinCodeError("");
+    try {
+      setJoinCode(await onFetchJoinCode());
+    } catch (err) {
+      setJoinCodeError(
+        err instanceof Error ? err.message : "Failed to load join code",
+      );
+    } finally {
+      setIsLoadingJoinCode(false);
+    }
+  }
 
   async function handleSave() {
     if (!onSave) return;
@@ -61,9 +68,16 @@ export function LoopAdminSettings({
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Loop Settings</h2>
         <p className="mt-1 text-sm text-slate-600">
-          Customize how {loopSettings.name} works
+          Customize how {loopName} works
         </p>
       </div>
+
+      {!canEdit && (
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+          Only admins can edit these settings. You&apos;re viewing them in
+          read-only mode.
+        </div>
+      )}
 
       {/* Messages */}
       {saveError && (
@@ -77,155 +91,206 @@ export function LoopAdminSettings({
         </div>
       )}
 
-      {/* Posting Permissions */}
+      {/* Communication Mode */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h3 className="mb-4 text-lg font-semibold text-slate-900">
-          Posting Permissions
+          Communication Mode
         </h3>
         <p className="mb-4 text-sm text-slate-600">
-          Who can post messages in this Loop?
+          How do members communicate in this Loop?
         </p>
 
         <div className="space-y-3">
           <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
             <input
               type="radio"
-              name="posting_permission"
-              value="everyone"
-              checked={settings.posting_permission === "everyone"}
+              name="mode"
+              value="chat"
+              checked={settings.mode === "chat"}
               onChange={(e) =>
                 setSettings({
                   ...settings,
-                  posting_permission: e.target.value as PostingPermission,
+                  mode: e.target.value as GroupSettings["mode"],
                 })
               }
               disabled={isSaving || isLoading}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
-              <p className="font-medium text-slate-900">Everyone</p>
-              <p className="text-xs text-slate-600">All members can post</p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="posting_permission"
-              value="admins"
-              checked={settings.posting_permission === "admins"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  posting_permission: e.target.value as PostingPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Admins Only</p>
-              <p className="text-xs text-slate-600">Only admins can post</p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="posting_permission"
-              value="selected_roles"
-              checked={settings.posting_permission === "selected_roles"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  posting_permission: e.target.value as PostingPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Selected Roles</p>
+              <p className="font-medium text-slate-900">Chat Group</p>
               <p className="text-xs text-slate-600">
-                Admins, moderators, and selected roles
+                Members communicate with everyone
+              </p>
+            </div>
+          </label>
+
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
+            <input
+              type="radio"
+              name="mode"
+              value="broadcast"
+              checked={settings.mode === "broadcast"}
+              onChange={(e) =>
+                setSettings({
+                  ...settings,
+                  mode: e.target.value as GroupSettings["mode"],
+                })
+              }
+              disabled={isSaving || isLoading}
+              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+            />
+            <div>
+              <p className="font-medium text-slate-900">Broadcast Group</p>
+              <p className="text-xs text-slate-600">
+                Admins send announcements to members
               </p>
             </div>
           </label>
         </div>
       </section>
 
-      {/* Reply Permissions */}
+      {/* Join Mode */}
       <section className="rounded-xl border border-slate-200 bg-white p-6">
         <h3 className="mb-4 text-lg font-semibold text-slate-900">
-          Reply Permissions
+          Who Can Join
         </h3>
         <p className="mb-4 text-sm text-slate-600">
-          Where can members reply to posts?
+          How can new members join this Loop?
         </p>
 
         <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="reply_permission"
-              value="group"
-              checked={settings.reply_permission === "group"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  reply_permission: e.target.value as ReplyPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Reply to Group</p>
-              <p className="text-xs text-slate-600">Everyone sees replies</p>
-            </div>
-          </label>
+          {(
+            [
+              { value: "open", label: "Open", description: "Anyone with the link can join" },
+              { value: "code", label: "Code Required", description: "Members need a code to join" },
+              { value: "approval", label: "Admin Approval", description: "Members request access; admin approves" },
+              { value: "invite", label: "Invite Only", description: "Only invited members can join" },
+            ] as const
+          ).map((option) => (
+            <label
+              key={option.value}
+              className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+            >
+              <input
+                type="radio"
+                name="join_mode"
+                value={option.value}
+                checked={settings.join_mode === option.value}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    join_mode: e.target.value as GroupSettings["join_mode"],
+                  })
+                }
+                disabled={isSaving || isLoading}
+                className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+              />
+              <div>
+                <p className="font-medium text-slate-900">{option.label}</p>
+                <p className="text-xs text-slate-600">{option.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
 
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="reply_permission"
-              value="admins_only"
-              checked={settings.reply_permission === "admins_only"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  reply_permission: e.target.value as ReplyPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Reply to Admins Only</p>
-              <p className="text-xs text-slate-600">Only admins see replies</p>
-            </div>
-          </label>
+        {settings.join_mode === "code" && (
+          <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
+            <p className="mb-2 text-sm font-semibold text-slate-900">
+              Join Code
+            </p>
+            {joinCode ? (
+              <p className="rounded-lg bg-white px-3 py-2 font-mono text-lg tracking-widest text-slate-900">
+                {joinCode}
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={handleShowJoinCode}
+                disabled={isLoadingJoinCode || !onFetchJoinCode}
+                className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLoadingJoinCode ? "Loading..." : "Show Join Code"}
+              </button>
+            )}
+            {joinCodeError && (
+              <p className="mt-2 text-xs text-rose-600">{joinCodeError}</p>
+            )}
+          </div>
+        )}
+      </section>
 
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="reply_permission"
-              value="disabled"
-              checked={settings.reply_permission === "disabled"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  reply_permission: e.target.value as ReplyPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Replies Disabled</p>
-              <p className="text-xs text-slate-600">Announcements only</p>
+      {/* Member Permissions */}
+      <section className="rounded-xl border border-slate-200 bg-white p-6">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+          Member Permissions
+        </h3>
+
+        <div className="space-y-4">
+          <div>
+            <p className="mb-2 text-sm text-slate-600">
+              Who can add new members?
+            </p>
+            <div className="space-y-2">
+              {(["members", "admins"] as const).map((option) => (
+                <label
+                  key={option}
+                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+                >
+                  <input
+                    type="radio"
+                    name="add_member_permission"
+                    value={option}
+                    checked={settings.add_member_permission === option}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        add_member_permission: e.target
+                          .value as GroupSettings["add_member_permission"],
+                      })
+                    }
+                    disabled={isSaving || isLoading}
+                    className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+                  />
+                  <p className="font-medium text-slate-900 capitalize">
+                    {option}
+                  </p>
+                </label>
+              ))}
             </div>
-          </label>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm text-slate-600">
+              Who can edit group details?
+            </p>
+            <div className="space-y-2">
+              {(["members", "admins"] as const).map((option) => (
+                <label
+                  key={option}
+                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+                >
+                  <input
+                    type="radio"
+                    name="edit_group_permission"
+                    value={option}
+                    checked={settings.edit_group_permission === option}
+                    onChange={(e) =>
+                      setSettings({
+                        ...settings,
+                        edit_group_permission: e.target
+                          .value as GroupSettings["edit_group_permission"],
+                      })
+                    }
+                    disabled={isSaving || isLoading}
+                    className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+                  />
+                  <p className="font-medium text-slate-900 capitalize">
+                    {option}
+                  </p>
+                </label>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 
@@ -235,256 +300,34 @@ export function LoopAdminSettings({
 
         <div className="space-y-4">
           <FeatureToggle
+            label="SMS Delivery"
+            description="Deliver messages to members via SMS"
+            checked={settings.sms_delivery_enabled}
+            onChange={(value) =>
+              setSettings({ ...settings, sms_delivery_enabled: value })
+            }
+            disabled={isSaving || isLoading}
+          />
+
+          <FeatureToggle
+            label="SMS Replies"
+            description="Allow members to reply to messages via SMS"
+            checked={settings.sms_replies_enabled}
+            onChange={(value) =>
+              setSettings({ ...settings, sms_replies_enabled: value })
+            }
+            disabled={isSaving || isLoading}
+          />
+
+          <FeatureToggle
             label="Voice Messages"
             description="Allow members to send voice notes and recordings"
-            checked={settings.voice_enabled || false}
+            checked={settings.voice_messages_enabled}
             onChange={(value) =>
-              setSettings({ ...settings, voice_enabled: value })
+              setSettings({ ...settings, voice_messages_enabled: value })
             }
             disabled={isSaving || isLoading}
           />
-
-          <FeatureToggle
-            label="Media Sharing"
-            description="Allow members to share photos, videos, and files"
-            checked={settings.media_enabled || false}
-            onChange={(value) =>
-              setSettings({ ...settings, media_enabled: value })
-            }
-            disabled={isSaving || isLoading}
-          />
-
-          <FeatureToggle
-            label="Reactions"
-            description="Allow emoji and reaction responses to messages"
-            checked={settings.reactions_enabled || false}
-            onChange={(value) =>
-              setSettings({ ...settings, reactions_enabled: value })
-            }
-            disabled={isSaving || isLoading}
-          />
-        </div>
-      </section>
-
-      {/* Member Permissions */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
-          Member Permissions
-        </h3>
-        <p className="mb-4 text-sm text-slate-600">
-          Who can invite new members?
-        </p>
-
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="member_invitation_permission"
-              value="everyone"
-              checked={settings.member_invitation_permission === "everyone"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  member_invitation_permission: e.target
-                    .value as MemberInvitationPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Everyone</p>
-              <p className="text-xs text-slate-600">All members can invite</p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="member_invitation_permission"
-              value="admins_only"
-              checked={settings.member_invitation_permission === "admins_only"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  member_invitation_permission: e.target
-                    .value as MemberInvitationPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Admins Only</p>
-              <p className="text-xs text-slate-600">Only admins can invite</p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="member_invitation_permission"
-              value="disabled"
-              checked={settings.member_invitation_permission === "disabled"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  member_invitation_permission: e.target
-                    .value as MemberInvitationPermission,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Disabled</p>
-              <p className="text-xs text-slate-600">
-                No one can invite (closed group)
-              </p>
-            </div>
-          </label>
-        </div>
-      </section>
-
-      {/* New Member History */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
-          New Member History
-        </h3>
-        <p className="mb-4 text-sm text-slate-600">
-          What message history can new members see?
-        </p>
-
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="history_visibility"
-              value="full"
-              checked={settings.new_member_history_visibility === "full"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  new_member_history_visibility: e.target
-                    .value as HistoryVisibility,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Full History</p>
-              <p className="text-xs text-slate-600">
-                New members see all previous messages
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="history_visibility"
-              value="from_join"
-              checked={settings.new_member_history_visibility === "from_join"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  new_member_history_visibility: e.target
-                    .value as HistoryVisibility,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">From Join Date</p>
-              <p className="text-xs text-slate-600">
-                New members see messages only after they joined
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="history_visibility"
-              value="none"
-              checked={settings.new_member_history_visibility === "none"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  new_member_history_visibility: e.target
-                    .value as HistoryVisibility,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">No History</p>
-              <p className="text-xs text-slate-600">
-                New members see no previous messages
-              </p>
-            </div>
-          </label>
-        </div>
-      </section>
-
-      {/* Plan Type */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">Plan Type</h3>
-        <p className="mb-4 text-sm text-slate-600">
-          Choose how to support this Loop
-        </p>
-
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="plan_type"
-              value="sponsored_free"
-              checked={settings.plan_type === "sponsored_free"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  plan_type: e.target.value as PlanType,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">
-                Sponsored/Free with Ads
-              </p>
-              <p className="text-xs text-slate-600">
-                Members see occasional ads to support operations
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
-            <input
-              type="radio"
-              name="plan_type"
-              value="ad_free"
-              checked={settings.plan_type === "ad_free"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  plan_type: e.target.value as PlanType,
-                })
-              }
-              disabled={isSaving || isLoading}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900">Ad-Free Premium</p>
-              <p className="text-xs text-slate-600">
-                No ads, premium experience for members
-              </p>
-            </div>
-          </label>
         </div>
       </section>
 

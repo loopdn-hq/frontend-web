@@ -224,6 +224,8 @@ export function clearSession(): void {
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
     window.localStorage.removeItem(REFRESH_TOKEN_KEY);
     window.localStorage.removeItem(PHONE_VERIFIED_KEY);
+    window.localStorage.removeItem(PENDING_PHONE_KEY);
+    window.localStorage.removeItem(EMAIL_VERIFIED_KEY);
     notify();
   } catch {
     // ignore
