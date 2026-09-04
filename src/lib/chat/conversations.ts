@@ -117,7 +117,9 @@ function asText(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function normalizeParticipant(item: unknown): ConversationParticipant | null {
+export function normalizeParticipant(
+  item: unknown,
+): ConversationParticipant | null {
   if (!isApiObject(item)) return null;
   const user = isApiObject(item.user) ? item.user : item;
   // The membership row's own id, not the account's - every action endpoint

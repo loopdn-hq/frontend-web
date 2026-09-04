@@ -14,6 +14,7 @@ import {
   inviteConversationMemberByPhone,
   joinConversationWithCode,
   leaveConversation,
+  normalizeParticipant,
   removeConversationMember,
   respondToJoinRequest,
   sendConversationMessage,
@@ -28,8 +29,9 @@ import {
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
-import { LoopAdminPanel } from "./LoopAdminPanel";
+import { LoopAdminPanel, type AdminTab } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
+import { NotificationBadge } from "./NotificationBadge";
 import { VerifyPhoneModal } from "./VerifyPhoneModal";
 import {
   UserSettingsModal,
@@ -257,10 +259,21 @@ export function HomeShell({ displayName }: HomeShellProps) {
     null,
   );
   const [isGroupSettingsLoading, setIsGroupSettingsLoading] = useState(true);
-  const [joinRequests, setJoinRequests] = useState<ConversationParticipant[]>(
-    [],
-  );
-  const [isJoinRequestsLoading, setIsJoinRequestsLoading] = useState(true);
+  const [adminPanelTab, setAdminPanelTab] = useState<AdminTab>("settings");
+  // Actual pending join requests per Loop this user administers - the admin
+  // panel's worklist. Only shrinks on approve/decline, never on "seen".
+  const [pendingRequestsByLoop, setPendingRequestsByLoop] = useState<
+    Map<string | number, ConversationParticipant[]>
+  >(new Map());
+  // How many of those requests haven't been looked at yet, per Loop - this is
+  // what drives the notification badges. Resets to 0 when the admin opens
+  // the Members tab for that Loop; independent of the worklist above.
+  const [unseenRequestCountByLoop, setUnseenRequestCountByLoop] = useState<
+    Map<string | number, number>
+  >(new Map());
+  const [loadingPendingRequestLoopIds, setLoadingPendingRequestLoopIds] =
+    useState<Set<string | number>>(new Set());
+  const seededPendingRequestLoopIds = useRef<Set<string | number>>(new Set());
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
@@ -461,26 +474,61 @@ export function HomeShell({ displayName }: HomeShellProps) {
     };
   }, [selectedConversationId]);
 
+  // Seed pending join-request counts for every Loop this user administers,
+  // as soon as it shows up in the conversation list - not only once the
+  // admin panel happens to be opened for it. Drives the Invites badge.
   useEffect(() => {
-    if (
-      !isAdminPanelOpen ||
-      !selectedConversationId ||
-      groupSettings?.join_mode !== "approval"
-    ) {
-      return;
-    }
-    let cancelled = false;
+    const adminApprovalLoops = conversations.filter(
+      (conversation) =>
+        conversation.isAdmin && conversation.joinMode === "approval",
+    );
+    const toFetch = adminApprovalLoops.filter(
+      (loop) => !seededPendingRequestLoopIds.current.has(loop.id),
+    );
+    if (toFetch.length === 0) return;
+    toFetch.forEach((loop) => seededPendingRequestLoopIds.current.add(loop.id));
 
-    fetchJoinRequests(selectedConversationId).then((result) => {
+    let cancelled = false;
+    setLoadingPendingRequestLoopIds((prev) => {
+      const next = new Set(prev);
+      toFetch.forEach((loop) => next.add(loop.id));
+      return next;
+    });
+
+    Promise.all(
+      toFetch.map((loop) =>
+        fetchJoinRequests(loop.id).then((result) => ({
+          loopId: loop.id,
+          result,
+        })),
+      ),
+    ).then((results) => {
       if (cancelled) return;
-      setIsJoinRequestsLoading(false);
-      setJoinRequests(result.ok ? result.requests : []);
+      setPendingRequestsByLoop((prev) => {
+        const next = new Map(prev);
+        for (const { loopId, result } of results) {
+          if (result.ok) next.set(loopId, result.requests);
+        }
+        return next;
+      });
+      setUnseenRequestCountByLoop((prev) => {
+        const next = new Map(prev);
+        for (const { loopId, result } of results) {
+          if (result.ok) next.set(loopId, result.requests.length);
+        }
+        return next;
+      });
+      setLoadingPendingRequestLoopIds((prev) => {
+        const next = new Set(prev);
+        results.forEach(({ loopId }) => next.delete(loopId));
+        return next;
+      });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [isAdminPanelOpen, selectedConversationId, groupSettings?.join_mode]);
+  }, [conversations]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -513,8 +561,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
 
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
-      if (!selectedConversationId) return;
-
       console.log("WebSocket message received:", message);
 
       if (message.type === "message.new") {
@@ -522,18 +568,20 @@ export function HomeShell({ displayName }: HomeShellProps) {
         if (!eventMessage || typeof eventMessage !== "object") return;
         const rawMessage = eventMessage as Record<string, unknown>;
         const eventConversationId = rawMessage.conversation;
-        if (
-          eventConversationId !== undefined &&
-          eventConversationId !== selectedConversationId &&
-          !(
-            typeof eventConversationId === "object" &&
-            eventConversationId !== null &&
-            (eventConversationId as Record<string, unknown>).id ===
-              selectedConversationId
-          )
-        ) {
+        // This single socket receives messages for every Loop the user is
+        // in, not just the one currently open - resolve which Loop this
+        // message belongs to so background Loops can still track unread.
+        const messageConversationId =
+          typeof eventConversationId === "object" &&
+          eventConversationId !== null
+            ? (eventConversationId as Record<string, unknown>).id
+            : eventConversationId;
+        const targetConversationId = (messageConversationId ??
+          selectedConversationId) as string | number | null;
+        if (targetConversationId === null || targetConversationId === undefined)
           return;
-        }
+        const isForSelectedConversation =
+          targetConversationId === selectedConversationId;
         const rawSender = rawMessage.sender;
         const sender =
           rawSender && typeof rawSender === "object"
@@ -572,7 +620,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
           : [];
         const newMessage = toUiMessage({
           ...(eventMessage as ConversationMessage),
-          conversationId: selectedConversationId,
+          conversationId: targetConversationId,
           id: rawMessage.id as string | number,
           sender,
           senderUsername:
@@ -592,26 +640,56 @@ export function HomeShell({ displayName }: HomeShellProps) {
               ) === currentUsername),
         });
 
-        setLoopMessages((prev) => {
-          const map = new Map(prev);
-          const messages = map.get(selectedConversationId) || [];
-          if (messages.some((existing) => existing.id === newMessage.id))
-            return prev;
-          map.set(selectedConversationId, [...messages, newMessage]);
-          return map;
-        });
+        if (isForSelectedConversation) {
+          setLoopMessages((prev) => {
+            const map = new Map(prev);
+            const messages = map.get(targetConversationId) || [];
+            if (messages.some((existing) => existing.id === newMessage.id))
+              return prev;
+            map.set(targetConversationId, [...messages, newMessage]);
+            return map;
+          });
+        }
 
-        // Update preview in conversations list
+        // Update the preview everywhere, but only bump the unread badge for
+        // a Loop that isn't the one currently open - that one is being read.
         setConversations((prev) =>
           prev.map((c) =>
-            c.id === selectedConversationId
-              ? { ...c, preview: newMessage.text.substring(0, 50) }
+            c.id === targetConversationId
+              ? {
+                  ...c,
+                  preview: newMessage.text.substring(0, 50),
+                  unread: isForSelectedConversation ? 0 : (c.unread || 0) + 1,
+                }
               : c,
           ),
         );
       } else if (message.type === "conversation.added") {
         fetchConversations().then((result) => {
           if (result.ok) setConversations(result.conversations);
+        });
+      } else if (message.type === "conversation.request") {
+        const rawConversationId = message.conversation_id;
+        const conversationId =
+          typeof rawConversationId === "string" ||
+          typeof rawConversationId === "number"
+            ? rawConversationId
+            : undefined;
+        const participant = normalizeParticipant(message.participant);
+        if (conversationId === undefined || !participant) return;
+
+        setPendingRequestsByLoop((prev) => {
+          const existing = prev.get(conversationId) ?? [];
+          if (existing.some((request) => request.id === participant.id))
+            return prev;
+          const next = new Map(prev);
+          next.set(conversationId, [...existing, participant]);
+          return next;
+        });
+        setUnseenRequestCountByLoop((prev) => {
+          const next = new Map(prev);
+          next.set(conversationId, (next.get(conversationId) ?? 0) + 1);
+          return next;
         });
       }
     },
@@ -778,6 +856,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
       conversations.map((c) => ({
         ...c,
         active: c.id === conversationId,
+        unread: c.id === conversationId ? 0 : c.unread,
       })),
     );
   }
@@ -843,14 +922,45 @@ export function HomeShell({ displayName }: HomeShellProps) {
               {conversation.preview}
             </p>
           </div>
-          {conversation.unread > 0 && (
-            <span className="rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-bold text-slate-900">
-              {conversation.unread}
-            </span>
-          )}
+          <NotificationBadge count={conversation.unread} />
         </div>
       </button>
     );
+  }
+
+  // Requests that are still waiting on a decision - the Invites worklist.
+  const loopsWithPendingRequests = conversations.filter(
+    (conversation) =>
+      (pendingRequestsByLoop.get(conversation.id)?.length ?? 0) > 0,
+  );
+  // Requests nobody has looked at yet - drives the Invites badge specifically.
+  const totalUnseenInvites = Array.from(
+    unseenRequestCountByLoop.values(),
+  ).reduce((sum, count) => sum + count, 0);
+  const totalUnreadMessages = conversations.reduce(
+    (sum, conversation) => sum + (conversation.unread || 0),
+    0,
+  );
+  const totalNotifications = totalUnreadMessages + totalUnseenInvites;
+
+  function handleOpenInvites() {
+    const loop = loopsWithPendingRequests[0];
+    if (!loop) return;
+    handleSelectConversation(loop.id);
+    setAdminPanelTab("members");
+    setIsAdminPanelOpen(true);
+  }
+
+  function handleTabChange(tab: AdminTab) {
+    setAdminPanelTab(tab);
+    if (tab === "members" && selectedConversationId) {
+      setUnseenRequestCountByLoop((prev) => {
+        if (!prev.get(selectedConversationId)) return prev;
+        const next = new Map(prev);
+        next.set(selectedConversationId, 0);
+        return next;
+      });
+    }
   }
 
   const chatLoops = conversations.filter((c) => c.mode !== "broadcast");
@@ -862,9 +972,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
         <aside className="border-b border-sky-100 bg-white/85 p-4 md:border-r md:border-b-0 md:p-5 dark:border-slate-800 dark:bg-slate-900/85">
           <div className="mb-5 flex items-center justify-between">
             <div className="flex items-center gap-2 justify-between w-full">
-              <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
-                Loopd&apos;n
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
+                  Loopd&apos;n
+                </p>
+                <NotificationBadge count={totalNotifications} />
+              </div>
               <button
                 type="button"
                 onClick={() => setIsUserSettingsOpen(true)}
@@ -896,6 +1009,21 @@ export function HomeShell({ displayName }: HomeShellProps) {
           >
             Join with Code
           </button>
+
+          {loopsWithPendingRequests.length > 0 && (
+            <button
+              type="button"
+              onClick={handleOpenInvites}
+              className="mb-4 w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                  Invites
+                </p>
+                <NotificationBadge count={totalUnseenInvites} />
+              </div>
+            </button>
+          )}
 
           <div className="space-y-5">
             {conversations.length === 0 ? (
@@ -1021,7 +1149,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   )}
                   <button
                     type="button"
-                    onClick={() => setIsAdminPanelOpen(true)}
+                    onClick={() => {
+                      setAdminPanelTab("settings");
+                      setIsAdminPanelOpen(true);
+                    }}
                     title="Loop Settings"
                     aria-label="Loop Settings"
                     className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
@@ -1439,14 +1570,20 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   settings={groupSettings}
                   isSettingsLoading={isGroupSettingsLoading}
                   canEditSettings={canEditGroupSettings}
+                  activeTab={adminPanelTab}
+                  onTabChange={handleTabChange}
                   members={selectedConversation?.participants ?? mockMembers}
-                  pendingRequests={joinRequests.map((request) => ({
+                  pendingRequests={(
+                    pendingRequestsByLoop.get(selectedConversationId) ?? []
+                  ).map((request) => ({
                     id: request.id,
                     name: request.name,
                     username: request.username,
                     phone: request.phone,
                   }))}
-                  isPendingRequestsLoading={isJoinRequestsLoading}
+                  isPendingRequestsLoading={loadingPendingRequestLoopIds.has(
+                    selectedConversationId,
+                  )}
                   onApproveRequest={async (participantId) => {
                     if (!selectedConversationId) return;
                     const result = await respondToJoinRequest(
@@ -1455,9 +1592,16 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       "approve",
                     );
                     if (!result.ok) throw new Error(result.message);
-                    setJoinRequests((current) =>
-                      current.filter((request) => request.id !== participantId),
-                    );
+                    setPendingRequestsByLoop((current) => {
+                      const next = new Map(current);
+                      next.set(
+                        selectedConversationId,
+                        (next.get(selectedConversationId) ?? []).filter(
+                          (request) => request.id !== participantId,
+                        ),
+                      );
+                      return next;
+                    });
                     await refreshConversations();
                   }}
                   onDeclineRequest={async (participantId) => {
@@ -1468,9 +1612,16 @@ export function HomeShell({ displayName }: HomeShellProps) {
                       "decline",
                     );
                     if (!result.ok) throw new Error(result.message);
-                    setJoinRequests((current) =>
-                      current.filter((request) => request.id !== participantId),
-                    );
+                    setPendingRequestsByLoop((current) => {
+                      const next = new Map(current);
+                      next.set(
+                        selectedConversationId,
+                        (next.get(selectedConversationId) ?? []).filter(
+                          (request) => request.id !== participantId,
+                        ),
+                      );
+                      return next;
+                    });
                   }}
                   onSaveSettings={async (settings) => {
                     if (!selectedConversationId) return;

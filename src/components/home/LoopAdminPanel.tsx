@@ -1,11 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { LoopAdminSettings } from "./LoopAdminSettings";
 import { MemberModeration } from "./MemberModeration";
 import type { GroupSettings } from "@/lib/chat/conversations";
 
-type AdminTab = "settings" | "members";
+export type AdminTab = "settings" | "members";
 
 type MemberRole = "admin" | "moderator" | "member";
 
@@ -32,6 +31,8 @@ type LoopAdminPanelProps = {
   settings: GroupSettings | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
+  activeTab: AdminTab;
+  onTabChange: (tab: AdminTab) => void;
   members: Member[];
   pendingRequests?: PendingRequest[];
   isPendingRequestsLoading?: boolean;
@@ -51,6 +52,8 @@ export function LoopAdminPanel({
   settings,
   isSettingsLoading = false,
   canEditSettings = true,
+  activeTab,
+  onTabChange,
   members,
   pendingRequests = [],
   isPendingRequestsLoading = false,
@@ -64,8 +67,6 @@ export function LoopAdminPanel({
   onRemoveMember,
   isLoading = false,
 }: LoopAdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>("settings");
-
   return (
     <div className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5">
       <div className="mx-auto w-full max-w-4xl">
@@ -84,7 +85,7 @@ export function LoopAdminPanel({
         {/* Tabs */}
         <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-1">
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => onTabChange("settings")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "settings"
                 ? "bg-sky-600 text-white shadow-sm"
@@ -94,7 +95,7 @@ export function LoopAdminPanel({
             ⚙️ Loop Settings
           </button>
           <button
-            onClick={() => setActiveTab("members")}
+            onClick={() => onTabChange("members")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "members"
                 ? "bg-sky-600 text-white shadow-sm"
