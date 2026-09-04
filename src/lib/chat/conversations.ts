@@ -538,7 +538,7 @@ export async function fetchJoinCode(
     );
     const data = await response.json().catch(() => null);
     const codeData = getObjectData(data);
-    const code = codeData ? asText(codeData.code) : "";
+    const code = codeData ? asText(codeData.join_code) : "";
     if (!response.ok || !code) {
       return {
         ok: false,
