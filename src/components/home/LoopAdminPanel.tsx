@@ -5,7 +5,7 @@ import { LoopAdminSettings } from "./LoopAdminSettings";
 import { MemberModeration } from "./MemberModeration";
 import type { GroupSettings } from "@/lib/chat/conversations";
 
-type AdminTab = "settings" | "members";
+export type AdminTab = "settings" | "members";
 
 type MemberRole = "admin" | "moderator" | "member";
 
@@ -32,6 +32,9 @@ type LoopAdminPanelProps = {
   settings: GroupSettings | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
+  canModerateMembers?: boolean;
+  activeTab: AdminTab;
+  onTabChange: (tab: AdminTab) => void;
   members: Member[];
   pendingRequests?: PendingRequest[];
   isPendingRequestsLoading?: boolean;
@@ -44,7 +47,9 @@ type LoopAdminPanelProps = {
   onUnblockMember?: (memberId: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
-  handleLeaveLoop?: () => Promise<void>;
+  handleLeaveLoop?: () => Promise<
+    { ok: true } | { ok: false; message: string }
+  >;
   selectedConversation?: {
     id?: string;
     name?: string;
@@ -56,6 +61,9 @@ export function LoopAdminPanel({
   settings,
   isSettingsLoading = false,
   canEditSettings = true,
+  canModerateMembers = false,
+  activeTab,
+  onTabChange,
   members,
   pendingRequests = [],
   isPendingRequestsLoading = false,
@@ -71,8 +79,6 @@ export function LoopAdminPanel({
   selectedConversation,
   handleLeaveLoop,
 }: LoopAdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>("settings");
-
   const [isLeaveLoopConfirmOpen, setIsLeaveLoopConfirmOpen] = useState(false);
   const [isLeavingLoop, setIsLeavingLoop] = useState(false);
   const [leaveLoopError, setLeaveLoopError] = useState("");
@@ -119,7 +125,7 @@ export function LoopAdminPanel({
         {/* Tabs */}
         <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-1">
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => onTabChange("settings")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "settings"
                 ? "bg-sky-600 text-white shadow-sm"
@@ -129,7 +135,7 @@ export function LoopAdminPanel({
             ⚙️ Loop Settings
           </button>
           <button
-            onClick={() => setActiveTab("members")}
+            onClick={() => onTabChange("members")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "members"
                 ? "bg-sky-600 text-white shadow-sm"
@@ -224,7 +230,7 @@ export function LoopAdminPanel({
                 onUnblockMember={onUnblockMember}
                 onRemoveMember={onRemoveMember}
                 isLoading={isLoading}
-                canEdit={canEditSettings}
+                canEdit={canModerateMembers}
               />
             </>
           )}
@@ -276,11 +282,16 @@ export function LoopAdminPanel({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setIsLeavingLoop(true);
-                  handleLeaveLoop?.();
-                  setIsLeaveLoopConfirmOpen(false);
+                  setLeaveLoopError("");
+                  const result = await handleLeaveLoop?.();
                   setIsLeavingLoop(false);
+                  if (result && !result.ok) {
+                    setLeaveLoopError(result.message);
+                    return;
+                  }
+                  setIsLeaveLoopConfirmOpen(false);
                 }}
                 disabled={isLeavingLoop}
                 className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"

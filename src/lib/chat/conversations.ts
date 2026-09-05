@@ -117,10 +117,17 @@ function asText(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function normalizeParticipant(item: unknown): ConversationParticipant | null {
+export function normalizeParticipant(
+  item: unknown,
+): ConversationParticipant | null {
   if (!isApiObject(item)) return null;
   const user = isApiObject(item.user) ? item.user : item;
-  const id = user.id;
+  // The membership row's own id, not the account's - every action endpoint
+  // (remove/role/requests) looks a participant up by Participant.pk, and
+  // that differs from the user's id as soon as an account has more than one
+  // membership. When item IS the user object (no nested `user` key), this is
+  // the same value user.id would have given, so the fallback path is unaffected.
+  const id = item.id;
   if (typeof id !== "string" && typeof id !== "number") return null;
   const profile = isApiObject(user.profile) ? user.profile : user;
   const username = asText(user.username) || undefined;
@@ -605,7 +612,6 @@ export async function fetchJoinCode(
     );
     const data = await response.json().catch(() => null);
     const codeData = getObjectData(data);
-    console.log("Fetched join code data:", codeData);
     const code = codeData ? asText(codeData.join_code) : "";
     if (!response.ok || !code) {
       return {
@@ -659,43 +665,62 @@ export async function joinConversationWithCode(
   }
 }
 
+// Loops can have well over 100 participants, and the API paginates this
+// endpoint, so a single page is not enough to build either the full member
+// list or an accurate isAdmin check for the requesting user. Walk pages
+// until the API returns a short (or empty) page, with a hard cap so a
+// misbehaving backend (e.g. one that never returns a short page) can't spin
+// this into an unbounded loop.
+const MAX_PARTICIPANT_PAGES = 50;
+
 export async function fetchConversationParticipants(
   conversationId: string | number,
-  options: { page?: number; size?: number } = {},
+  options: { size?: number } = {},
 ): Promise<
   | { ok: true; participants: ConversationParticipant[]; isAdmin: boolean }
   | { ok: false; message: string }
 > {
   try {
-    const page = options.page ?? 1;
     const size = options.size ?? 100;
-    const response = await authorizedRequest(
-      `/chat/conversations/${conversationId}/participants/?page=${page}&size=${size}`,
-    );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      return {
-        ok: false,
-        message: getErrorMessage(data) ?? "Unable to load members.",
-      };
-    }
+    const currentUsername = getSession();
 
-    const items = getConversationItems(data);
-    const participants = items
-      .map(normalizeParticipant)
-      .filter(
-        (participant): participant is ConversationParticipant =>
-          participant !== null,
+    const participants: ConversationParticipant[] = [];
+    let isAdmin = false;
+    let page = 1;
+
+    for (; page <= MAX_PARTICIPANT_PAGES; page++) {
+      const response = await authorizedRequest(
+        `/chat/conversations/${conversationId}/participants/?page=${page}&size=${size}`,
+      );
+      const data = await response.json().catch(() => null);
+      if (!response.ok) {
+        return {
+          ok: false,
+          message: getErrorMessage(data) ?? "Unable to load members.",
+        };
+      }
+
+      const items = getConversationItems(data);
+
+      participants.push(
+        ...items
+          .map(normalizeParticipant)
+          .filter(
+            (participant): participant is ConversationParticipant =>
+              participant !== null,
+          ),
       );
 
-    const currentUsername = getSession();
-    const isAdmin =
-      currentUsername != null &&
-      items.some((item) => {
-        if (!isApiObject(item) || item.role !== "admin") return false;
-        const user = isApiObject(item.user) ? item.user : item;
-        return asText(user.username) === currentUsername;
-      });
+      if (!isAdmin && currentUsername != null) {
+        isAdmin = items.some((item) => {
+          if (!isApiObject(item) || item.role !== "admin") return false;
+          const user = isApiObject(item.user) ? item.user : item;
+          return asText(user.username) === currentUsername;
+        });
+      }
+
+      if (items.length < size) break;
+    }
 
     return { ok: true, participants, isAdmin };
   } catch (error) {
