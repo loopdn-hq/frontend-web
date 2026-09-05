@@ -32,6 +32,7 @@ type LoopAdminPanelProps = {
   settings: GroupSettings | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
+  canModerateMembers?: boolean;
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
   members: Member[];
@@ -46,7 +47,9 @@ type LoopAdminPanelProps = {
   onUnblockMember?: (memberId: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
-  handleLeaveLoop?: () => Promise<void>;
+  handleLeaveLoop?: () => Promise<
+    { ok: true } | { ok: false; message: string }
+  >;
   selectedConversation?: {
     id?: string;
     name?: string;
@@ -58,6 +61,7 @@ export function LoopAdminPanel({
   settings,
   isSettingsLoading = false,
   canEditSettings = true,
+  canModerateMembers = false,
   activeTab,
   onTabChange,
   members,
@@ -226,7 +230,7 @@ export function LoopAdminPanel({
                 onUnblockMember={onUnblockMember}
                 onRemoveMember={onRemoveMember}
                 isLoading={isLoading}
-                canEdit={canEditSettings}
+                canEdit={canModerateMembers}
               />
             </>
           )}
@@ -278,11 +282,16 @@ export function LoopAdminPanel({
               </button>
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setIsLeavingLoop(true);
-                  handleLeaveLoop?.();
-                  setIsLeaveLoopConfirmOpen(false);
+                  setLeaveLoopError("");
+                  const result = await handleLeaveLoop?.();
                   setIsLeavingLoop(false);
+                  if (result && !result.ok) {
+                    setLeaveLoopError(result.message);
+                    return;
+                  }
+                  setIsLeaveLoopConfirmOpen(false);
                 }}
                 disabled={isLeavingLoop}
                 className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"

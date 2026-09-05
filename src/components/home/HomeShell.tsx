@@ -972,11 +972,13 @@ export function HomeShell({ displayName }: HomeShellProps) {
     setSelectedConversationId(result.conversation.id);
   }
 
-  async function handleLeaveLoop() {
-    if (!selectedConversationId) return;
+  async function handleLeaveLoop(): Promise<
+    { ok: true } | { ok: false; message: string }
+  > {
+    if (!selectedConversationId) return { ok: false, message: "No Loop selected." };
     const result = await leaveConversation(selectedConversationId);
     if (!result.ok) {
-      return;
+      return { ok: false, message: result.message };
     }
 
     setConversations((current) => {
@@ -994,6 +996,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
       );
       return remaining[0]?.id ?? null;
     });
+
+    return { ok: true };
   }
 
   function renderConversationButton(conversation: Conversation) {
@@ -1072,8 +1076,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const chatLoops = conversations.filter((c) => c.mode !== "broadcast");
   const broadcastLoops = conversations.filter((c) => c.mode === "broadcast");
   const canPostMessage =
-    selectedConversation?.settings?.sms_delivery_enabled ||
-    selectedConversation?.isAdmin;
+    selectedConversation?.mode !== "broadcast" || selectedConversation?.isAdmin;
 
   return (
     <main className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
@@ -1760,6 +1763,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   settings={groupSettings}
                   isSettingsLoading={isGroupSettingsLoading}
                   canEditSettings={canEditGroupSettings}
+                  canModerateMembers={isSelectedConversationAdmin}
                   activeTab={adminPanelTab}
                   onTabChange={handleTabChange}
                   handleLeaveLoop={handleLeaveLoop}
