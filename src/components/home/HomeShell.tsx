@@ -975,7 +975,8 @@ export function HomeShell({ displayName }: HomeShellProps) {
   async function handleLeaveLoop(): Promise<
     { ok: true } | { ok: false; message: string }
   > {
-    if (!selectedConversationId) return { ok: false, message: "No Loop selected." };
+    if (!selectedConversationId)
+      return { ok: false, message: "No Loop selected." };
     const result = await leaveConversation(selectedConversationId);
     if (!result.ok) {
       return { ok: false, message: result.message };
