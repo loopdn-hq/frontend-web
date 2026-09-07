@@ -3,7 +3,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { fetchUserProfile, getSession, logout, updateUserProfile, type ProfileResult } from "@/lib/auth/client";
+import {
+  fetchUserProfile,
+  getSession,
+  logout,
+  updateUserProfile,
+  type ProfileResult,
+} from "@/lib/auth/client";
 import {
   addConversationMembers,
   fetchConversation,
@@ -321,7 +327,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
         emailVerified: result.emailVerified ?? prev.emailVerified,
         phoneVerified: result.phoneVerified ?? prev.phoneVerified,
         bio: result.bio ?? prev.bio,
-        avatarUrl: result.avatarUrl ?? prev.avatarUrl,  
+        avatarUrl: result.avatarUrl ?? prev.avatarUrl,
       }));
     });
 
@@ -1894,7 +1900,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
         onClose={() => setIsUserSettingsOpen(false)}
         profile={userProfile}
         onSaveProfile={async (profile) => {
-          const res : ProfileResult = await updateUserProfile(profile);
+          const res: ProfileResult = await updateUserProfile(profile);
           if (!res.ok) {
             console.error("Failed to update profile:", res.message);
           }

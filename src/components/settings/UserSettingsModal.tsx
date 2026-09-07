@@ -144,8 +144,7 @@ function ProfileSettings({
   onSave?: (profile: UserProfile) => Promise<void> | void;
 }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
-  const [email, setEmail] = useState(profile.email ?? "");
-  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [bio, setBio] = useState(profile.bio ?? "");
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -156,9 +155,9 @@ function ProfileSettings({
     setSaved(false);
     try {
       await onSave?.({
+        ...profile,
         displayName,
-        email: email || undefined,
-        phone: phone || undefined,
+        bio,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -195,12 +194,25 @@ function ProfileSettings({
 
       <div>
         <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Email {profile.emailVerified && <span className="text-xs text-emerald-600">(Verified)</span>}
+          Bio
+        </label>
+        <textarea
+          value={bio}
+          onChange={(e) => setBio(e.target.value)}
+          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+        />
+      </div>
+
+      <div>
+        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+          Email{" "}
+          {profile.emailVerified && (
+            <span className="text-xs text-emerald-600">(Verified)</span>
+          )}
         </label>
         <input
           type="email"
           value={profile.email || ""}
-          onChange={(e) => setEmail(e.target.value)}
           placeholder="you@example.com"
           disabled
           className="w-full rounded-lg border disabled:cursor-not-allowed disabled:opacity-80 disabled:text-slate-300 border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"

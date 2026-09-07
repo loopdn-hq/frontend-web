@@ -588,7 +588,16 @@ export async function updatePhoneNumber(
 }
 
 export type ProfileResult =
-  | { ok: true; displayName?: string; email?: string; phone?: string, emailVerified?: boolean; phoneVerified?: boolean; bio?: string; avatarUrl?: string }
+  | {
+      ok: true;
+      displayName?: string;
+      email?: string;
+      phone?: string;
+      emailVerified?: boolean;
+      phoneVerified?: boolean;
+      bio?: string;
+      avatarUrl?: string;
+    }
   | { ok: false; message: string };
 
 // GET /api/v1/users/me/profile/ — the messaging profile (display name,
@@ -632,14 +641,15 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
           phone_number?: string;
           bio?: string;
           avatar_url?: string;
-
-        }
+        };
       };
     };
 
     return {
       ok: true,
-      displayName: envelope.data?.profile?.display_name ?? (envelope.data?.first_name + ' ' + envelope.data?.last_name),
+      displayName:
+        envelope.data?.profile?.display_name ??
+        envelope.data?.first_name + " " + envelope.data?.last_name,
       email: envelope.data?.email,
       phone: envelope.data?.profile?.phone_number,
       emailVerified: envelope.data?.profile?.email_verified,
