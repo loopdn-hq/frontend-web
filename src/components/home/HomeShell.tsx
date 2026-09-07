@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { fetchUserProfile, getSession, logout } from "@/lib/auth/client";
+import { fetchUserProfile, getSession, logout, updateUserProfile, type ProfileResult } from "@/lib/auth/client";
 import {
   addConversationMembers,
   fetchConversation,
@@ -318,6 +318,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
         displayName: result.displayName || prev.displayName,
         email: result.email ?? prev.email,
         phone: result.phone ?? prev.phone,
+        emailVerified: result.emailVerified ?? prev.emailVerified,
+        phoneVerified: result.phoneVerified ?? prev.phoneVerified,
+        bio: result.bio ?? prev.bio,
+        avatarUrl: result.avatarUrl ?? prev.avatarUrl,  
       }));
     });
 
@@ -1890,8 +1894,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
         onClose={() => setIsUserSettingsOpen(false)}
         profile={userProfile}
         onSaveProfile={async (profile) => {
-          setUserProfile(profile);
-          // Will connect to Django backend
+          const res : ProfileResult = await updateUserProfile(profile);
+          if (!res.ok) {
+            console.error("Failed to update profile:", res.message);
+          }
+
+          setUserProfile(res as UserProfile);
         }}
         onSaveNotifications={async (prefs) => {
           console.log("Saving notification preferences:", prefs);

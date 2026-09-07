@@ -588,7 +588,7 @@ export async function updatePhoneNumber(
 }
 
 export type ProfileResult =
-  | { ok: true; displayName?: string; email?: string; phone?: string }
+  | { ok: true; displayName?: string; email?: string; phone?: string, emailVerified?: boolean; phoneVerified?: boolean; bio?: string; avatarUrl?: string }
   | { ok: false; message: string };
 
 // GET /api/v1/users/me/profile/ — the messaging profile (display name,
@@ -605,7 +605,7 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
+    const response = await fetch(`${API_BASE_URL}/users/me/`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
 
@@ -621,17 +621,88 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
 
     const envelope = data as {
       data?: {
-        display_name?: string;
+        first_name?: string;
+        last_name?: string;
         email?: string;
         phone_number?: string;
+        profile: {
+          display_name?: string;
+          email_verified?: boolean;
+          phone_no_verified?: boolean;
+          phone_number?: string;
+          bio?: string;
+          avatar_url?: string;
+
+        }
       };
     };
 
     return {
       ok: true,
-      displayName: envelope.data?.display_name,
+      displayName: envelope.data?.profile?.display_name ?? (envelope.data?.first_name + ' ' + envelope.data?.last_name),
       email: envelope.data?.email,
-      phone: envelope.data?.phone_number,
+      phone: envelope.data?.profile?.phone_number,
+      emailVerified: envelope.data?.profile?.email_verified,
+      phoneVerified: envelope.data?.profile?.phone_no_verified,
+      bio: envelope.data?.profile?.bio,
+      avatarUrl: envelope.data?.profile?.avatar_url,
+    };
+  } catch {
+    return { ok: false, message: "Network error. Please try again." };
+  }
+}
+
+export async function updateUserProfile(profile: {
+  displayName?: string;
+  email?: string;
+  phone?: string;
+  bio?: string;
+  avatarUrl?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
+}): Promise<ProfileResult> {
+  const accessToken = getAccessToken();
+
+  if (!accessToken) {
+    return {
+      ok: false,
+      message: "You must be signed in to update your profile.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        display_name: profile.displayName,
+        bio: profile.bio,
+        avatar_url: profile.avatarUrl,
+      }),
+    });
+
+    const data: unknown = await response.json().catch(() => null);
+
+    if (!response.ok) {
+      await handleUnauthorizedResponse(response);
+      return {
+        ok: false,
+        message: extractErrorMessage(data) ?? "Unable to update your profile.",
+      };
+    }
+
+    return {
+      ok: true,
+      displayName: profile.displayName,
+      email: profile.email,
+      phone: profile.phone,
+      bio: profile.bio,
+      avatarUrl: profile.avatarUrl,
+      emailVerified: profile.emailVerified,
+      phoneVerified: profile.phoneVerified,
     };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
