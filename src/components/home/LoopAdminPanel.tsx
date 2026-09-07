@@ -84,15 +84,15 @@ export function LoopAdminPanel({
   const [leaveLoopError, setLeaveLoopError] = useState("");
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5">
+    <div className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
       <div className="mx-auto w-full max-w-4xl">
         {/* Header */}
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">
               {loopName} Panel
             </h1>
-            <p className="mt-2 text-slate-600">
+            <p className="mt-2 text-slate-600 dark:text-slate-400">
               Manage your Loop&apos;s settings and members
             </p>
           </div>
@@ -123,13 +123,13 @@ export function LoopAdminPanel({
         </div>
 
         {/* Tabs */}
-        <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-1">
+        <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-800">
           <button
             onClick={() => onTabChange("settings")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "settings"
                 ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-700 hover:bg-slate-50"
+                : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
             }`}
           >
             ⚙️ Loop Settings
@@ -139,7 +139,7 @@ export function LoopAdminPanel({
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "members"
                 ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-700 hover:bg-slate-50"
+                : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700"
             }`}
           >
             👥 Members ({members.length})
@@ -147,7 +147,7 @@ export function LoopAdminPanel({
         </div>
 
         {/* Content */}
-        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           {activeTab === "settings" &&
             (settings ? (
               <LoopAdminSettings
@@ -159,7 +159,7 @@ export function LoopAdminPanel({
                 isLoading={isLoading}
               />
             ) : (
-              <p className="py-8 text-center text-sm text-slate-500">
+              <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
                 {isSettingsLoading
                   ? "Loading settings…"
                   : "Unable to load settings."}
@@ -169,16 +169,18 @@ export function LoopAdminPanel({
           {activeTab === "members" && (
             <>
               {settings?.join_mode === "approval" && (
-                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="mb-3 text-sm font-semibold text-amber-900">
+                <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+                  <h3 className="mb-3 text-sm font-semibold text-amber-900 dark:text-amber-300">
                     Pending Requests
                     {pendingRequests.length > 0 &&
                       ` (${pendingRequests.length})`}
                   </h3>
                   {isPendingRequestsLoading ? (
-                    <p className="text-sm text-amber-800">Loading requests…</p>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Loading requests…
+                    </p>
                   ) : pendingRequests.length === 0 ? (
-                    <p className="text-sm text-amber-800">
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
                       No pending join requests.
                     </p>
                   ) : (
@@ -186,14 +188,14 @@ export function LoopAdminPanel({
                       {pendingRequests.map((request) => (
                         <li
                           key={request.id}
-                          className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white p-3"
+                          className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-white p-3 dark:border-amber-900/40 dark:bg-slate-900"
                         >
                           <div>
-                            <p className="font-medium text-slate-900">
+                            <p className="font-medium text-slate-900 dark:text-slate-100">
                               {request.name}
                             </p>
                             {(request.username || request.phone) && (
-                              <p className="text-xs text-slate-600">
+                              <p className="text-xs text-slate-600 dark:text-slate-400">
                                 {request.username ?? request.phone}
                               </p>
                             )}
@@ -203,7 +205,7 @@ export function LoopAdminPanel({
                               type="button"
                               onClick={() => onDeclineRequest?.(request.id)}
                               disabled={isLoading}
-                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                             >
                               Decline
                             </button>
@@ -237,11 +239,11 @@ export function LoopAdminPanel({
         </div>
 
         {/* Footer Info */}
-        <div className="mt-6 rounded-xl border border-cyan-200 bg-cyan-50 px-6 py-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-cyan-700">
+        <div className="mt-6 rounded-xl border border-cyan-200 bg-cyan-50 px-6 py-4 dark:border-cyan-900/40 dark:bg-cyan-950/20">
+          <p className="text-xs font-semibold uppercase tracking-wider text-cyan-700 dark:text-cyan-300">
             Tips
           </p>
-          <ul className="mt-2 space-y-1 text-xs text-cyan-900">
+          <ul className="mt-2 space-y-1 text-xs text-cyan-900 dark:text-cyan-100">
             <li>
               • Changes to settings take effect immediately for all members
             </li>
