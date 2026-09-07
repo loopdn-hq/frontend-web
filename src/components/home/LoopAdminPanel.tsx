@@ -5,7 +5,7 @@ import { LoopAdminSettings } from "./LoopAdminSettings";
 import { MemberModeration } from "./MemberModeration";
 import type { GroupSettings } from "@/lib/chat/conversations";
 
-type AdminTab = "settings" | "members";
+export type AdminTab = "settings" | "members";
 
 type MemberRole = "admin" | "moderator" | "member";
 
@@ -32,6 +32,9 @@ type LoopAdminPanelProps = {
   settings: GroupSettings | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
+  canModerateMembers?: boolean;
+  activeTab: AdminTab;
+  onTabChange: (tab: AdminTab) => void;
   members: Member[];
   pendingRequests?: PendingRequest[];
   isPendingRequestsLoading?: boolean;
@@ -44,6 +47,13 @@ type LoopAdminPanelProps = {
   onUnblockMember?: (memberId: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
+  handleLeaveLoop?: () => Promise<
+    { ok: true } | { ok: false; message: string }
+  >;
+  selectedConversation?: {
+    id?: string;
+    name?: string;
+  };
 };
 
 export function LoopAdminPanel({
@@ -51,6 +61,9 @@ export function LoopAdminPanel({
   settings,
   isSettingsLoading = false,
   canEditSettings = true,
+  canModerateMembers = false,
+  activeTab,
+  onTabChange,
   members,
   pendingRequests = [],
   isPendingRequestsLoading = false,
@@ -63,8 +76,12 @@ export function LoopAdminPanel({
   onUnblockMember,
   onRemoveMember,
   isLoading = false,
+  selectedConversation,
+  handleLeaveLoop,
 }: LoopAdminPanelProps) {
-  const [activeTab, setActiveTab] = useState<AdminTab>("settings");
+  const [isLeaveLoopConfirmOpen, setIsLeaveLoopConfirmOpen] = useState(false);
+  const [isLeavingLoop, setIsLeavingLoop] = useState(false);
+  const [leaveLoopError, setLeaveLoopError] = useState("");
 
   return (
     <div className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5">
@@ -73,18 +90,42 @@ export function LoopAdminPanel({
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-slate-900">
-              {loopName} Admin Panel
+              {loopName} Panel
             </h1>
             <p className="mt-2 text-slate-600">
               Manage your Loop&apos;s settings and members
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setLeaveLoopError("");
+              setIsLeaveLoopConfirmOpen(true);
+            }}
+            title="Leave Loop"
+            aria-label="Leave Loop"
+            className="rounded-lg border mr-6 border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-rose-50 hover:text-rose-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-rose-950/40 dark:hover:text-rose-400"
+          >
+            <svg
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
+          </button>
         </div>
 
         {/* Tabs */}
         <div className="mb-6 flex gap-2 rounded-xl border border-slate-200 bg-white p-1">
           <button
-            onClick={() => setActiveTab("settings")}
+            onClick={() => onTabChange("settings")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "settings"
                 ? "bg-sky-600 text-white shadow-sm"
@@ -94,7 +135,7 @@ export function LoopAdminPanel({
             ⚙️ Loop Settings
           </button>
           <button
-            onClick={() => setActiveTab("members")}
+            onClick={() => onTabChange("members")}
             className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
               activeTab === "members"
                 ? "bg-sky-600 text-white shadow-sm"
@@ -189,6 +230,7 @@ export function LoopAdminPanel({
                 onUnblockMember={onUnblockMember}
                 onRemoveMember={onRemoveMember}
                 isLoading={isLoading}
+                canEdit={canModerateMembers}
               />
             </>
           )}
@@ -212,6 +254,54 @@ export function LoopAdminPanel({
           </ul>
         </div>
       </div>
+      {isLeaveLoopConfirmOpen && selectedConversation && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_20px_70px_rgba(14,88,148,0.25)] dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+              Leave {selectedConversation.name}?
+            </h2>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              You will no longer receive messages from this Loop. You&apos;ll
+              need to be re-added or rejoin to come back.
+            </p>
+
+            {leaveLoopError && (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                {leaveLoopError}
+              </p>
+            )}
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setIsLeaveLoopConfirmOpen(false)}
+                disabled={isLeavingLoop}
+                className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsLeavingLoop(true);
+                  setLeaveLoopError("");
+                  const result = await handleLeaveLoop?.();
+                  setIsLeavingLoop(false);
+                  if (result && !result.ok) {
+                    setLeaveLoopError(result.message);
+                    return;
+                  }
+                  setIsLeaveLoopConfirmOpen(false);
+                }}
+                disabled={isLeavingLoop}
+                className="flex-1 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isLeavingLoop ? "Leaving..." : "Leave Loop"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

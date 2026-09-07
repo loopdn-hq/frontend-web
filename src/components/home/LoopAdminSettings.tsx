@@ -113,7 +113,7 @@ export function LoopAdminSettings({
                   mode: e.target.value as GroupSettings["mode"],
                 })
               }
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || !canEdit}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
@@ -136,7 +136,7 @@ export function LoopAdminSettings({
                   mode: e.target.value as GroupSettings["mode"],
                 })
               }
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || !canEdit}
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
@@ -198,7 +198,7 @@ export function LoopAdminSettings({
                     join_mode: e.target.value as GroupSettings["join_mode"],
                   })
                 }
-                disabled={isSaving || isLoading}
+                disabled={isSaving || isLoading || !canEdit}
                 className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
               />
               <div>
@@ -264,7 +264,7 @@ export function LoopAdminSettings({
                           .value as GroupSettings["add_member_permission"],
                       })
                     }
-                    disabled={isSaving || isLoading}
+                    disabled={isSaving || isLoading || !canEdit}
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
                   <p className="font-medium text-slate-900 capitalize">
@@ -297,7 +297,7 @@ export function LoopAdminSettings({
                           .value as GroupSettings["edit_group_permission"],
                       })
                     }
-                    disabled={isSaving || isLoading}
+                    disabled={isSaving || isLoading || !canEdit}
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
                   <p className="font-medium text-slate-900 capitalize">
@@ -322,7 +322,7 @@ export function LoopAdminSettings({
             onChange={(value) =>
               setSettings({ ...settings, sms_delivery_enabled: value })
             }
-            disabled={isSaving || isLoading}
+            disabled={isSaving || isLoading || !canEdit}
           />
 
           <FeatureToggle
@@ -332,7 +332,7 @@ export function LoopAdminSettings({
             onChange={(value) =>
               setSettings({ ...settings, sms_replies_enabled: value })
             }
-            disabled={isSaving || isLoading}
+            disabled={isSaving || isLoading || !canEdit}
           />
 
           <FeatureToggle
@@ -342,22 +342,24 @@ export function LoopAdminSettings({
             onChange={(value) =>
               setSettings({ ...settings, voice_messages_enabled: value })
             }
-            disabled={isSaving || isLoading}
+            disabled={isSaving || isLoading || !canEdit}
           />
         </div>
       </section>
 
       {/* Save Button */}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          disabled={isSaving || isLoading}
-          className="flex-1 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-          onClick={handleSave}
-        >
-          {isSaving ? "Saving..." : "Save Settings"}
-        </button>
-      </div>
+      {canEdit && (
+        <div className="flex gap-3">
+          <button
+            type="button"
+            disabled={isSaving || isLoading}
+            className="flex-1 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+            onClick={handleSave}
+          >
+            {isSaving ? "Saving..." : "Save Settings"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
