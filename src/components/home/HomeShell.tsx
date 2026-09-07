@@ -1074,8 +1074,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
     }
   }
 
-  const chatLoops = conversations.filter((c) => c.mode !== "broadcast");
-  const broadcastLoops = conversations.filter((c) => c.mode === "broadcast");
+  const chatLoops = conversations.filter(
+    (c) => c.settings?.mode !== "broadcast",
+  );
+  const broadcastLoops = conversations.filter(
+    (c) => c.settings?.mode === "broadcast",
+  );
   const canPostMessage =
     selectedConversation?.mode !== "broadcast" || selectedConversation?.isAdmin;
 
