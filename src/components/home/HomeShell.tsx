@@ -22,6 +22,7 @@ import {
   joinConversation,
   joinConversationWithCode,
   leaveConversation,
+  normalizeConversationPayload,
   normalizeParticipant,
   removeConversationMember,
   respondToJoinRequest,
@@ -645,6 +646,29 @@ export function HomeShell({ displayName }: HomeShellProps) {
     router.push("/login/");
   }
 
+  /**
+   * Fold a changed conversation back into the list the sidebar renders.
+   *
+   * A merge rather than a replacement: the detail payload carries no
+   * participants (they live on their own paginated endpoint), so overwriting
+   * wholesale would empty the member list and the count that reads it.
+   */
+  const applyConversationUpdate = useCallback((updated: Conversation) => {
+    setConversations((prev) =>
+      prev.map((existing) =>
+        String(existing.id) === String(updated.id)
+          ? {
+              ...existing,
+              ...updated,
+              participants: updated.participants.length
+                ? updated.participants
+                : existing.participants,
+            }
+          : existing,
+      ),
+    );
+  }, []);
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
       if (message.type === "message.new") {
@@ -748,6 +772,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
               : c,
           ),
         );
+      } else if (message.type === "conversation.updated") {
+        // Settings changed - possibly `mode`, which decides whether this group
+        // belongs under Chat or Broadcast. Applied from the payload rather than
+        // refetched so the group moves the moment the admin saves.
+        const updated = normalizeConversationPayload(message.conversation);
+        if (updated) applyConversationUpdate(updated);
       } else if (message.type === "conversation.added") {
         fetchConversations().then((result) => {
           if (result.ok) setConversations(result.conversations);
@@ -777,7 +807,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
         });
       }
     },
-    [currentUsername, selectedConversationId, toUiMessage],
+    [
+      applyConversationUpdate,
+      currentUsername,
+      selectedConversationId,
+      toUiMessage,
+    ],
   );
 
   const handleWebSocketConnected = useCallback(() => {
@@ -2003,6 +2038,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     );
                     if (!result.ok) throw new Error(result.message);
                     setGroupSettings(result.conversation.settings);
+                    // The sidebar reads `settings.mode` off the conversations
+                    // list, so updating only the admin panel's own state left
+                    // the group filed under Chat until a reload.
+                    applyConversationUpdate(result.conversation);
                   }}
                   onFetchJoinCode={async () => {
                     if (!selectedConversationId) {

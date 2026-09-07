@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
+import { MembersField, commitPendingMember } from "@/components/home/MembersField";
+import { toMemberPayload, type MemberEntry } from "@/lib/chat/members";
 import {
   createConversation,
   type ConversationMode,
@@ -113,11 +116,35 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
     },
   });
 
+  // Kept outside react-hook-form: these are parsed objects rather than a
+  // string, and the field owns its own per-entry validation.
+  const [members, setMembers] = useState<MemberEntry[]>([]);
+  const [pendingMember, setPendingMember] = useState("");
+
   async function onSubmit(values: CreateLoopFormValues) {
+    // Whatever is still sitting in the box counts as typed, so fold it in
+    // before deciding what to send.
+    const pending = commitPendingMember(pendingMember, members);
+    if (pending.error) {
+      setError("root.server", { message: pending.error });
+      return;
+    }
+    setMembers(pending.entries);
+    setPendingMember("");
+
+    const {
+      members: accountMembers,
+      invite,
+      inviteEmail,
+    } = toMemberPayload(pending.entries);
+
     try {
       const payload: CreateConversationPayload = {
         name: values.name,
         description: values.description,
+        ...(accountMembers.length > 0 ? { members: accountMembers } : {}),
+        ...(invite.length > 0 ? { invite } : {}),
+        ...(inviteEmail.length > 0 ? { invite_email: inviteEmail } : {}),
         settings: {
           mode: values.mode,
           join_mode: values.join_mode,
@@ -178,6 +205,14 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           />
         </label>
       </div>
+
+      {/* Members */}
+      <MembersField
+        value={members}
+        onChange={setMembers}
+        onPendingChange={setPendingMember}
+        disabled={isSubmitting}
+      />
 
       {/* Join Mode */}
       <div>
