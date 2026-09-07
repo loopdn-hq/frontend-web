@@ -5,7 +5,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
-import { MembersField, commitPendingMember } from "@/components/home/MembersField";
+import {
+  MembersField,
+  commitPendingMember,
+} from "@/components/home/MembersField";
 import { toMemberPayload, type MemberEntry } from "@/lib/chat/members";
 import {
   createConversation,

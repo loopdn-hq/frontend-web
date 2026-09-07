@@ -64,7 +64,11 @@ export function splitMemberInput(value: string): string[] {
 export function parseMember(raw: string): MemberParseResult {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return { ok: false, raw, message: "Enter a username, email or phone number." };
+    return {
+      ok: false,
+      raw,
+      message: "Enter a username, email or phone number.",
+    };
   }
 
   // A leading @ is an explicit "this is a username", so it is checked before
@@ -78,7 +82,10 @@ export function parseMember(raw: string): MemberParseResult {
         message: `"${trimmed}" is not a valid username.`,
       };
     }
-    return { ok: true, entry: { raw: trimmed, value: username, kind: "username" } };
+    return {
+      ok: true,
+      entry: { raw: trimmed, value: username, kind: "username" },
+    };
   }
 
   if (EMAIL_PATTERN.test(trimmed)) {
@@ -97,11 +104,17 @@ export function parseMember(raw: string): MemberParseResult {
         message: `"${trimmed}" is not a valid phone number. Include the country code.`,
       };
     }
-    return { ok: true, entry: { raw: trimmed, value: normalized, kind: "phone" } };
+    return {
+      ok: true,
+      entry: { raw: trimmed, value: normalized, kind: "phone" },
+    };
   }
 
   if (USERNAME_PATTERN.test(trimmed)) {
-    return { ok: true, entry: { raw: trimmed, value: trimmed, kind: "username" } };
+    return {
+      ok: true,
+      entry: { raw: trimmed, value: trimmed, kind: "username" },
+    };
   }
 
   return {
