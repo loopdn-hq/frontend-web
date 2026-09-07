@@ -131,7 +131,9 @@ function asText(value: unknown, fallback = ""): string {
  * the same shapes the REST endpoints do, and the client should read them the
  * one way.
  */
-export function normalizeConversationPayload(raw: unknown): Conversation | null {
+export function normalizeConversationPayload(
+  raw: unknown,
+): Conversation | null {
   return isApiObject(raw) ? normalizeConversation(raw) : null;
 }
 
