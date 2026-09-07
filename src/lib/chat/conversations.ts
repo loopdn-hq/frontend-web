@@ -28,8 +28,16 @@ export type CreateConversationInvite = {
 export type CreateConversationPayload = {
   name: string;
   description?: string;
+  /** Usernames of existing accounts. All-or-nothing: one miss fails the request. */
   members?: string[];
+  /** Phone numbers. Texted an invitation whether or not they have an account. */
   invite?: CreateConversationInvite[];
+  /**
+   * Email addresses. A verified account is added outright; anybody else is
+   * emailed an invitation and joins by confirming that address. Unlike
+   * `members`, an address that matches nobody is not an error.
+   */
+  invite_email?: string[];
   settings: GroupSettings;
 };
 
@@ -115,6 +123,16 @@ function isApiObject(value: unknown): value is ApiObject {
 
 function asText(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+/**
+ * Normalise a conversation that arrived outside a fetch - a websocket payload.
+ * Exported for the same reason `normalizeParticipant` is: the socket delivers
+ * the same shapes the REST endpoints do, and the client should read them the
+ * one way.
+ */
+export function normalizeConversationPayload(raw: unknown): Conversation | null {
+  return isApiObject(raw) ? normalizeConversation(raw) : null;
 }
 
 export function normalizeParticipant(
@@ -336,6 +354,7 @@ export async function createConversation(
   if (payload.description) body.description = payload.description;
   if (payload.members?.length) body.members = payload.members;
   if (payload.invite?.length) body.invite = payload.invite;
+  if (payload.invite_email?.length) body.invite_email = payload.invite_email;
 
   try {
     const response = await authorizedRequest("/chat/conversations/group/", {
