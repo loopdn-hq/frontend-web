@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
-import { useForm, type SubmitHandler, useWatch } from "react-hook-form";
+import {
+  Controller,
+  useForm,
+  type SubmitHandler,
+  useWatch,
+} from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff } from "lucide-react";
 import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
@@ -22,6 +27,7 @@ import {
 } from "@/lib/validation/auth";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
+import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
 
 export type AuthMode = "login" | "signup";
 
@@ -416,12 +422,21 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <span className="mb-1 block text-sm font-medium text-slate-700">
                       Phone Number
                     </span>
-                    <input
-                      type="tel"
-                      placeholder="+14155552671"
-                      {...registerSignup("phoneNumber")}
-                      disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                    <Controller
+                      control={control}
+                      name="phoneNumber"
+                      render={({ field }) => (
+                        <InternationalPhoneInput
+                          id="signup-phone"
+                          name={field.name}
+                          value={field.value ?? ""}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          autoComplete="tel"
+                          placeholder="Enter your phone number"
+                          disabled={isSubmitting}
+                        />
+                      )}
                     />
                     <span className="my-1 block text-xs font-normal text-slate-500">
                       By providing your number, you agree to receive SMS

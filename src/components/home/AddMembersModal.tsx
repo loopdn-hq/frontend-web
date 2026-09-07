@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { isValidPhoneNumber } from "libphonenumber-js";
+import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
+import { normalizePhone } from "@/lib/validation/auth";
 
 type AddMembersModalProps = {
   isOpen: boolean;
@@ -66,8 +69,9 @@ export function AddMembersModal({
 
   async function handleSubmitPhone(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!phoneNumber.trim()) {
-      setError("Enter a phone number to invite.");
+    const normalizedPhone = normalizePhone(phoneNumber);
+    if (!normalizedPhone || !isValidPhoneNumber(normalizedPhone)) {
+      setError("Enter a valid phone number including country code.");
       return;
     }
 
@@ -75,7 +79,7 @@ export function AddMembersModal({
     setError("");
     try {
       await onInvitePhone({
-        phone_number: phoneNumber.trim(),
+        phone_number: normalizedPhone,
         display_name: displayName.trim() || undefined,
       });
       setPhoneNumber("");
@@ -203,15 +207,15 @@ export function AddMembersModal({
               >
                 Phone number
               </label>
-              <input
+              <InternationalPhoneInput
                 id="invite-phone"
-                type="tel"
+                name="invite-phone"
                 value={phoneNumber}
-                onChange={(event) => setPhoneNumber(event.target.value)}
-                placeholder="+14155552671"
+                onChange={setPhoneNumber}
                 autoFocus
+                autoComplete="tel"
+                placeholder="Enter phone number"
                 disabled={isSubmitting}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
               />
             </div>
 

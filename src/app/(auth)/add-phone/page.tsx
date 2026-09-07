@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { isValidPhoneNumber } from "libphonenumber-js";
 import { updatePhoneNumber, useAuth } from "@/lib/auth/client";
+import { normalizePhone } from "@/lib/validation/auth";
+import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
 
 // New Google accounts have no phone_number yet - collect one here, then hand
 // off to /verify-phone/ to confirm it.
@@ -22,10 +25,16 @@ export default function AddPhonePage() {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    const normalizedPhone = normalizePhone(phone);
+    if (!normalizedPhone || !isValidPhoneNumber(normalizedPhone)) {
+      setError("Enter a valid phone number including country code.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      const result = await updatePhoneNumber(phone);
+      const result = await updatePhoneNumber(normalizedPhone);
 
       if (!result.ok) {
         setError(result.message);
@@ -59,13 +68,14 @@ export default function AddPhonePage() {
             <span className="mb-1 block text-sm font-medium text-slate-700">
               Phone number
             </span>
-            <input
-              type="tel"
-              placeholder="+14155552671"
+            <InternationalPhoneInput
+              id="google-add-phone"
+              name="phone"
               value={phone}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={setPhone}
+              autoComplete="tel"
+              placeholder="Enter your phone number"
               disabled={isSubmitting}
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
             />
             <span className="my-1 block text-xs font-normal text-slate-500">
               By providing your number, you agree to receive SMS messages from
