@@ -22,6 +22,7 @@ import {
   joinConversation,
   joinConversationWithCode,
   leaveConversation,
+  markConversationRead,
   conversationMode,
   normalizeConversationPayload,
   normalizeParticipant,
@@ -968,6 +969,34 @@ export function HomeShell({ mode }: HomeShellProps) {
               : c,
           ),
         );
+
+        // Arriving in the thread that is open, in a tab the user is actually
+        // looking at, means they have read it. Guarded on focus: a background
+        // tab would otherwise mark messages read that nobody has seen, on
+        // every device at once.
+        if (
+          isForSelectedConversation &&
+          typeof document !== "undefined" &&
+          document.visibilityState === "visible" &&
+          document.hasFocus()
+        ) {
+          void markConversationRead(targetConversationId, newMessage.id);
+        }
+      } else if (message.type === "conversation.read") {
+        // This account read the Loop somewhere else - another tab, the phone.
+        // Only ever arrives on the user's own channel, so it says nothing
+        // about anybody else in the conversation.
+        const conversationId = message.conversation_id;
+        if (
+          typeof conversationId === "string" ||
+          typeof conversationId === "number"
+        ) {
+          setConversations((prev) =>
+            prev.map((c) =>
+              String(c.id) === String(conversationId) ? { ...c, unread: 0 } : c,
+            ),
+          );
+        }
       } else if (message.type === "typing") {
         // Only for the Loop on screen, and only from other people - the
         // server already suppresses the echo to the sender.
@@ -1199,6 +1228,10 @@ export function HomeShell({ mode }: HomeShellProps) {
   function handleSelectConversation(conversationId: string | number) {
     setPendingConversation(null);
     setSelectedConversationId(conversationId);
+    // Clear the badge here AND on the server. The local zero below is
+    // optimistic so the badge goes immediately; this is what makes it stay
+    // gone after a reload, and clears it on the user's other devices.
+    void markConversationRead(conversationId);
     setConversations(
       conversations.map((c) => ({
         ...c,
@@ -1286,6 +1319,23 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   function renderConversationButton(conversation: Conversation) {
     const isSelectedForBatch = selectedChatIds.has(conversation.id);
+    // Keyed on the id that actually drives the panel rather than the `active`
+    // flag: that flag is seeded as index 0 of ALL conversations, so on
+    // /broadcast/ it can mark a row that is not the one open.
+    const isOpen = String(conversation.id) === String(selectedConversationId);
+    const isUnread = (conversation.unread || 0) > 0;
+
+    // Four states, and the two axes are independent: a row can be open, or
+    // unread, or both. Dark mode keeps the same ordering - each step up in
+    // emphasis is a step up in blue - rather than reusing the light hexes,
+    // which would all read as near-white on a dark ground.
+    const rowTone = isOpen
+      ? isUnread
+        ? "border-sky-400 bg-[#DDF0FF] text-slate-900 dark:border-sky-500 dark:bg-sky-900/50 dark:text-slate-100"
+        : "border-sky-400 bg-[#E4F3FF] text-slate-900 dark:border-sky-500 dark:bg-sky-900/40 dark:text-slate-100"
+      : isUnread
+        ? "border-transparent bg-[#F2F8FF] text-slate-900 hover:bg-[#F7FAFC] dark:bg-sky-950/40 dark:text-slate-100 dark:hover:bg-slate-700"
+        : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-[#F7FAFC] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
     return (
       <button
@@ -1298,11 +1348,7 @@ export function HomeShell({ mode }: HomeShellProps) {
           }
           handleSelectConversation(conversation.id);
         }}
-        className={`w-full rounded-xl border p-3 text-left transition ${
-          conversation?.active
-            ? "border-sky-300 bg-sky-50 text-slate-900"
-            : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-        }`}
+        className={`w-full rounded-xl border p-3 text-left transition ${rowTone}`}
       >
         <div className="flex items-start justify-between gap-3">
           {isSelectChatsMode && (
@@ -1315,19 +1361,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             />
           )}
           <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">{conversation?.name}</p>
-              {conversation?.isAdmin && (
-                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
-                  ADMIN
-                </span>
-              )}
-            </div>
+            <p
+              className={`text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
+            >
+              {conversation?.name}
+            </p>
             <p
               className={`mt-0.5 text-xs ${
-                conversation.active
-                  ? "text-sky-700"
-                  : "text-slate-500 dark:text-slate-400"
+                isOpen
+                  ? "text-sky-700 dark:text-sky-300"
+                  : isUnread
+                    ? "text-slate-700 dark:text-slate-300"
+                    : "text-slate-500 dark:text-slate-400"
               }`}
             >
               {conversation.preview}
@@ -1352,11 +1397,6 @@ export function HomeShell({ mode }: HomeShellProps) {
       sum + (unseenRequestCountByLoop.get(conversation.id) ?? 0),
     0,
   );
-  const totalUnreadMessages = visibleConversations.reduce(
-    (sum, conversation) => sum + (conversation.unread || 0),
-    0,
-  );
-  const totalNotifications = totalUnreadMessages + totalUnseenInvites;
 
   function handleOpenInvites() {
     const loop = loopsWithPendingRequests[0];
@@ -1379,8 +1419,19 @@ export function HomeShell({ mode }: HomeShellProps) {
   }
 
   function handleMarkAllRead() {
+    // Tell the server about each Loop that actually has something unread,
+    // otherwise this only cleared the badges until the next reload.
+    for (const conversation of visibleConversations) {
+      if (conversation.unread > 0) {
+        void markConversationRead(conversation.id);
+      }
+    }
     setConversations((current) =>
-      current.map((conversation) => ({ ...conversation, unread: 0 })),
+      current.map((conversation) =>
+        conversationMode(conversation) === mode
+          ? { ...conversation, unread: 0 }
+          : conversation,
+      ),
     );
     setUnseenRequestCountByLoop((prev) => {
       const next = new Map(prev);
@@ -1467,7 +1518,6 @@ export function HomeShell({ mode }: HomeShellProps) {
               </div>
 
               <div className="flex items-center gap-1">
-                <NotificationBadge count={totalNotifications} />
                 <button
                   type="button"
                   title="Create Loop"

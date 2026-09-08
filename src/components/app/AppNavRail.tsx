@@ -205,7 +205,7 @@ export function AppNavRail() {
                           </span>
                         )}
                         {badge > 0 && (
-                          <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                          <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-[11px] font-bold text-white">
                             {badge}
                           </span>
                         )}
@@ -213,7 +213,7 @@ export function AppNavRail() {
                     )}
 
                     {collapsed && badge > 0 && (
-                      <span className="absolute top-1.5 right-3 rounded-full bg-sky-500 px-1.5 text-[10px] font-bold text-white">
+                      <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-[10px] font-bold text-white">
                         {badge}
                       </span>
                     )}
