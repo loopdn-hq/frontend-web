@@ -196,12 +196,27 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleSocketMessage = useCallback((message: SocketMessage) => {
-    // Activity is handled here rather than by a listener, so the badge keeps
-    // counting on every route - including the ones that never subscribe.
+    // Handled here rather than by a listener, so these keep working on every
+    // route. HomeShell subscribes too, but it only exists on /chats/ and
+    // /broadcast/ - a group created while the recipient sat on Activity or
+    // Settings had nobody listening, so it simply never appeared.
     if (message.type === "notification.new") {
       setActivityUnread((count) => count + 1);
       setActivityVersion((version) => version + 1);
     }
+
+    // Joining or leaving a conversation changes the list this provider owns,
+    // so the list is what has to react to it.
+    if (
+      message.type === "conversation.added" ||
+      message.type === "conversation.removed"
+    ) {
+      fetchConversations().then((result) => {
+        if (!result.ok) return;
+        setConversations(result.conversations);
+      });
+    }
+
     socketListeners.current.forEach((listener) => listener(message));
   }, []);
 
