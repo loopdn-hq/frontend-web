@@ -28,8 +28,16 @@ export type CreateConversationInvite = {
 export type CreateConversationPayload = {
   name: string;
   description?: string;
+  /** Usernames of existing accounts. All-or-nothing: one miss fails the request. */
   members?: string[];
+  /** Phone numbers. Texted an invitation whether or not they have an account. */
   invite?: CreateConversationInvite[];
+  /**
+   * Email addresses. A verified account is added outright; anybody else is
+   * emailed an invitation and joins by confirming that address. Unlike
+   * `members`, an address that matches nobody is not an error.
+   */
+  invite_email?: string[];
   settings: GroupSettings;
 };
 
@@ -117,6 +125,18 @@ function asText(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
 
+/**
+ * Normalise a conversation that arrived outside a fetch - a websocket payload.
+ * Exported for the same reason `normalizeParticipant` is: the socket delivers
+ * the same shapes the REST endpoints do, and the client should read them the
+ * one way.
+ */
+export function normalizeConversationPayload(
+  raw: unknown,
+): Conversation | null {
+  return isApiObject(raw) ? normalizeConversation(raw) : null;
+}
+
 export function normalizeParticipant(
   item: unknown,
 ): ConversationParticipant | null {
@@ -165,6 +185,46 @@ function isCurrentUserAdmin(item: ApiObject): boolean {
   });
 }
 
+/**
+ * Who to credit for a message, account or not.
+ *
+ * The API guarantees this shape: a message texted in by somebody with no
+ * account still carries `sender.profile.display_label`, precisely so clients
+ * have one thing to read. The fallbacks below that are for older payloads.
+ */
+function senderLabelFrom(sender: unknown): string {
+  const senderObject = isApiObject(sender) ? sender : null;
+  if (!senderObject) return asText(sender, "Unknown");
+
+  const senderProfile = isApiObject(senderObject.profile)
+    ? senderObject.profile
+    : senderObject;
+
+  return asText(
+    senderObject.display_label,
+    asText(
+      senderProfile?.display_label,
+      asText(senderObject.username, "Unknown"),
+    ),
+  );
+}
+
+/**
+ * What a message reads as in the sidebar when it has no text of its own.
+ * A photo-only message would otherwise render as a bare "yul:".
+ */
+function previewBodyFor(message: ApiObject): string {
+  const text = asText(message.text);
+  if (text) return text;
+
+  const attachments = Array.isArray(message.attachments)
+    ? message.attachments
+    : [];
+  if (attachments.length > 1) return `${attachments.length} attachments`;
+  if (attachments.length === 1) return "Attachment";
+  return "";
+}
+
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
   if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
@@ -182,10 +242,13 @@ function normalizeConversation(item: ApiObject): Conversation | null {
       ? joinModeRaw
       : null;
   const lastMessage = isApiObject(item.last_message) ? item.last_message : null;
-  const preview = asText(
-    lastMessage?.text,
-    asText(item.description, "New Loop"),
-  );
+  // "yul: hey" rather than "hey" - in a group the who matters as much as the
+  // what. Falls back to the description only when there is genuinely nothing
+  // to show, so an empty group still reads as itself rather than as a blank.
+  const lastBody = lastMessage ? previewBodyFor(lastMessage) : "";
+  const preview = lastBody
+    ? `${senderLabelFrom(lastMessage?.sender)}: ${lastBody}`
+    : asText(item.description, "New Loop");
 
   return {
     id,
@@ -243,19 +306,7 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
 
   const sender = item.sender;
   const senderObject = isApiObject(sender) ? sender : null;
-  const senderProfile =
-    senderObject && isApiObject(senderObject.profile)
-      ? senderObject.profile
-      : senderObject;
-  const senderName = senderObject
-    ? asText(
-        senderObject.display_label,
-        asText(
-          senderProfile?.display_label,
-          asText(senderObject.username, "Unknown"),
-        ),
-      )
-    : asText(sender, "Unknown");
+  const senderName = senderLabelFrom(sender);
   const senderUsername = senderObject
     ? asText(senderObject.username) || undefined
     : typeof sender === "string"
@@ -336,6 +387,7 @@ export async function createConversation(
   if (payload.description) body.description = payload.description;
   if (payload.members?.length) body.members = payload.members;
   if (payload.invite?.length) body.invite = payload.invite;
+  if (payload.invite_email?.length) body.invite_email = payload.invite_email;
 
   try {
     const response = await authorizedRequest("/chat/conversations/group/", {

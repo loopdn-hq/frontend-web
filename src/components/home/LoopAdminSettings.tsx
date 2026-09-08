@@ -66,14 +66,16 @@ export function LoopAdminSettings({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-900">Loop Settings</h2>
-        <p className="mt-1 text-sm text-slate-600">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+          Loop Settings
+        </h2>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
           Customize how {loopName} works
         </p>
       </div>
 
       {!canEdit && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           Only admins can edit these settings. You&apos;re viewing them in
           read-only mode.
         </div>
@@ -86,22 +88,22 @@ export function LoopAdminSettings({
         </div>
       )}
       {successMessage && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
           {successMessage}
         </div>
       )}
 
       {/* Communication Mode */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
           Communication Mode
         </h3>
-        <p className="mb-4 text-sm text-slate-600">
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           How do members communicate in this Loop?
         </p>
 
         <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
             <input
               type="radio"
               name="mode"
@@ -117,14 +119,16 @@ export function LoopAdminSettings({
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
-              <p className="font-medium text-slate-900">Chat Group</p>
-              <p className="text-xs text-slate-600">
+              <p className="font-medium text-slate-900 dark:text-slate-100">
+                Chat Group
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Members communicate with everyone
               </p>
             </div>
           </label>
 
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50">
+          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
             <input
               type="radio"
               name="mode"
@@ -140,8 +144,10 @@ export function LoopAdminSettings({
               className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
             />
             <div>
-              <p className="font-medium text-slate-900">Broadcast Group</p>
-              <p className="text-xs text-slate-600">
+              <p className="font-medium text-slate-900 dark:text-slate-100">
+                Broadcast Group
+              </p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Admins send announcements to members
               </p>
             </div>
@@ -150,11 +156,11 @@ export function LoopAdminSettings({
       </section>
 
       {/* Join Mode */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
           Who Can Join
         </h3>
-        <p className="mb-4 text-sm text-slate-600">
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           How can new members join this Loop?
         </p>
 
@@ -185,7 +191,7 @@ export function LoopAdminSettings({
           ).map((option) => (
             <label
               key={option.value}
-              className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+              className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
             >
               <input
                 type="radio"
@@ -202,20 +208,24 @@ export function LoopAdminSettings({
                 className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
               />
               <div>
-                <p className="font-medium text-slate-900">{option.label}</p>
-                <p className="text-xs text-slate-600">{option.description}</p>
+                <p className="font-medium text-slate-900 dark:text-slate-100">
+                  {option.label}
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  {option.description}
+                </p>
               </div>
             </label>
           ))}
         </div>
 
         {settings.join_mode === "code" && (
-          <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4">
-            <p className="mb-2 text-sm font-semibold text-slate-900">
+          <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
+            <p className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
               Join Code
             </p>
             {joinCode ? (
-              <p className="rounded-lg bg-white px-3 py-2 font-mono text-lg tracking-widest text-slate-900">
+              <p className="rounded-lg bg-white px-3 py-2 font-mono text-lg tracking-widest text-slate-900 dark:bg-slate-800 dark:text-slate-100">
                 {joinCode}
               </p>
             ) : (
@@ -236,21 +246,21 @@ export function LoopAdminSettings({
       </section>
 
       {/* Member Permissions */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">
+      <section className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
           Member Permissions
         </h3>
 
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-sm text-slate-600">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Who can add new members?
             </p>
             <div className="space-y-2">
               {(["members", "admins"] as const).map((option) => (
                 <label
                   key={option}
-                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   <input
                     type="radio"
@@ -267,7 +277,7 @@ export function LoopAdminSettings({
                     disabled={isSaving || isLoading || !canEdit}
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
-                  <p className="font-medium text-slate-900 capitalize">
+                  <p className="font-medium text-slate-900 capitalize dark:text-slate-100">
                     {option}
                   </p>
                 </label>
@@ -276,14 +286,14 @@ export function LoopAdminSettings({
           </div>
 
           <div>
-            <p className="mb-2 text-sm text-slate-600">
+            <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Who can edit group details?
             </p>
             <div className="space-y-2">
               {(["members", "admins"] as const).map((option) => (
                 <label
                   key={option}
-                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50"
+                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
                 >
                   <input
                     type="radio"
@@ -300,7 +310,7 @@ export function LoopAdminSettings({
                     disabled={isSaving || isLoading || !canEdit}
                     className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
                   />
-                  <p className="font-medium text-slate-900 capitalize">
+                  <p className="font-medium text-slate-900 capitalize dark:text-slate-100">
                     {option}
                   </p>
                 </label>
@@ -311,8 +321,10 @@ export function LoopAdminSettings({
       </section>
 
       {/* Feature Toggles */}
-      <section className="rounded-xl border border-slate-200 bg-white p-6">
-        <h3 className="mb-4 text-lg font-semibold text-slate-900">Features</h3>
+      <section className="rounded-xl border border-slate-200 bg-white p-6 dark:border-slate-700 dark:bg-slate-900">
+        <h3 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          Features
+        </h3>
 
         <div className="space-y-4">
           <FeatureToggle
@@ -378,10 +390,14 @@ function FeatureToggle({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-sky-300 hover:bg-sky-50">
+    <div className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
       <div>
-        <p className="font-medium text-slate-900">{label}</p>
-        <p className="text-xs text-slate-600">{description}</p>
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          {label}
+        </p>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          {description}
+        </p>
       </div>
       <button
         type="button"

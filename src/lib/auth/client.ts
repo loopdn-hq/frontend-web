@@ -13,6 +13,7 @@ import {
   SESSION_COOKIE_NAME,
 } from "./session";
 import type { LoginPayload, SignupPayload } from "@/lib/validation/auth";
+import { normalizePhone } from "@/lib/validation/auth";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -434,6 +435,8 @@ export async function authenticateWithGoogle(
 export async function registerAccount(
   payload: SignupPayload,
 ): Promise<AuthResult> {
+  const normalizedPhone = normalizePhone(payload.phoneNumber);
+
   try {
     const response = await fetch(`${API_BASE_URL}/users/register/`, {
       method: "POST",
@@ -446,7 +449,7 @@ export async function registerAccount(
         first_name: payload.firstName,
         last_name: payload.lastName,
         display_name: payload.displayName?.trim() || payload.firstName,
-        phone_number: payload.phoneNumber,
+        phone_number: normalizedPhone,
       }),
     });
 
@@ -461,7 +464,7 @@ export async function registerAccount(
       };
     }
 
-    setPendingPhone(payload.phoneNumber);
+    setPendingPhone(normalizedPhone);
     setPendingEmail(payload.email);
     stashPendingCredentials(payload.username, payload.password);
 
@@ -548,6 +551,7 @@ export async function verifyEmailCode(
 export async function updatePhoneNumber(
   phoneNumber: string,
 ): Promise<AuthResult> {
+  const normalizedPhone = normalizePhone(phoneNumber);
   const accessToken = getAccessToken();
 
   if (!accessToken) {
@@ -564,7 +568,7 @@ export async function updatePhoneNumber(
         "Content-Type": "application/json",
         Authorization: `Bearer ${accessToken}`,
       },
-      body: JSON.stringify({ phone_number: phoneNumber }),
+      body: JSON.stringify({ phone_number: normalizedPhone }),
     });
 
     const data: unknown = await response.json().catch(() => null);
@@ -579,9 +583,9 @@ export async function updatePhoneNumber(
       };
     }
 
-    setPendingPhone(phoneNumber);
+    setPendingPhone(normalizedPhone);
 
-    return { ok: true, displayName: phoneNumber };
+    return { ok: true, displayName: normalizedPhone };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }
@@ -724,6 +728,7 @@ export async function updateUserProfile(profile: {
 export async function requestPhoneVerificationCode(
   phoneNumber: string,
 ): Promise<AuthResult> {
+  const normalizedPhone = normalizePhone(phoneNumber);
   const accessToken = getAccessToken();
 
   if (!accessToken) {
@@ -742,7 +747,7 @@ export async function requestPhoneVerificationCode(
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ phone_number: phoneNumber }),
+        body: JSON.stringify({ phone_number: normalizedPhone }),
       },
     );
 
@@ -758,7 +763,7 @@ export async function requestPhoneVerificationCode(
       };
     }
 
-    return { ok: true, displayName: phoneNumber };
+    return { ok: true, displayName: normalizedPhone };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }

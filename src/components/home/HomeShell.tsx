@@ -22,6 +22,7 @@ import {
   joinConversation,
   joinConversationWithCode,
   leaveConversation,
+  normalizeConversationPayload,
   normalizeParticipant,
   removeConversationMember,
   respondToJoinRequest,
@@ -46,7 +47,16 @@ import {
   UserSettingsModal,
   type UserProfile,
 } from "@/components/settings/UserSettingsModal";
-import { Code, Plus } from "lucide-react";
+import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import {
+  CheckCheck,
+  ChevronLeft,
+  EllipsisVertical,
+  ListChecks,
+  LogOut,
+  Plus,
+  Search,
+} from "lucide-react";
 
 type Message = {
   id: string | number;
@@ -291,9 +301,15 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [isJoiningPending, setIsJoiningPending] = useState(false);
   const [pendingJoinError, setPendingJoinError] = useState("");
   const [pendingJoinRequestSent, setPendingJoinRequestSent] = useState(false);
+  const [isLoopMenuOpen, setIsLoopMenuOpen] = useState(false);
+  const [isSelectChatsMode, setIsSelectChatsMode] = useState(false);
+  const [selectedChatIds, setSelectedChatIds] = useState<Set<string | number>>(
+    new Set(),
+  );
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
+  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
   useEffect(() => {
     let cancelled = false;
 
@@ -481,30 +497,26 @@ export function HomeShell({ displayName }: HomeShellProps) {
     : [];
 
   useEffect(() => {
-    const query = searchQuery.trim();
+    const query = debouncedSearchQuery.trim();
     if (!query) return;
 
     let cancelled = false;
-    const timeout = setTimeout(() => {
-      setIsSearching(true);
-      searchConversations(query).then((result) => {
-        if (cancelled) return;
-        setIsSearching(false);
-        if (!result.ok) {
-          setSearchError(result.message);
-          setSearchResults([]);
-          return;
-        }
-        setSearchError("");
-        setSearchResults(result.conversations);
-      });
-    }, 300);
+    searchConversations(query).then((result) => {
+      if (cancelled) return;
+      setIsSearching(false);
+      if (!result.ok) {
+        setSearchError(result.message);
+        setSearchResults([]);
+        return;
+      }
+      setSearchError("");
+      setSearchResults(result.conversations);
+    });
 
     return () => {
       cancelled = true;
-      clearTimeout(timeout);
     };
-  }, [searchQuery]);
+  }, [debouncedSearchQuery]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -634,6 +646,29 @@ export function HomeShell({ displayName }: HomeShellProps) {
     router.push("/login/");
   }
 
+  /**
+   * Fold a changed conversation back into the list the sidebar renders.
+   *
+   * A merge rather than a replacement: the detail payload carries no
+   * participants (they live on their own paginated endpoint), so overwriting
+   * wholesale would empty the member list and the count that reads it.
+   */
+  const applyConversationUpdate = useCallback((updated: Conversation) => {
+    setConversations((prev) =>
+      prev.map((existing) =>
+        String(existing.id) === String(updated.id)
+          ? {
+              ...existing,
+              ...updated,
+              participants: updated.participants.length
+                ? updated.participants
+                : existing.participants,
+            }
+          : existing,
+      ),
+    );
+  }, []);
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
       if (message.type === "message.new") {
@@ -737,6 +772,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
               : c,
           ),
         );
+      } else if (message.type === "conversation.updated") {
+        // Settings changed - possibly `mode`, which decides whether this group
+        // belongs under Chat or Broadcast. Applied from the payload rather than
+        // refetched so the group moves the moment the admin saves.
+        const updated = normalizeConversationPayload(message.conversation);
+        if (updated) applyConversationUpdate(updated);
       } else if (message.type === "conversation.added") {
         fetchConversations().then((result) => {
           if (result.ok) setConversations(result.conversations);
@@ -766,7 +807,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
         });
       }
     },
-    [currentUsername, selectedConversationId, toUiMessage],
+    [
+      applyConversationUpdate,
+      currentUsername,
+      selectedConversationId,
+      toUiMessage,
+    ],
   );
 
   const handleWebSocketConnected = useCallback(() => {
@@ -1012,23 +1058,40 @@ export function HomeShell({ displayName }: HomeShellProps) {
   }
 
   function renderConversationButton(conversation: Conversation) {
+    const isSelectedForBatch = selectedChatIds.has(conversation.id);
+
     return (
       <button
         key={conversation.id}
         type="button"
-        onClick={() => handleSelectConversation(conversation.id)}
-        className={`w-full rounded-xl p-3 text-left transition ${
+        onClick={() => {
+          if (isSelectChatsMode) {
+            toggleChatSelection(conversation.id);
+            return;
+          }
+          handleSelectConversation(conversation.id);
+        }}
+        className={`w-full rounded-xl border p-3 text-left transition ${
           conversation?.active
-            ? "bg-sky-600 text-white shadow-[0_8px_25px_rgba(13,108,190,0.35)]"
-            : "bg-white text-slate-700 hover:bg-sky-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+            ? "border-sky-300 bg-sky-50 text-slate-900"
+            : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         }`}
       >
         <div className="flex items-start justify-between gap-3">
+          {isSelectChatsMode && (
+            <span
+              className={`mt-0.5 h-4 w-4 rounded border ${
+                isSelectedForBatch
+                  ? "border-sky-600 bg-sky-600"
+                  : "border-slate-300 bg-white"
+              }`}
+            />
+          )}
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold">{conversation?.name}</p>
               {conversation?.isAdmin && (
-                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700 dark:bg-purple-950/50 dark:text-purple-300">
+                <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:bg-sky-950/50 dark:text-sky-300">
                   ADMIN
                 </span>
               )}
@@ -1036,7 +1099,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
             <p
               className={`mt-0.5 text-xs ${
                 conversation.active
-                  ? "text-sky-100"
+                  ? "text-sky-700"
                   : "text-slate-500 dark:text-slate-400"
               }`}
             >
@@ -1084,6 +1147,38 @@ export function HomeShell({ displayName }: HomeShellProps) {
     }
   }
 
+  function handleMarkAllRead() {
+    setConversations((current) =>
+      current.map((conversation) => ({ ...conversation, unread: 0 })),
+    );
+    setUnseenRequestCountByLoop((prev) => {
+      const next = new Map(prev);
+      for (const key of next.keys()) {
+        next.set(key, 0);
+      }
+      return next;
+    });
+    setIsLoopMenuOpen(false);
+  }
+
+  function handleToggleSelectChatsMode() {
+    setIsSelectChatsMode((current) => !current);
+    setSelectedChatIds(new Set());
+    setIsLoopMenuOpen(false);
+  }
+
+  function toggleChatSelection(conversationId: string | number) {
+    setSelectedChatIds((current) => {
+      const next = new Set(current);
+      if (next.has(conversationId)) {
+        next.delete(conversationId);
+      } else {
+        next.add(conversationId);
+      }
+      return next;
+    });
+  }
+
   const chatLoops = conversations.filter(
     (c) => c.settings?.mode !== "broadcast",
   );
@@ -1092,179 +1187,254 @@ export function HomeShell({ displayName }: HomeShellProps) {
   );
   const canPostMessage =
     selectedConversation?.mode !== "broadcast" || selectedConversation?.isAdmin;
+  const showConversationPanelOnMobile = Boolean(
+    selectedConversation || pendingConversation,
+  );
+  const resolvedDisplayName = userProfile.displayName || displayName;
+  const profileInitial =
+    resolvedDisplayName.trim().charAt(0).toUpperCase() || "U";
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_50%,#f3f8ff_100%)] p-3 sm:p-5 dark:bg-[linear-gradient(160deg,#0b1220_0%,#0e1626_50%,#0b1220_100%)]">
-      <div className="mx-auto grid h-[94vh] min-h-0 w-full max-w-7xl overflow-hidden rounded-3xl border border-white/70 bg-white/50 shadow-[0_22px_80px_rgba(14,88,148,0.16)] backdrop-blur-md md:grid-cols-[320px_1fr] dark:border-slate-800 dark:bg-slate-900/60">
-        <aside className="border-b border-sky-100 bg-white/85 p-4 md:border-r md:border-b-0 md:p-5 dark:border-slate-800 dark:bg-slate-900/85">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-2 justify-between w-full">
-              <div className="flex items-center gap-2 justify-center">
-                <p className="text-xs uppercase tracking-[0.14em] text-sky-500">
-                  Loopd&apos;n
+    <main className="h-screen w-full bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_55%,#f1f8ff_100%)] p-0 sm:p-2 dark:bg-slate-950">
+      <div className="grid h-full min-h-0 w-full overflow-hidden rounded-none border border-slate-200 bg-[#f7fbff] shadow-[0_18px_50px_rgba(15,23,42,0.12)] sm:rounded-2xl md:grid-cols-[340px_1fr] dark:border-slate-800 dark:bg-slate-900">
+        <aside
+          className={`${showConversationPanelOnMobile ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-slate-200 bg-[#f7f9fb] md:border-r md:border-b-0 dark:border-slate-800 dark:bg-slate-900`}
+        >
+          <div className="border-b border-slate-200 bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-white dark:border-slate-700">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">
+                  Loopdn
                 </p>
-                <NotificationBadge count={totalNotifications} />
-                <p
-                  title={displayName}
-                  className="rounded-xl bg-cyan-50 px-3 py-2 max-w-[120px] truncate text-xs text-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-300"
-                >
-                  {displayName}
+                <p className="truncate text-sm font-semibold">
+                  {resolvedDisplayName}
                 </p>
               </div>
-              <div className="flex items-center gap-2 w-auto">
+
+              <div className="flex items-center gap-1">
+                <NotificationBadge count={totalNotifications} />
                 <button
                   type="button"
                   title="Create Loop"
                   onClick={() =>
                     requirePhoneVerified(() => setIsCreateLoopOpen(true))
                   }
-                  className="flex items-center justify-center w-8 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-2 py-1 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
-                  <Plus className="h-5 w-5 font-bold" />
+                  <Plus className="h-5 w-5" />
                 </button>
-                <button
-                  type="button"
-                  title="User Settings"
-                  onClick={() => setIsUserSettingsOpen(true)}
-                  className="py-1.5 px-0 w-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  ⚙️
-                </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    title="Loop menu"
+                    onClick={() => setIsLoopMenuOpen((current) => !current)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                  >
+                    <EllipsisVertical className="h-5 w-5" />
+                  </button>
+
+                  {isLoopMenuOpen && (
+                    <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsLoopMenuOpen(false);
+                          requirePhoneVerified(() => setIsCreateLoopOpen(true));
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        <Plus className="h-4 w-4" />
+                        New Loop
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleMarkAllRead}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        <CheckCheck className="h-4 w-4" />
+                        Mark all as read
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleToggleSelectChatsMode}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        <ListChecks className="h-4 w-4" />
+                        {isSelectChatsMode
+                          ? "Exit select chats"
+                          : "Select chats"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Log out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="mb-4 flex gap-2">
-            <input
-              type="search"
-              value={searchQuery}
-              onChange={(event) => {
-                const value = event.target.value;
-                setSearchQuery(value);
-                if (!value.trim()) {
-                  setSearchResults([]);
-                  setSearchError("");
-                }
-              }}
-              placeholder="Search Loops..."
-              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
-            <button
-              type="button"
-              title="Join Loop with Code"
-              onClick={() =>
-                requirePhoneVerified(() => setIsJoinLoopOpen(true))
-              }
-              className="flex items-center justify-center w-10 rounded-xl border border-sky-200 bg-white px-2 p-1 text-sm font-semibold text-sky-700 transition hover:bg-sky-50 dark:border-slate-700 dark:bg-slate-800 dark:text-sky-400 dark:hover:bg-slate-700"
-            >
-              <Code className="h-5 w-5" />
-            </button>
+          <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-700">
+            <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
+              <Search className="h-4 w-4 text-slate-400" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSearchQuery(value);
+                  if (value.trim()) {
+                    setIsSearching(true);
+                  }
+                  if (!value.trim()) {
+                    setIsSearching(false);
+                    setSearchError("");
+                    setSearchResults([]);
+                  }
+                }}
+                placeholder="Search or start a new chat"
+                className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+              />
+            </div>
           </div>
 
-          {loopsWithPendingRequests.length > 0 && (
-            <button
-              type="button"
-              onClick={handleOpenInvites}
-              className="mb-4 w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-                  Invites
-                </p>
-                <NotificationBadge count={totalUnseenInvites} />
-              </div>
-            </button>
-          )}
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+            {loopsWithPendingRequests.length > 0 && (
+              <button
+                type="button"
+                onClick={handleOpenInvites}
+                className="mb-4 w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
+                    Invites
+                  </p>
+                  <NotificationBadge count={totalUnseenInvites} />
+                </div>
+              </button>
+            )}
 
-          {searchQuery.trim() ? (
-            <div className="space-y-2">
-              {isSearching ? (
-                <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                  Searching...
-                </p>
-              ) : searchError ? (
-                <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-4 text-center text-xs text-rose-700">
-                  {searchError}
-                </p>
-              ) : searchResults.length === 0 ? (
-                <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                  No Loops found
-                </p>
-              ) : (
-                searchResults.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    type="button"
-                    onClick={() => handleSelectSearchResult(conversation)}
-                    className={`w-full rounded-xl p-3 text-left transition ${
-                      pendingConversation?.id === conversation.id
-                        ? "bg-sky-600 text-white shadow-[0_8px_25px_rgba(13,108,190,0.35)]"
-                        : "bg-white text-slate-700 hover:bg-sky-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    <p className="text-sm font-semibold">{conversation.name}</p>
-                    <p
-                      className={`mt-0.5 text-xs ${
+            {searchQuery.trim() ? (
+              <div className="space-y-2">
+                {isSearching ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                    Searching...
+                  </p>
+                ) : searchError ? (
+                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-4 text-center text-xs text-rose-700">
+                    {searchError}
+                  </p>
+                ) : searchResults.length === 0 ? (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                    No Loops found
+                  </p>
+                ) : (
+                  searchResults.map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(conversation)}
+                      className={`w-full rounded-xl border p-3 text-left transition ${
                         pendingConversation?.id === conversation.id
-                          ? "text-sky-100"
-                          : "text-slate-500 dark:text-slate-400"
+                          ? "border-sky-300 bg-sky-50 text-slate-900"
+                          : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                       }`}
                     >
-                      {conversation.description || "No description"}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-          ) : (
-            <div className="space-y-5">
-              {conversations.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-sky-300 bg-sky-50 p-6 text-center dark:border-sky-800 dark:bg-sky-950/30">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                    No Loops yet
-                  </p>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                    Click Create Loop above to get started
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div>
-                    <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                      Chat Loops
-                    </p>
-                    {chatLoops.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                        No chat loops yet
+                      <p className="text-sm font-semibold">
+                        {conversation.name}
                       </p>
-                    ) : (
-                      <div className="space-y-2 max-h-60 overflow-y-auto">
-                        {chatLoops.map(renderConversationButton)}
-                      </div>
-                    )}
+                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                        {conversation.description || "No description"}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {isSelectChatsMode && (
+                  <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                    Selected chats: {selectedChatIds.size}
+                  </p>
+                )}
+                {conversations.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      No Loops yet
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Create a loop to get started
+                    </p>
                   </div>
+                ) : (
+                  <>
+                    <div>
+                      <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
+                        Chat Groups
+                      </p>
+                      {chatLoops.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                          No chat loops yet
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {chatLoops.map(renderConversationButton)}
+                        </div>
+                      )}
+                    </div>
 
-                  <div>
-                    <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                      Broadcast Loops
-                    </p>
-                    {broadcastLoops.length === 0 ? (
-                      <p className="rounded-xl border border-dashed border-slate-200 bg-white/60 px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                        No broadcast loops yet
+                    <div>
+                      <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
+                        Broadcast Groups
                       </p>
-                    ) : (
-                      <div className="space-y-2 max-h-50 overflow-y-auto">
-                        {broadcastLoops.map(renderConversationButton)}
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                      {broadcastLoops.length === 0 ? (
+                        <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
+                          No broadcast loops yet
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {broadcastLoops.map(renderConversationButton)}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-slate-200 p-3 dark:border-slate-700">
+            <button
+              type="button"
+              onClick={() => setIsUserSettingsOpen(true)}
+              className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
+                {profileInitial}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {resolvedDisplayName}
+                </span>
+                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
+                  {userProfile.phone || userProfile.email || "Open settings"}
+                </span>
+              </span>
+            </button>
+          </div>
         </aside>
 
-        <section className="flex min-h-0 min-w-0 flex-col bg-[linear-gradient(180deg,#fafeff_0%,#f5faff_100%)] dark:bg-[linear-gradient(180deg,#0e1626_0%,#0b1220_100%)]">
+        <section
+          className={`${
+            showConversationPanelOnMobile ? "flex" : "hidden md:flex"
+          } min-h-0 min-w-0 flex-col bg-[#f3f9ff] dark:bg-slate-950`}
+        >
           {selectedConversationId && (
             <LoopWebSocketManager
               loopId={selectedConversationId}
@@ -1275,56 +1445,104 @@ export function HomeShell({ displayName }: HomeShellProps) {
             />
           )}
 
-          <header className="flex items-center justify-between border-b border-sky-100 px-5 py-4 dark:border-slate-800">
-            <div>
-              <p className="text-xs uppercase tracking-[0.12em] text-slate-500 dark:text-slate-400">
-                Group
-              </p>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {selectedConversation?.name ||
-                  pendingConversation?.name ||
-                  "Select a Loop"}
-              </h2>
-            </div>
-            <div className="flex items-center gap-3">
-              {selectedConversationId && (
-                <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  {selectedConversation?.participants.length ?? 0} member
-                  {(selectedConversation?.participants.length ?? 0) === 1
-                    ? ""
-                    : "s"}
-                </div>
-              )}
-
-              {/* WebSocket Status Indicator */}
-              {selectedConversationId && (
-                <div
-                  className={`rounded-full px-3 py-1 text-[10px] font-semibold ${
-                    loopWSStatus.get(selectedConversationId) === "connected"
-                      ? "bg-emerald-100 text-emerald-700"
-                      : loopWSStatus.get(selectedConversationId) ===
-                          "connecting"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-slate-100 text-slate-700"
-                  }`}
-                  title={`WebSocket: ${loopWSStatus.get(selectedConversationId) || "disconnected"}`}
-                >
-                  {loopWSStatus.get(selectedConversationId) === "connected" &&
-                    "🟢 Live"}
-                  {loopWSStatus.get(selectedConversationId) === "connecting" &&
-                    "🟡 Connecting"}
-                  {!loopWSStatus.get(selectedConversationId) && "⚫ Offline"}
-                </div>
-              )}
-
-              {selectedConversationId && (
+          <header className="border-b border-slate-200 bg-[#eef7ff] px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  {canAddMembers && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingConversation(null);
+                      setSelectedConversationId(null);
+                    }}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-200 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
+                    aria-label="Back to chat list"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <h2 className="truncate text-base font-bold text-slate-900 sm:text-lg dark:text-slate-100">
+                    {selectedConversation?.name ||
+                      pendingConversation?.name ||
+                      "Select a Loop"}
+                  </h2>
+                </div>
+                {selectedConversationId && selectedConversation && (
+                  <div className="mt-2 flex max-w-[68vw] gap-1.5 overflow-x-auto pb-1 md:max-w-[40vw]">
+                    {selectedConversation.participants.map((participant) => (
+                      <span
+                        key={participant.id}
+                        className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                      >
+                        {participant.name}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedConversationId && (
+                  <div className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 lg:block dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    {selectedConversation?.participants.length ?? 0} member
+                    {(selectedConversation?.participants.length ?? 0) === 1
+                      ? ""
+                      : "s"}
+                  </div>
+                )}
+
+                {selectedConversationId && (
+                  <div
+                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                      loopWSStatus.get(selectedConversationId) === "connected"
+                        ? "bg-sky-100 text-sky-700"
+                        : loopWSStatus.get(selectedConversationId) ===
+                            "connecting"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-slate-100 text-slate-700"
+                    }`}
+                    title={`WebSocket: ${loopWSStatus.get(selectedConversationId) || "disconnected"}`}
+                  >
+                    {loopWSStatus.get(selectedConversationId) === "connected" &&
+                      "Live"}
+                    {loopWSStatus.get(selectedConversationId) ===
+                      "connecting" && "Connecting"}
+                    {!loopWSStatus.get(selectedConversationId) && "Offline"}
+                  </div>
+                )}
+
+                {selectedConversationId && (
+                  <div className="flex items-center gap-2">
+                    {canAddMembers && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAddMembersOpen(true)}
+                        title="Add members"
+                        aria-label="Add members"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                      >
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 19a4 4 0 00-8 0m4-8a4 4 0 100-8 4 4 0 000 8zm6 3v6m3-3h-6"
+                          />
+                        </svg>
+                      </button>
+                    )}
                     <button
                       type="button"
-                      onClick={() => setIsAddMembersOpen(true)}
-                      title="Add members"
-                      aria-label="Add members"
+                      onClick={() => {
+                        setAdminPanelTab("settings");
+                        setIsAdminPanelOpen(true);
+                      }}
+                      title="Loop Settings"
+                      aria-label="Loop Settings"
                       className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                     >
                       <svg
@@ -1337,47 +1555,23 @@ export function HomeShell({ displayName }: HomeShellProps) {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth={2}
-                          d="M15 19a4 4 0 00-8 0m4-8a4 4 0 100-8 4 4 0 000 8zm6 3v6m3-3h-6"
+                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                         />
                       </svg>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAdminPanelTab("settings");
-                      setIsAdminPanelOpen(true);
-                    }}
-                    title="Loop Settings"
-                    aria-label="Loop Settings"
-                    className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                      />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                      />
-                    </svg>
-                  </button>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
             </div>
           </header>
 
-          <div className="min-h-0 max-h-[calc(94vh-150px)] flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-6">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 sm:py-5">
             {pendingConversation ? (
               <div className="flex h-full items-center justify-center">
                 <div className="w-full max-w-sm rounded-2xl border border-sky-200 bg-white p-6 text-center shadow-[0_10px_30px_rgba(14,88,148,0.15)] dark:border-slate-700 dark:bg-slate-800">
@@ -1389,7 +1583,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   </p>
 
                   {pendingJoinRequestSent ? (
-                    <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                    <p className="mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700">
                       Request sent. An admin needs to approve your request to
                       join.
                     </p>
@@ -1483,12 +1677,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
                   key={message.id}
                   className={`max-w-xl rounded-2xl px-4 py-3 ${
                     message.mine
-                      ? "ml-auto bg-sky-600 text-white"
+                      ? "ml-auto bg-[#dff1ff] text-slate-900"
                       : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
                   }`}
                 >
                   <p
-                    className={`text-xs ${message.mine ? "text-sky-100" : "text-slate-500 dark:text-slate-400"}`}
+                    className={`text-xs ${message.mine ? "text-sky-700" : "text-slate-500 dark:text-slate-400"}`}
                   >
                     {message.sender}
                   </p>
@@ -1518,7 +1712,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                             href={attachment.url}
                             target="_blank"
                             rel="noreferrer"
-                            className={`block truncate text-xs underline ${message.mine ? "text-sky-100" : "text-sky-700"}`}
+                            className={`block truncate text-xs underline ${message.mine ? "text-sky-700" : "text-sky-700"}`}
                           >
                             {attachment.originalName}
                           </a>
@@ -1527,7 +1721,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     </div>
                   )}
                   <p
-                    className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}
+                    className={`mt-2 text-[11px] ${message.mine ? "text-sky-700" : "text-slate-400"}`}
                   >
                     {message.time}
                   </p>
@@ -1536,7 +1730,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
             )}
           </div>
 
-          <footer className="shrink-0 border-t border-sky-100 p-4 dark:border-slate-800">
+          <footer className="shrink-0 border-t border-slate-200 bg-[#eef7ff] p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900">
             {pendingConversation ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
                 <p className="text-sm text-slate-600 dark:text-slate-400">
@@ -1550,7 +1744,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 </p>
               </div>
             ) : (
-              <div className="relative rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
+              <div className="relative rounded-2xl border border-slate-200 bg-[#eef7ff] p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
                 {messageError && (
                   <p className="px-2 pb-2 text-xs text-rose-600">
                     {messageError}
@@ -1749,12 +1943,12 @@ export function HomeShell({ displayName }: HomeShellProps) {
       {isAdminPanelOpen && selectedConversationId && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-start justify-center bg-black/50 p-4">
-            <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white">
+            <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white dark:bg-slate-900">
               {/* Close Button */}
               <button
                 type="button"
                 onClick={() => setIsAdminPanelOpen(false)}
-                className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
               >
                 <svg
                   className="h-6 w-6"
@@ -1844,6 +2038,10 @@ export function HomeShell({ displayName }: HomeShellProps) {
                     );
                     if (!result.ok) throw new Error(result.message);
                     setGroupSettings(result.conversation.settings);
+                    // The sidebar reads `settings.mode` off the conversations
+                    // list, so updating only the admin panel's own state left
+                    // the group filed under Chat until a reload.
+                    applyConversationUpdate(result.conversation);
                   }}
                   onFetchJoinCode={async () => {
                     if (!selectedConversationId) {

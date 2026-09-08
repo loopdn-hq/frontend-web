@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
 
 export const emailSchema = z
   .string()
   .trim()
   .email("Enter a valid email address.");
 
-const e164Phone = /^\+?[1-9]\d{7,14}$/;
+const e164Phone = /^\+[1-9]\d{7,14}$/;
 
 export const passwordSchema = z
   .string()
@@ -28,10 +29,16 @@ export type LoginPayload = z.infer<typeof loginSchema>;
 
 export function normalizePhone(phone: string): string {
   const trimmed = phone.trim();
+  if (!trimmed) return "";
+
+  const parsedPhone = parsePhoneNumberFromString(trimmed);
+  if (parsedPhone?.isValid()) {
+    return parsedPhone.number;
+  }
+
   const hasPlus = trimmed.startsWith("+");
   const digitsOnly = trimmed.replace(/\D/g, "");
-
-  return hasPlus ? `+${digitsOnly}` : digitsOnly;
+  return hasPlus && digitsOnly ? `+${digitsOnly}` : digitsOnly;
 }
 
 const usernameSchema = z
@@ -70,7 +77,7 @@ export const signupSchema = z
       .min(1, "Phone number is required.")
       .refine(
         (value) => e164Phone.test(normalizePhone(value)),
-        "Enter a valid phone number including country code, e.g. +14155552671.",
+        "Enter a valid phone number including country code.",
       ),
   })
   .refine((value) => value.password === value.confirmPassword, {
