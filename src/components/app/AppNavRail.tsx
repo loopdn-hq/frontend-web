@@ -35,6 +35,21 @@ type NavSection = {
   items: NavItem[];
 };
 
+// Destinations that exist but are not ready to be offered yet. Kept in
+// NAV_SECTIONS rather than deleted so bringing one back is removing one line,
+// and so the href, icon and label stay in step with the route that serves it.
+// The routes themselves still resolve - this hides the door, not the room.
+const HIDDEN_DESTINATIONS = new Set([
+  "/communities/",
+  "/media/",
+  "/contacts/",
+  "/ai-assistant/",
+]);
+
+// Creating a group is still reachable from the Chats screen; this is only the
+// nav rail's shortcut to it.
+const SHOW_CREATE_GROUP = false;
+
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
@@ -161,65 +176,67 @@ export function AppNavRail() {
                 <div className="my-2 border-t border-slate-800" />
               )}
 
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const active = isActive(item.href);
-                const badge =
-                  item.href === "/chats/"
-                    ? unreadByMode.chat
-                    : item.href === "/broadcast/"
-                      ? unreadByMode.broadcast
-                      : item.href === "/activity/"
-                        ? activityUnread
-                        : 0;
+              {section.items
+                .filter((item) => !HIDDEN_DESTINATIONS.has(item.href))
+                .map((item) => {
+                  const Icon = item.icon;
+                  const active = isActive(item.href);
+                  const badge =
+                    item.href === "/chats/"
+                      ? unreadByMode.chat
+                      : item.href === "/broadcast/"
+                        ? unreadByMode.broadcast
+                        : item.href === "/activity/"
+                          ? activityUnread
+                          : 0;
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={closeNavDrawer}
-                    aria-current={active ? "page" : undefined}
-                    title={collapsed ? item.label : undefined}
-                    className={`relative mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                      collapsed ? "md:justify-center md:px-0" : ""
-                    } ${
-                      active
-                        ? "bg-slate-700/70 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5 shrink-0" />
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={closeNavDrawer}
+                      aria-current={active ? "page" : undefined}
+                      title={collapsed ? item.label : undefined}
+                      className={`relative mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                        collapsed ? "md:justify-center md:px-0" : ""
+                      } ${
+                        active
+                          ? "bg-slate-700/70 text-white"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <Icon className="h-5 w-5 shrink-0" />
 
-                    {!collapsed && (
-                      <>
-                        <span className="min-w-0 flex-1 truncate">
-                          {item.label}
+                      {!collapsed && (
+                        <>
+                          <span className="min-w-0 flex-1 truncate">
+                            {item.label}
+                          </span>
+                          {item.tag && (
+                            <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                              {item.tag}
+                            </span>
+                          )}
+                          {badge > 0 && (
+                            <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-[11px] font-bold text-white">
+                              {badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+
+                      {collapsed && badge > 0 && (
+                        <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-[10px] font-bold text-white">
+                          {badge}
                         </span>
-                        {item.tag && (
-                          <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">
-                            {item.tag}
-                          </span>
-                        )}
-                        {badge > 0 && (
-                          <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-[11px] font-bold text-white">
-                            {badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-
-                    {collapsed && badge > 0 && (
-                      <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-[10px] font-bold text-white">
-                        {badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
+                      )}
+                    </Link>
+                  );
+                })}
 
               {/* Create group opens the existing modal on the Chats route, so
                   it is an action rather than a destination of its own. */}
-              {section.heading === "Discover" && (
+              {SHOW_CREATE_GROUP && section.heading === "Discover" && (
                 <button
                   type="button"
                   onClick={handleCreateGroup}

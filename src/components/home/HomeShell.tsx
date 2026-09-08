@@ -1166,10 +1166,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         // refetched so the group moves the moment the admin saves.
         const updated = normalizeConversationPayload(message.conversation);
         if (updated) applyConversationUpdate(updated);
-      } else if (message.type === "conversation.added") {
-        fetchConversations().then((result) => {
-          if (result.ok) setConversations(result.conversations);
-        });
       } else if (message.type === "conversation.request") {
         const rawConversationId = message.conversation_id;
         const conversationId =
