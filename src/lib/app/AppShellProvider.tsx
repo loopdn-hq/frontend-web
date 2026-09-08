@@ -26,6 +26,7 @@ import {
   fetchConversations,
   type Conversation,
 } from "@/lib/chat/conversations";
+import { fetchNotifications } from "@/lib/chat/notifications";
 import type { UserProfile } from "@/components/settings/UserSettingsPanel";
 
 export type SocketMessage = {
@@ -69,6 +70,14 @@ type AppShellContextType = {
   socketStatus: string;
   sendSocketMessage: (message: SocketMessage) => void;
   subscribeToSocket: (listener: SocketListener) => () => void;
+
+  // Unread activity, for the rail badge. Held here rather than on the page so
+  // the badge is right before anybody has opened Activity.
+  activityUnread: number;
+  setActivityUnread: (count: number) => void;
+  // Bumped when a notification arrives on the socket, so an open Activity
+  // page refetches instead of polling for something that may never come.
+  activityVersion: number;
 };
 
 const AppShellContext = createContext<AppShellContextType | undefined>(
@@ -83,6 +92,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   }));
   const [createLoopRequest, setCreateLoopRequest] = useState(0);
   const [isNavDrawerOpen, setIsNavDrawerOpen] = useState(false);
+  const [activityUnread, setActivityUnread] = useState(0);
+  const [activityVersion, setActivityVersion] = useState(0);
 
   // Lives here rather than in HomeShell so the list survives navigating to
   // Settings and back - the provider sits above the route in the (app) layout.
@@ -97,6 +108,20 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
           active: index === 0,
         })),
       );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Seed the activity badge, so it is right before Activity is ever opened.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchNotifications({ unreadOnly: true }).then((result) => {
+      if (cancelled || !result.ok) return;
+      setActivityUnread(result.page.unreadCount);
     });
 
     return () => {
@@ -131,6 +156,10 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     () =>
       conversations.reduce(
         (totals, conversation) => {
+          // Archived Loops are excluded: the rail badge should only count
+          // what is in the list it points at, and an archived Loop is not.
+          // Its unread is shown on the Archived row instead.
+          if (conversation.archived) return totals;
           totals[conversationMode(conversation)] += conversation.unread || 0;
           return totals;
         },
@@ -167,6 +196,12 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const handleSocketMessage = useCallback((message: SocketMessage) => {
+    // Activity is handled here rather than by a listener, so the badge keeps
+    // counting on every route - including the ones that never subscribe.
+    if (message.type === "notification.new") {
+      setActivityUnread((count) => count + 1);
+      setActivityVersion((version) => version + 1);
+    }
     socketListeners.current.forEach((listener) => listener(message));
   }, []);
 
@@ -202,6 +237,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       socketStatus,
       sendSocketMessage,
       subscribeToSocket,
+      activityUnread,
+      setActivityUnread,
+      activityVersion,
     }),
     [
       conversations,
@@ -216,6 +254,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       socketStatus,
       sendSocketMessage,
       subscribeToSocket,
+      activityUnread,
+      activityVersion,
     ],
   );
 
