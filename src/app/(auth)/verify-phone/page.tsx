@@ -30,7 +30,7 @@ export default function VerifyPhonePage() {
     }
 
     if (isLoaded && !phone) {
-      router.replace("/home/");
+      router.replace("/chats/");
     }
   }, [router, isLoaded, session, phone]);
 
@@ -74,7 +74,7 @@ export default function VerifyPhonePage() {
         return;
       }
 
-      router.push("/home/");
+      router.push("/chats/");
     } finally {
       setIsVerifying(false);
     }
@@ -144,7 +144,7 @@ export default function VerifyPhonePage() {
         </button>
 
         <Link
-          href="/home/"
+          href="/chats/"
           className="mt-4 block text-center text-xs text-slate-500 underline hover:text-slate-700"
         >
           Skip for now

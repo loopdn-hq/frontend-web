@@ -28,7 +28,7 @@ export default function VerifyEmailPage() {
   // Already signed in - nothing pending here.
   useEffect(() => {
     if (isLoaded && session) {
-      router.replace("/home/");
+      router.replace("/chats/");
     }
   }, [router, isLoaded, session]);
 

@@ -1,0 +1,43 @@
+"use client";
+
+import { useEffect, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { AppNavRail } from "@/components/app/AppNavRail";
+import { AppShellProvider } from "@/lib/app/AppShellProvider";
+import { fetchCurrentUser, useAuth } from "@/lib/auth/client";
+
+/**
+ * Frame shared by every signed-in route: the auth guard, the shell state that
+ * has to outlive navigation, and the nav rail beside the active page.
+ */
+export default function AppLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const { session, isLoaded } = useAuth();
+
+  useEffect(() => {
+    if (isLoaded && !session) {
+      router.replace("/login/");
+    }
+  }, [router, isLoaded, session]);
+
+  // Refresh the cached phone_no_verified flag from the backend, in case it
+  // changed on another device or the local cache is stale.
+  useEffect(() => {
+    if (isLoaded && session) {
+      void fetchCurrentUser();
+    }
+  }, [isLoaded, session]);
+
+  if (!isLoaded || !session) return null;
+
+  return (
+    <AppShellProvider>
+      {/* Full-bleed: the shell fills the viewport rather than floating as an
+          inset card, so there is no gutter around the app. */}
+      <main className="flex h-screen w-full overflow-hidden bg-[#f7fbff] dark:bg-slate-900">
+        <AppNavRail />
+        <div className="min-h-0 min-w-0 flex-1">{children}</div>
+      </main>
+    </AppShellProvider>
+  );
+}

@@ -1,15 +1,8 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
-import {
-  fetchUserProfile,
-  getSession,
-  logout,
-  updateUserProfile,
-  type ProfileResult,
-} from "@/lib/auth/client";
+import { getSession } from "@/lib/auth/client";
 import {
   addConversationMembers,
   fetchConversation,
@@ -43,17 +36,14 @@ import { LoopAdminPanel, type AdminTab } from "./LoopAdminPanel";
 import { LoopWebSocketManager } from "./LoopWebSocketManager";
 import { NotificationBadge } from "./NotificationBadge";
 import { VerifyPhoneModal } from "./VerifyPhoneModal";
-import {
-  UserSettingsModal,
-  type UserProfile,
-} from "@/components/settings/UserSettingsModal";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { useAppShell } from "@/lib/app/AppShellProvider";
+import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import {
   CheckCheck,
   ChevronLeft,
   EllipsisVertical,
   ListChecks,
-  LogOut,
   Plus,
   Search,
 } from "lucide-react";
@@ -72,10 +62,6 @@ type WebSocketMessage = {
   type: string;
   message?: Record<string, unknown>;
   [key: string]: unknown;
-};
-
-type HomeShellProps = {
-  displayName: string;
 };
 
 // Initialize with empty list - user creates loops as needed
@@ -261,10 +247,10 @@ const mockMembers = [
   },
 ];
 
-export function HomeShell({ displayName }: HomeShellProps) {
-  const router = useRouter();
-  const [conversations, setConversations] =
-    useState<Conversation[]>(defaultConversations);
+export function HomeShell() {
+  // The conversation list lives in the (app) layout's provider so it survives
+  // navigating to another destination and back.
+  const { conversations, setConversations, createLoopRequest } = useAppShell();
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
   >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
@@ -306,54 +292,19 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string | number>>(
     new Set(),
   );
-  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile>({ displayName });
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
+
+  // The provider fetches the list; select the first Loop once it arrives.
+  const hasAutoSelected = useRef(false);
   useEffect(() => {
-    let cancelled = false;
-
-    fetchConversations().then((result) => {
-      if (cancelled || !result.ok) return;
-      setConversations(() =>
-        result.conversations.map((conversation, index) => ({
-          ...conversation,
-          active: index === 0,
-        })),
-      );
-      setSelectedConversationId(result.conversations[0]?.id ?? null);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Fill in email/phone (and a real display name) from the backend profile.
-  useEffect(() => {
-    let cancelled = false;
-
-    fetchUserProfile().then((result) => {
-      if (cancelled || !result.ok) return;
-
-      setUserProfile((prev) => ({
-        displayName: result.displayName || prev.displayName,
-        email: result.email ?? prev.email,
-        phone: result.phone ?? prev.phone,
-        emailVerified: result.emailVerified ?? prev.emailVerified,
-        phoneVerified: result.phoneVerified ?? prev.phoneVerified,
-        bio: result.bio ?? prev.bio,
-        avatarUrl: result.avatarUrl ?? prev.avatarUrl,
-      }));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    if (hasAutoSelected.current || conversations.length === 0) return;
+    hasAutoSelected.current = true;
+    setSelectedConversationId(conversations[0].id);
+  }, [conversations]);
 
   // Gate actions that need a verified phone (Create Loop, etc.) behind the modal.
-  function requirePhoneVerified(action: () => void) {
+  const requirePhoneVerified = useCallback((action: () => void) => {
     // Check if the user's phone is verified before performing the action.
     // if (phoneVerified) {
     action();
@@ -361,7 +312,13 @@ export function HomeShell({ displayName }: HomeShellProps) {
     // }
 
     // setIsVerifyPhoneOpen(true);
-  }
+  }, []);
+
+  // "Create group" in the nav rail routes here and bumps this counter.
+  useEffect(() => {
+    if (createLoopRequest === 0) return;
+    requirePhoneVerified(() => setIsCreateLoopOpen(true));
+  }, [createLoopRequest, requirePhoneVerified]);
 
   // Store messages per loop
   const [loopMessages, setLoopMessages] = useState<
@@ -615,7 +572,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId, currentUsername]);
+  }, [selectedConversationId, currentUsername, setConversations]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -641,11 +598,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
     };
   }, [selectedConversationId, toUiMessage]);
 
-  async function handleLogout() {
-    await logout();
-    router.push("/login/");
-  }
-
   /**
    * Fold a changed conversation back into the list the sidebar renders.
    *
@@ -653,21 +605,24 @@ export function HomeShell({ displayName }: HomeShellProps) {
    * participants (they live on their own paginated endpoint), so overwriting
    * wholesale would empty the member list and the count that reads it.
    */
-  const applyConversationUpdate = useCallback((updated: Conversation) => {
-    setConversations((prev) =>
-      prev.map((existing) =>
-        String(existing.id) === String(updated.id)
-          ? {
-              ...existing,
-              ...updated,
-              participants: updated.participants.length
-                ? updated.participants
-                : existing.participants,
-            }
-          : existing,
-      ),
-    );
-  }, []);
+  const applyConversationUpdate = useCallback(
+    (updated: Conversation) => {
+      setConversations((prev) =>
+        prev.map((existing) =>
+          String(existing.id) === String(updated.id)
+            ? {
+                ...existing,
+                ...updated,
+                participants: updated.participants.length
+                  ? updated.participants
+                  : existing.participants,
+              }
+            : existing,
+        ),
+      );
+    },
+    [setConversations],
+  );
 
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
@@ -812,6 +767,7 @@ export function HomeShell({ displayName }: HomeShellProps) {
       currentUsername,
       selectedConversationId,
       toUiMessage,
+      setConversations,
     ],
   );
 
@@ -1190,25 +1146,18 @@ export function HomeShell({ displayName }: HomeShellProps) {
   const showConversationPanelOnMobile = Boolean(
     selectedConversation || pendingConversation,
   );
-  const resolvedDisplayName = userProfile.displayName || displayName;
-  const profileInitial =
-    resolvedDisplayName.trim().charAt(0).toUpperCase() || "U";
 
   return (
-    <main className="h-screen w-full bg-[linear-gradient(160deg,#e4f4ff_0%,#f8fbff_55%,#f1f8ff_100%)] p-0 sm:p-2 dark:bg-slate-950">
-      <div className="grid h-full min-h-0 w-full overflow-hidden rounded-none border border-slate-200 bg-[#f7fbff] shadow-[0_18px_50px_rgba(15,23,42,0.12)] sm:rounded-2xl md:grid-cols-[340px_1fr] dark:border-slate-800 dark:bg-slate-900">
+    <>
+      <div className="grid h-full min-h-0 w-full overflow-hidden md:grid-cols-[340px_1fr]">
         <aside
           className={`${showConversationPanelOnMobile ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-slate-200 bg-[#f7f9fb] md:border-r md:border-b-0 dark:border-slate-800 dark:bg-slate-900`}
         >
           <div className="border-b border-slate-200 bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-white dark:border-slate-700">
             <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.2em] text-cyan-100">
-                  Loopdn
-                </p>
-                <p className="truncate text-sm font-semibold">
-                  {resolvedDisplayName}
-                </p>
+              <div className="flex min-w-0 items-center gap-1">
+                <NavDrawerButton className="-ml-2 text-white hover:bg-white/20" />
+                <p className="truncate text-lg font-bold">Chats</p>
               </div>
 
               <div className="flex items-center gap-1">
@@ -1264,14 +1213,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
                         {isSelectChatsMode
                           ? "Exit select chats"
                           : "Select chats"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                      >
-                        <LogOut className="h-4 w-4" />
-                        Log out
                       </button>
                     </div>
                   )}
@@ -1407,26 +1348,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
                 )}
               </div>
             )}
-          </div>
-
-          <div className="border-t border-slate-200 p-3 dark:border-slate-700">
-            <button
-              type="button"
-              onClick={() => setIsUserSettingsOpen(true)}
-              className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
-                {profileInitial}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                  {resolvedDisplayName}
-                </span>
-                <span className="block truncate text-xs text-slate-500 dark:text-slate-400">
-                  {userProfile.phone || userProfile.email || "Open settings"}
-                </span>
-              </span>
-            </button>
           </div>
         </aside>
 
@@ -2092,25 +2013,6 @@ export function HomeShell({ displayName }: HomeShellProps) {
           </div>
         </div>
       )}
-
-      <UserSettingsModal
-        isOpen={isUserSettingsOpen}
-        onClose={() => setIsUserSettingsOpen(false)}
-        profile={userProfile}
-        onSaveProfile={async (profile) => {
-          const res: ProfileResult = await updateUserProfile(profile);
-          if (!res.ok) {
-            console.error("Failed to update profile:", res.message);
-          }
-
-          setUserProfile(res as UserProfile);
-        }}
-        onSaveNotifications={async (prefs) => {
-          console.log("Saving notification preferences:", prefs);
-          // Will connect to Django backend
-        }}
-        onLogout={handleLogout}
-      />
-    </main>
+    </>
   );
 }
