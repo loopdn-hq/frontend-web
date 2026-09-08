@@ -441,7 +441,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     <span className="my-1 block text-xs font-normal text-slate-500">
                       By providing your number, you agree to receive SMS
                       messages from Loopd&apos;n. Msg & data rates may apply.
-                      Reply STOP to opt out.
+                      Msg frequency may vary. Reply HELP for help and STOP to
+                      opt out.
                     </span>
                   </label>
 
