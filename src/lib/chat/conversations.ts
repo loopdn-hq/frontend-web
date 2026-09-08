@@ -8,6 +8,26 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export type JoinMode = "open" | "code" | "approval" | "invite";
 export type ConversationMode = "chat" | "broadcast";
+
+/**
+ * Which mode a conversation is in, whichever shape the payload arrived in.
+ *
+ * The two endpoints disagree about where `mode` lives, so neither field alone
+ * is reliable:
+ *   - ConversationSerializer (list + detail) omits a top-level `mode` and
+ *     reports it only inside `settings`, so `conversation.mode` falls back to
+ *     its "chat" default for EVERY row, broadcast groups included.
+ *   - ConversationSearchSerializer (discovery) is the reverse: a top-level
+ *     `mode` and no `settings` at all.
+ *
+ * Prefer settings.mode and fall back to the top-level field.
+ */
+export function conversationMode(conversation: {
+  mode: ConversationMode;
+  settings: GroupSettings | null;
+}): ConversationMode {
+  return conversation.settings?.mode ?? conversation.mode;
+}
 export type GroupMemberPermission = "members" | "admins";
 
 export type GroupSettings = {
@@ -58,6 +78,12 @@ export type Conversation = {
 
 export type ConversationParticipant = {
   id: string;
+  // The ACCOUNT's id, where there is an account. Distinct from `id`, which is
+  // the membership row. Realtime events identify people by account id - the
+  // `typing` frame carries a bare `user_id` - so without this there is no way
+  // to turn one into a name. Undefined for phone-only members, who have no
+  // account and cannot open a socket to type on.
+  userId?: string;
   name: string;
   username?: string;
   email?: string;
@@ -65,6 +91,7 @@ export type ConversationParticipant = {
   role: "admin" | "moderator" | "member";
   joinedAt: string;
   isBlocked?: boolean;
+  isOnline?: boolean;
   lastActive?: string;
 };
 
@@ -141,7 +168,11 @@ export function normalizeParticipant(
   item: unknown,
 ): ConversationParticipant | null {
   if (!isApiObject(item)) return null;
-  const user = isApiObject(item.user) ? item.user : item;
+  // Only a nested `user` key is an account. Where there is none the row is
+  // phone-only and `item` stands in for rendering - but its id is the
+  // MEMBERSHIP's, so it must not be read back out as a user id.
+  const nestedUser = isApiObject(item.user) ? item.user : null;
+  const user = nestedUser ?? item;
   // The membership row's own id, not the account's - every action endpoint
   // (remove/role/requests) looks a participant up by Participant.pk, and
   // that differs from the user's id as soon as an account has more than one
@@ -151,6 +182,11 @@ export function normalizeParticipant(
   if (typeof id !== "string" && typeof id !== "number") return null;
   const profile = isApiObject(user.profile) ? user.profile : user;
   const username = asText(user.username) || undefined;
+  const userId =
+    nestedUser &&
+    (typeof nestedUser.id === "string" || typeof nestedUser.id === "number")
+      ? String(nestedUser.id)
+      : undefined;
   const name = asText(
     user.display_label,
     asText(profile.display_label, username ?? "Member"),
@@ -160,6 +196,7 @@ export function normalizeParticipant(
 
   return {
     id: String(id),
+    userId,
     name,
     username,
     email: asText(user.email) || undefined,
@@ -167,6 +204,7 @@ export function normalizeParticipant(
     role,
     joinedAt: asText(item.joined_at, "Recently"),
     isBlocked: item.is_blocked === true,
+    isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
   };
 }
@@ -950,14 +988,42 @@ export async function leaveConversation(
   }
 }
 
+/** True when a DRF paginated envelope reports another page after this one. */
+function hasNextPage(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const data = (payload as ApiObject).data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  return Boolean((data as ApiObject).next);
+}
+
+export type MessageHistoryOptions = {
+  // 1-based page of newest-first history. PAGE_SIZE is 20 server-side, so
+  // page 1 is the newest 20, page 2 the twenty before those, and so on.
+  page?: number;
+  // Resume cursor: return only messages newer than this id, oldest-first.
+  // Used after a dropped socket to fetch just what was missed. Mutually
+  // exclusive with `page` - the server ignores paging semantics here.
+  afterId?: string | number;
+};
+
 export async function fetchMessageHistory(
   conversationId: string | number,
+  options: MessageHistoryOptions = {},
 ): Promise<
-  { ok: true; messages: ConversationMessage[] } | { ok: false; message: string }
+  | { ok: true; messages: ConversationMessage[]; hasMore: boolean }
+  | { ok: false; message: string }
 > {
   try {
+    const query = new URLSearchParams();
+    if (options.afterId !== undefined) {
+      query.set("after_id", String(options.afterId));
+    } else if (options.page && options.page > 1) {
+      query.set("page", String(options.page));
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
     const response = await authorizedRequest(
-      `/chat/conversations/${conversationId}/messages/`,
+      `/chat/conversations/${conversationId}/messages/${suffix}`,
     );
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -967,13 +1033,17 @@ export async function fetchMessageHistory(
       };
     }
 
-    const items = getConversationItems(data);
+    const items = getConversationItems(data)
+      .map(normalizeMessage)
+      .filter((message): message is ConversationMessage => message !== null);
+
     return {
       ok: true,
-      messages: items
-        .map(normalizeMessage)
-        .filter((message): message is ConversationMessage => message !== null)
-        .reverse(),
+      // Default history comes back newest-first and is reversed into reading
+      // order. The after_id branch is already ascending server-side (it is
+      // built for appending), so reversing it would put it backwards.
+      messages: options.afterId !== undefined ? items : items.reverse(),
+      hasMore: hasNextPage(data),
     };
   } catch (error) {
     return {

@@ -40,7 +40,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     items: [
       { href: "/chats/", label: "Chats", icon: MessageCircle },
-      { href: "/updates/", label: "Updates", icon: RadioTower },
+      { href: "/broadcast/", label: "Broadcast", icon: RadioTower },
       { href: "/communities/", label: "Communities", icon: Users },
       { href: "/calls/", label: "Calls", icon: Phone },
       { href: "/media/", label: "Media", icon: ImageIcon },
@@ -70,7 +70,7 @@ export function AppNavRail() {
   const pathname = usePathname();
   const router = useRouter();
   const {
-    totalUnread,
+    unreadByMode,
     userProfile,
     logOut,
     requestCreateLoop,
@@ -170,7 +170,12 @@ export function AppNavRail() {
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.href);
-                const badge = item.href === "/chats/" ? totalUnread : 0;
+                const badge =
+                  item.href === "/chats/"
+                    ? unreadByMode.chat
+                    : item.href === "/broadcast/"
+                      ? unreadByMode.broadcast
+                      : 0;
 
                 return (
                   <Link

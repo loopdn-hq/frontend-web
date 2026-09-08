@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import Image from "next/image";
 import { getSession } from "@/lib/auth/client";
 import {
@@ -15,6 +22,7 @@ import {
   joinConversation,
   joinConversationWithCode,
   leaveConversation,
+  conversationMode,
   normalizeConversationPayload,
   normalizeParticipant,
   removeConversationMember,
@@ -25,6 +33,7 @@ import {
   updateMemberRole,
   type Conversation,
   type ConversationAttachment,
+  type ConversationMode,
   type ConversationMessage,
   type ConversationParticipant,
   type GroupSettings,
@@ -33,7 +42,6 @@ import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
 import { LoopAdminPanel, type AdminTab } from "./LoopAdminPanel";
-import { LoopWebSocketManager } from "./LoopWebSocketManager";
 import { NotificationBadge } from "./NotificationBadge";
 import { VerifyPhoneModal } from "./VerifyPhoneModal";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
@@ -66,6 +74,9 @@ type WebSocketMessage = {
 
 // Initialize with empty list - user creates loops as needed
 const defaultConversations: Conversation[] = [];
+// Shared so that "nobody is typing" is the same object every render, and the
+// memo that reads it does not invalidate on each pass.
+const EMPTY_TYPING_USERS: Map<string, number> = new Map();
 const messageEmojis = [
   "😀",
   "😃",
@@ -247,10 +258,34 @@ const mockMembers = [
   },
 ];
 
-export function HomeShell() {
+type HomeShellProps = {
+  // Which Loops this instance lists: /chats/ shows chat groups, /broadcast/
+  // shows broadcast groups. The panels and composer are otherwise identical.
+  mode: ConversationMode;
+};
+
+export function HomeShell({ mode }: HomeShellProps) {
   // The conversation list lives in the (app) layout's provider so it survives
   // navigating to another destination and back.
-  const { conversations, setConversations, createLoopRequest } = useAppShell();
+  const {
+    conversations,
+    setConversations,
+    createLoopRequest,
+    socketStatus,
+    sendSocketMessage,
+    subscribeToSocket,
+  } = useAppShell();
+  const isBroadcast = mode === "broadcast";
+  // Everything the list renders is scoped to this mode; the selected
+  // conversation is still looked up in the full set (see selectedConversation)
+  // so an open panel survives a Loop switching modes underneath it.
+  const visibleConversations = useMemo(
+    () =>
+      conversations.filter(
+        (conversation) => conversationMode(conversation) === mode,
+      ),
+    [conversations, mode],
+  );
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
   >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
@@ -295,13 +330,14 @@ export function HomeShell() {
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
 
-  // The provider fetches the list; select the first Loop once it arrives.
+  // The provider fetches the list; select the first Loop of this mode once it
+  // arrives. Keyed on the filtered list so /broadcast/ never opens a chat Loop.
   const hasAutoSelected = useRef(false);
   useEffect(() => {
-    if (hasAutoSelected.current || conversations.length === 0) return;
+    if (hasAutoSelected.current || visibleConversations.length === 0) return;
     hasAutoSelected.current = true;
-    setSelectedConversationId(conversations[0].id);
-  }, [conversations]);
+    setSelectedConversationId(visibleConversations[0].id);
+  }, [visibleConversations]);
 
   // Gate actions that need a verified phone (Create Loop, etc.) behind the modal.
   const requirePhoneVerified = useCallback((action: () => void) => {
@@ -324,11 +360,42 @@ export function HomeShell() {
   const [loopMessages, setLoopMessages] = useState<
     Map<string | number, Message[]>
   >(new Map());
+  // The scroll container, so a prepend of older history can pin the reader in
+  // place instead of shunting them down the thread.
+  const messageListRef = useRef<HTMLDivElement | null>(null);
+  // Whether the thread should follow new messages down. True while the reader
+  // is at (or near) the bottom; false the moment they scroll up to read back,
+  // so an arriving message never yanks them away from what they were reading.
+  const stickToBottomRef = useRef(true);
+  // Set for the one render where older history is prepended: that update grows
+  // the list from the TOP and has its own scroll restoration, so the follow
+  // below must sit it out.
+  const isPrependingRef = useRef(false);
+  // A mirror of loopMessages for the reconnect handler to read. Depending on
+  // the state directly would re-run that effect on every single message.
+  const loopMessagesRef = useRef(loopMessages);
+  useEffect(() => {
+    loopMessagesRef.current = loopMessages;
+  }, [loopMessages]);
 
   // Store WebSocket status per loop
-  const [loopWSStatus, setLoopWSStatus] = useState<
-    Map<string | number, string>
-  >(new Map());
+  // Who is typing, and how far back the history has been paged: both belong
+  // to ONE Loop. Each carries the id it describes so that switching Loops
+  // makes it stale by definition, and is read back as empty - no reset effect,
+  // and no window where the previous Loop's state applies to the new one.
+  const [typingState, setTypingState] = useState<{
+    conversationId: string | number | null;
+    // Account id -> time of that person's last keystroke. The server sends a
+    // `typing` frame per keystroke and never a "stopped", so entries are aged
+    // out locally.
+    users: Map<string, number>;
+  }>({ conversationId: null, users: EMPTY_TYPING_USERS });
+  const [historyState, setHistoryState] = useState<{
+    conversationId: string | number | null;
+    page: number;
+    hasMore: boolean;
+  }>({ conversationId: null, page: 1, hasMore: false });
+  const [isLoadingOlder, setIsLoadingOlder] = useState(false);
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
@@ -440,6 +507,14 @@ export function HomeShell() {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
+  const isHistoryStateCurrent =
+    historyState.conversationId === selectedConversationId;
+  const historyPage = isHistoryStateCurrent ? historyState.page : 1;
+  const hasMoreHistory = isHistoryStateCurrent ? historyState.hasMore : false;
+  const typingUserIds =
+    typingState.conversationId === selectedConversationId
+      ? typingState.users
+      : EMPTY_TYPING_USERS;
   const isSelectedConversationAdmin = selectedConversation?.isAdmin === true;
   const canAddMembers =
     isSelectedConversationAdmin ||
@@ -449,9 +524,46 @@ export function HomeShell() {
     groupSettings?.edit_group_permission !== "admins";
 
   // Get messages for selected loop
-  const currentMessages = selectedConversationId
-    ? loopMessages.get(selectedConversationId) || []
-    : [];
+  // 120px of slack: "near enough the bottom" should survive a part-scrolled
+  // last message, otherwise following stops the moment anything is clipped.
+  const BOTTOM_SLACK_PX = 120;
+
+  const handleMessageListScroll = useCallback(() => {
+    const node = messageListRef.current;
+    if (!node) return;
+    stickToBottomRef.current =
+      node.scrollHeight - node.scrollTop - node.clientHeight < BOTTOM_SLACK_PX;
+  }, []);
+
+  // Memoized so the follow-to-bottom effect below keys off the message list
+  // actually changing, not off a fresh array on every render.
+  const currentMessages = useMemo(
+    () =>
+      selectedConversationId
+        ? (loopMessages.get(selectedConversationId) ?? [])
+        : [],
+    [loopMessages, selectedConversationId],
+  );
+
+  // Opening a Loop lands at the newest message, and re-arms following.
+  useLayoutEffect(() => {
+    stickToBottomRef.current = true;
+    const node = messageListRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [selectedConversationId]);
+
+  // Follow the thread down as messages arrive - but only while the reader is
+  // already at the bottom. useLayoutEffect so the jump happens in the same
+  // frame the message paints, rather than as a visible lurch afterwards.
+  useLayoutEffect(() => {
+    if (isPrependingRef.current) {
+      isPrependingRef.current = false;
+      return;
+    }
+    if (!stickToBottomRef.current) return;
+    const node = messageListRef.current;
+    if (node) node.scrollTop = node.scrollHeight;
+  }, [currentMessages]);
 
   useEffect(() => {
     const query = debouncedSearchQuery.trim();
@@ -591,12 +703,141 @@ export function HomeShell() {
         next.set(selectedConversationId, result.messages.map(toUiMessage));
         return next;
       });
+      setHistoryState({
+        conversationId: selectedConversationId,
+        page: 1,
+        hasMore: result.hasMore,
+      });
     });
 
     return () => {
       cancelled = true;
     };
   }, [selectedConversationId, toUiMessage]);
+
+  /**
+   * Fetch the page of history before the oldest message on screen.
+   *
+   * History comes back newest-first in pages of twenty, so "older" is simply
+   * the next page number, and its contents belong ABOVE what is already
+   * rendered. The scroll position is pinned by measuring the container's
+   * scrollHeight before and after the prepend and re-applying the difference -
+   * without that, adding content above the viewport shunts the reader down
+   * the thread and away from where they were reading.
+   */
+  const handleLoadOlderMessages = useCallback(async () => {
+    if (!selectedConversationId || isLoadingOlder || !hasMoreHistory) return;
+
+    const container = messageListRef.current;
+    const heightBefore = container?.scrollHeight ?? 0;
+    const scrollBefore = container?.scrollTop ?? 0;
+
+    setIsLoadingOlder(true);
+    const nextPage = historyPage + 1;
+    const result = await fetchMessageHistory(selectedConversationId, {
+      page: nextPage,
+    });
+    setIsLoadingOlder(false);
+
+    if (!result.ok) {
+      setMessageError(result.message);
+      return;
+    }
+
+    const older = result.messages.map(toUiMessage);
+    isPrependingRef.current = true;
+    setLoopMessages((previous) => {
+      const next = new Map(previous);
+      const current = next.get(selectedConversationId) ?? [];
+      // Guard against a page arriving twice - a duplicated id would break
+      // React's keys as well as showing the message twice.
+      const known = new Set(current.map((message) => String(message.id)));
+      const fresh = older.filter((message) => !known.has(String(message.id)));
+      next.set(selectedConversationId, [...fresh, ...current]);
+      return next;
+    });
+    setHistoryState({
+      conversationId: selectedConversationId,
+      page: nextPage,
+      hasMore: result.hasMore,
+    });
+
+    // After paint, restore the reader to the same message.
+    requestAnimationFrame(() => {
+      const node = messageListRef.current;
+      if (!node) return;
+      node.scrollTop = scrollBefore + (node.scrollHeight - heightBefore);
+    });
+  }, [
+    selectedConversationId,
+    isLoadingOlder,
+    hasMoreHistory,
+    historyPage,
+    toUiMessage,
+  ]);
+
+  /**
+   * After a dropped socket, fetch only what was missed.
+   *
+   * The server exposes an `after_id` resume cursor for exactly this. Without
+   * it a reconnect either refetches the whole newest page or, worse, silently
+   * leaves a hole where the messages that arrived while offline should be.
+   */
+  const wasSocketConnected = useRef(false);
+  useEffect(() => {
+    const isConnected = socketStatus === "connected";
+    const reconnected = isConnected && wasSocketConnected.current === false;
+    wasSocketConnected.current = isConnected;
+
+    if (!reconnected || !selectedConversationId) return;
+
+    const known = loopMessagesRef.current.get(selectedConversationId) ?? [];
+    const newest = known[known.length - 1];
+    if (!newest) return;
+
+    let cancelled = false;
+
+    // The cursor endpoint paginates like any other, so one call recovers at
+    // most a page. Walk it until the server says there is no more, or a long
+    // disconnect leaves a silent hole in the thread. Capped so a bug upstream
+    // cannot turn this into an unbounded fetch loop.
+    const MAX_CATCH_UP_PAGES = 10;
+
+    (async () => {
+      let cursor: string | number = newest.id;
+
+      for (let page = 0; page < MAX_CATCH_UP_PAGES; page += 1) {
+        const result = await fetchMessageHistory(selectedConversationId, {
+          afterId: cursor,
+        });
+        if (cancelled || !result.ok || result.messages.length === 0) return;
+
+        const batch = result.messages;
+        setLoopMessages((previous) => {
+          const next = new Map(previous);
+          const current = next.get(selectedConversationId) ?? [];
+          const seen = new Set(current.map((message) => String(message.id)));
+          const missed = batch
+            .map(toUiMessage)
+            .filter((message) => !seen.has(String(message.id)));
+          if (missed.length === 0) return previous;
+          next.set(selectedConversationId, [...current, ...missed]);
+          return next;
+        });
+
+        if (!result.hasMore) return;
+        cursor = batch[batch.length - 1].id;
+      }
+
+      console.warn(
+        `[chat] stopped catching up conversation ${selectedConversationId} after ${MAX_CATCH_UP_PAGES} pages; older gaps may remain`,
+      );
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [socketStatus, selectedConversationId, toUiMessage]);
 
   /**
    * Fold a changed conversation back into the list the sidebar renders.
@@ -727,6 +968,25 @@ export function HomeShell() {
               : c,
           ),
         );
+      } else if (message.type === "typing") {
+        // Only for the Loop on screen, and only from other people - the
+        // server already suppresses the echo to the sender.
+        const isForSelected =
+          String(message.conversation_id) === String(selectedConversationId);
+        const userId = message.user_id;
+        if (
+          isForSelected &&
+          (typeof userId === "string" || typeof userId === "number")
+        ) {
+          setTypingState((prev) => {
+            const users =
+              prev.conversationId === selectedConversationId
+                ? new Map(prev.users)
+                : new Map<string, number>();
+            users.set(String(userId), performance.now());
+            return { conversationId: selectedConversationId, users };
+          });
+        }
       } else if (message.type === "conversation.updated") {
         // Settings changed - possibly `mode`, which decides whether this group
         // belongs under Chat or Broadcast. Applied from the payload rather than
@@ -771,42 +1031,50 @@ export function HomeShell() {
     ],
   );
 
-  const handleWebSocketConnected = useCallback(() => {
-    if (selectedConversationId) {
-      setLoopWSStatus((prev) => {
-        const map = new Map(prev);
-        map.set(selectedConversationId, "connected");
-        return map;
-      });
-    }
-  }, [selectedConversationId]);
-
-  const handleWebSocketDisconnected = useCallback(() => {
-    if (selectedConversationId) {
-      setLoopWSStatus((prev) => {
-        const map = new Map(prev);
-        map.set(selectedConversationId, "disconnected");
-        return map;
-      });
-    }
-  }, [selectedConversationId]);
-
-  const handleWebSocketError = useCallback(
-    (error: Error) => {
-      if (selectedConversationId) {
-        setLoopWSStatus((prev) => {
-          const map = new Map(prev);
-          map.set(selectedConversationId, "error");
-          return map;
-        });
-        console.error(
-          `WebSocket error for loop ${selectedConversationId}:`,
-          error,
-        );
-      }
-    },
-    [selectedConversationId],
+  // Route the shared socket's frames into this component. The provider fans
+  // out to a listener set, so re-subscribing when the handler's identity
+  // changes costs nothing and never disturbs the connection itself.
+  useEffect(
+    () => subscribeToSocket(handleWebSocketMessage),
+    [subscribeToSocket, handleWebSocketMessage],
   );
+
+  // A `typing` frame arrives per keystroke and there is no "stopped" event,
+  // so a name would otherwise stick forever. Expire entries a few seconds
+  // after the last keystroke.
+  useEffect(() => {
+    if (typingUserIds.size === 0) return;
+    const timer = window.setInterval(() => {
+      setTypingState((prev) => {
+        const cutoff = performance.now() - 5000;
+        let changed = false;
+        const users = new Map(prev.users);
+        for (const [userId, at] of users) {
+          if (at < cutoff) {
+            users.delete(userId);
+            changed = true;
+          }
+        }
+        return changed ? { ...prev, users } : prev;
+      });
+    }, 1500);
+    return () => window.clearInterval(timer);
+  }, [typingUserIds.size]);
+
+  // One frame at most every couple of seconds while the user keeps typing.
+  // The server fans each one out to every member of the group, so sending per
+  // keystroke would put a message on every other client's socket per letter.
+  const lastTypingSentAt = useRef(0);
+  const notifyTyping = useCallback(() => {
+    if (!selectedConversationId || socketStatus !== "connected") return;
+    const now = performance.now();
+    if (now - lastTypingSentAt.current < 2000) return;
+    lastTypingSentAt.current = now;
+    sendSocketMessage({
+      type: "typing",
+      conversation_id: selectedConversationId,
+    });
+  }, [selectedConversationId, socketStatus, sendSocketMessage]);
 
   const handleSendMessage = useCallback(async () => {
     if (
@@ -815,6 +1083,9 @@ export function HomeShell() {
       isSendingMessage
     )
       return;
+    // Sending is an explicit "I am at the end of this thread" gesture, so
+    // follow the message down even if the reader had scrolled up.
+    stickToBottomRef.current = true;
     setIsSendingMessage(true);
     setMessageError(null);
     const result = await sendConversationMessage(
@@ -1068,16 +1339,20 @@ export function HomeShell() {
     );
   }
 
-  // Requests that are still waiting on a decision - the Invites worklist.
-  const loopsWithPendingRequests = conversations.filter(
+  // Everything below counts only the Loops this list shows. Scoped to the
+  // mode, or the Chats badge would total broadcast unreads and the Invites
+  // worklist could jump to a Loop that is not in this list at all.
+  const loopsWithPendingRequests = visibleConversations.filter(
     (conversation) =>
       (pendingRequestsByLoop.get(conversation.id)?.length ?? 0) > 0,
   );
   // Requests nobody has looked at yet - drives the Invites badge specifically.
-  const totalUnseenInvites = Array.from(
-    unseenRequestCountByLoop.values(),
-  ).reduce((sum, count) => sum + count, 0);
-  const totalUnreadMessages = conversations.reduce(
+  const totalUnseenInvites = visibleConversations.reduce(
+    (sum, conversation) =>
+      sum + (unseenRequestCountByLoop.get(conversation.id) ?? 0),
+    0,
+  );
+  const totalUnreadMessages = visibleConversations.reduce(
     (sum, conversation) => sum + (conversation.unread || 0),
     0,
   );
@@ -1135,14 +1410,43 @@ export function HomeShell() {
     });
   }
 
-  const chatLoops = conversations.filter(
-    (c) => c.settings?.mode !== "broadcast",
-  );
-  const broadcastLoops = conversations.filter(
-    (c) => c.settings?.mode === "broadcast",
-  );
+  // Broadcast groups take posts from admins only. Read through the helper:
+  // the list endpoint leaves the top-level `mode` at its "chat" default, so
+  // `selectedConversation.mode` alone would let anyone post anywhere.
+  // Typing frames carry an account id; the membership rows carry the names.
+  // Members load on their own request, so a frame can arrive before the name
+  // for it exists - in which case say SOMETHING rather than nothing, or the
+  // indicator silently disappears exactly when the thread is most active.
+  const typingNames = useMemo(() => {
+    if (typingUserIds.size === 0) return [];
+    const byUserId = new Map(
+      (selectedConversation?.participants ?? [])
+        .filter((participant) => participant.userId)
+        .map((participant) => [participant.userId as string, participant.name]),
+    );
+    return Array.from(typingUserIds.keys()).map(
+      (userId) => byUserId.get(userId) ?? "",
+    );
+  }, [typingUserIds, selectedConversation]);
+
+  const namedTyping = typingNames.filter(Boolean);
+  const typingLabel =
+    typingNames.length === 0
+      ? ""
+      : namedTyping.length === 0
+        ? typingNames.length === 1
+          ? "Someone is typing..."
+          : "Several people are typing..."
+        : namedTyping.length === 1 && typingNames.length === 1
+          ? `${namedTyping[0]} is typing...`
+          : namedTyping.length === 2 && typingNames.length === 2
+            ? `${namedTyping[0]} and ${namedTyping[1]} are typing...`
+            : "Several people are typing...";
+
   const canPostMessage =
-    selectedConversation?.mode !== "broadcast" || selectedConversation?.isAdmin;
+    !selectedConversation ||
+    conversationMode(selectedConversation) !== "broadcast" ||
+    selectedConversation.isAdmin;
   const showConversationPanelOnMobile = Boolean(
     selectedConversation || pendingConversation,
   );
@@ -1157,7 +1461,9 @@ export function HomeShell() {
             <div className="flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1">
                 <NavDrawerButton className="-ml-2 text-white hover:bg-white/20" />
-                <p className="truncate text-lg font-bold">Chats</p>
+                <p className="truncate text-lg font-bold">
+                  {isBroadcast ? "Broadcast" : "Chats"}
+                </p>
               </div>
 
               <div className="flex items-center gap-1">
@@ -1304,47 +1610,21 @@ export function HomeShell() {
                     Selected chats: {selectedChatIds.size}
                   </p>
                 )}
-                {conversations.length === 0 ? (
+                {visibleConversations.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      No Loops yet
+                      {isBroadcast ? "No broadcast Loops yet" : "No chats yet"}
                     </p>
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      Create a loop to get started
+                      {isBroadcast
+                        ? "Loops set to broadcast mode appear here"
+                        : "Create a loop to get started"}
                     </p>
                   </div>
                 ) : (
-                  <>
-                    <div>
-                      <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                        Chat Groups
-                      </p>
-                      {chatLoops.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                          No chat loops yet
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {chatLoops.map(renderConversationButton)}
-                        </div>
-                      )}
-                    </div>
-
-                    <div>
-                      <p className="mb-2 px-1 text-xs font-bold uppercase tracking-[0.1em] text-slate-500 dark:text-slate-400">
-                        Broadcast Groups
-                      </p>
-                      {broadcastLoops.length === 0 ? (
-                        <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                          No broadcast loops yet
-                        </p>
-                      ) : (
-                        <div className="space-y-2">
-                          {broadcastLoops.map(renderConversationButton)}
-                        </div>
-                      )}
-                    </div>
-                  </>
+                  <div className="space-y-2">
+                    {visibleConversations.map(renderConversationButton)}
+                  </div>
                 )}
               </div>
             )}
@@ -1356,16 +1636,6 @@ export function HomeShell() {
             showConversationPanelOnMobile ? "flex" : "hidden md:flex"
           } min-h-0 min-w-0 flex-col bg-[#f3f9ff] dark:bg-slate-950`}
         >
-          {selectedConversationId && (
-            <LoopWebSocketManager
-              loopId={selectedConversationId}
-              onMessage={handleWebSocketMessage}
-              onConnected={handleWebSocketConnected}
-              onDisconnected={handleWebSocketDisconnected}
-              onError={handleWebSocketError}
-            />
-          )}
-
           <header className="border-b border-slate-200 bg-[#eef7ff] px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
@@ -1392,8 +1662,25 @@ export function HomeShell() {
                     {selectedConversation.participants.map((participant) => (
                       <span
                         key={participant.id}
-                        className="shrink-0 rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        title={
+                          participant.isOnline
+                            ? `${participant.name} is online`
+                            : participant.lastActive
+                              ? `${participant.name} - last seen ${new Date(
+                                  participant.lastActive,
+                                ).toLocaleString()}`
+                              : participant.name
+                        }
+                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                       >
+                        <span
+                          aria-hidden
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            participant.isOnline
+                              ? "bg-emerald-500"
+                              : "bg-slate-300 dark:bg-slate-600"
+                          }`}
+                        />
                         {participant.name}
                       </span>
                     ))}
@@ -1414,20 +1701,19 @@ export function HomeShell() {
                 {selectedConversationId && (
                   <div
                     className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
-                      loopWSStatus.get(selectedConversationId) === "connected"
+                      socketStatus === "connected"
                         ? "bg-sky-100 text-sky-700"
-                        : loopWSStatus.get(selectedConversationId) ===
-                            "connecting"
+                        : socketStatus === "connecting"
                           ? "bg-amber-100 text-amber-700"
                           : "bg-slate-100 text-slate-700"
                     }`}
-                    title={`WebSocket: ${loopWSStatus.get(selectedConversationId) || "disconnected"}`}
+                    title={`WebSocket: ${socketStatus}`}
                   >
-                    {loopWSStatus.get(selectedConversationId) === "connected" &&
-                      "Live"}
-                    {loopWSStatus.get(selectedConversationId) ===
-                      "connecting" && "Connecting"}
-                    {!loopWSStatus.get(selectedConversationId) && "Offline"}
+                    {socketStatus === "connected" && "Live"}
+                    {socketStatus === "connecting" && "Connecting"}
+                    {socketStatus !== "connected" &&
+                      socketStatus !== "connecting" &&
+                      "Offline"}
                   </div>
                 )}
 
@@ -1492,7 +1778,23 @@ export function HomeShell() {
             </div>
           </header>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 sm:py-5">
+          <div
+            ref={messageListRef}
+            onScroll={handleMessageListScroll}
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 sm:py-5"
+          >
+            {selectedConversationId && hasMoreHistory && (
+              <div className="flex justify-center pb-2">
+                <button
+                  type="button"
+                  onClick={() => void handleLoadOlderMessages()}
+                  disabled={isLoadingOlder}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                >
+                  {isLoadingOlder ? "Loading..." : "Load older messages"}
+                </button>
+              </div>
+            )}
             {pendingConversation ? (
               <div className="flex h-full items-center justify-center">
                 <div className="w-full max-w-sm rounded-2xl border border-sky-200 bg-white p-6 text-center shadow-[0_10px_30px_rgba(14,88,148,0.15)] dark:border-slate-700 dark:bg-slate-800">
@@ -1651,6 +1953,12 @@ export function HomeShell() {
             )}
           </div>
 
+          {typingLabel && (
+            <p className="shrink-0 px-4 pb-1 text-xs text-slate-500 italic dark:text-slate-400">
+              {typingLabel}
+            </p>
+          )}
+
           <footer className="shrink-0 border-t border-slate-200 bg-[#eef7ff] p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900">
             {pendingConversation ? (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
@@ -1763,7 +2071,10 @@ export function HomeShell() {
                       type="text"
                       placeholder="Type a message..."
                       value={messageInput}
-                      onChange={(e) => setMessageInput(e.target.value)}
+                      onChange={(e) => {
+                        setMessageInput(e.target.value);
+                        notifyTyping();
+                      }}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey) {
                           e.preventDefault();

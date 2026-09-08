@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type Dispatch,
   type ReactNode,
@@ -15,14 +16,24 @@ import { useRouter } from "next/navigation";
 import {
   displayNameForSession,
   fetchUserProfile,
+  getAccessToken,
   getSession,
   logout,
 } from "@/lib/auth/client";
+import { useWebSocket } from "@/lib/websocket/useWebSocket";
 import {
+  conversationMode,
   fetchConversations,
   type Conversation,
 } from "@/lib/chat/conversations";
 import type { UserProfile } from "@/components/settings/UserSettingsPanel";
+
+export type SocketMessage = {
+  type: string;
+  [key: string]: unknown;
+};
+
+type SocketListener = (message: SocketMessage) => void;
 
 type AppShellContextType = {
   // Exposed as the same [value, setValue] tuples HomeShell used when these
@@ -32,9 +43,10 @@ type AppShellContextType = {
   userProfile: UserProfile;
   setUserProfile: Dispatch<SetStateAction<UserProfile>>;
 
-  // Unread total across every Loop - the badge beside "Chats" in the nav rail.
-  // Invite badges stay inside HomeShell; they are a chat-list concern.
-  totalUnread: number;
+  // Unread totals split by mode, for the badges beside "Chats" and
+  // "Broadcast" in the nav rail. Invite badges stay inside HomeShell; they are
+  // a chat-list concern.
+  unreadByMode: { chat: number; broadcast: number };
 
   logOut: () => Promise<void>;
 
@@ -49,6 +61,14 @@ type AppShellContextType = {
   isNavDrawerOpen: boolean;
   openNavDrawer: () => void;
   closeNavDrawer: () => void;
+
+  // One socket for the whole app. It subscribes to every conversation the
+  // user belongs to, so it belongs here rather than inside a route: mounted
+  // per-conversation it could not see traffic for any other Loop, which is
+  // what unread counting and typing indicators both need.
+  socketStatus: string;
+  sendSocketMessage: (message: SocketMessage) => void;
+  subscribeToSocket: (listener: SocketListener) => () => void;
 };
 
 const AppShellContext = createContext<AppShellContextType | undefined>(
@@ -107,9 +127,16 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const totalUnread = conversations.reduce(
-    (sum, conversation) => sum + (conversation.unread || 0),
-    0,
+  const unreadByMode = useMemo(
+    () =>
+      conversations.reduce(
+        (totals, conversation) => {
+          totals[conversationMode(conversation)] += conversation.unread || 0;
+          return totals;
+        },
+        { chat: 0, broadcast: 0 },
+      ),
+    [conversations],
   );
 
   const logOut = useCallback(async () => {
@@ -124,30 +151,71 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const openNavDrawer = useCallback(() => setIsNavDrawerOpen(true), []);
   const closeNavDrawer = useCallback(() => setIsNavDrawerOpen(false), []);
 
+  // -- the socket -------------------------------------------------------
+  //
+  // Listeners are held in a ref and notified through a STABLE callback.
+  // useWebSocket rebuilds its connection whenever onMessage changes identity,
+  // so handing it a subscriber that re-creates each render would tear the
+  // socket down and open a new one on every keystroke.
+  const socketListeners = useRef<Set<SocketListener>>(new Set());
+
+  const subscribeToSocket = useCallback((listener: SocketListener) => {
+    socketListeners.current.add(listener);
+    return () => {
+      socketListeners.current.delete(listener);
+    };
+  }, []);
+
+  const handleSocketMessage = useCallback((message: SocketMessage) => {
+    socketListeners.current.forEach((listener) => listener(message));
+  }, []);
+
+  const accessToken = getAccessToken();
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL;
+  const socketProtocol = apiBaseUrl?.startsWith("https:") ? "wss:" : "ws:";
+  const socketHost =
+    process.env.NEXT_PUBLIC_WS_HOST ||
+    (apiBaseUrl ? new URL(apiBaseUrl).host : "127.0.0.1:8000");
+  const socketUrl = `${socketProtocol}//${socketHost}/ws/chat/?token=${encodeURIComponent(
+    accessToken || "",
+  )}`;
+
+  const { status: socketStatus, send: sendSocketMessage } = useWebSocket({
+    url: socketUrl,
+    enabled: Boolean(accessToken),
+    onMessage: handleSocketMessage,
+  });
+
   const value = useMemo(
     () => ({
       conversations,
       setConversations,
       userProfile,
       setUserProfile,
-      totalUnread,
+      unreadByMode,
       logOut,
       createLoopRequest,
       requestCreateLoop,
       isNavDrawerOpen,
       openNavDrawer,
       closeNavDrawer,
+      socketStatus,
+      sendSocketMessage,
+      subscribeToSocket,
     }),
     [
       conversations,
       userProfile,
-      totalUnread,
+      unreadByMode,
       logOut,
       createLoopRequest,
       requestCreateLoop,
       isNavDrawerOpen,
       openNavDrawer,
       closeNavDrawer,
+      socketStatus,
+      sendSocketMessage,
+      subscribeToSocket,
     ],
   );
 

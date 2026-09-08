@@ -3,5 +3,5 @@
 import { HomeShell } from "@/components/home/HomeShell";
 
 export default function ChatsPage() {
-  return <HomeShell />;
+  return <HomeShell mode="chat" />;
 }
