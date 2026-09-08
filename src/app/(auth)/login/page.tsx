@@ -11,7 +11,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (isLoaded && session) {
-      router.replace("/home/");
+      router.replace("/chats/");
     }
   }, [router, isLoaded, session]);
 

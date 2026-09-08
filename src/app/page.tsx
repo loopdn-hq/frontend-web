@@ -39,7 +39,7 @@ export default function RootPage() {
                 </strong>
               </span>
               <Link
-                href="/home/"
+                href="/chats/"
                 className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(0,143,223,0.3)] transition hover:brightness-110"
               >
                 Go to Home
@@ -84,7 +84,7 @@ export default function RootPage() {
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             {session ? (
               <Link
-                href="/home/"
+                href="/chats/"
                 className="w-full rounded-2xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-8 py-4 text-center text-base font-bold text-white shadow-[0_12px_28px_rgba(0,143,223,0.35)] transition hover:brightness-110 sm:w-auto"
               >
                 Open Loopd&apos;n Home &rarr;

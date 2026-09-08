@@ -70,7 +70,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         }
 
         // New Google accounts have no phone_number yet - collect one before home.
-        router.push(result.isNewAccount ? "/add-phone/" : "/home/");
+        router.push(result.isNewAccount ? "/add-phone/" : "/chats/");
       } catch {
         setGeneralError("Network error. Please try again.");
       } finally {
@@ -177,7 +177,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/home/");
+      router.push("/chats/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
