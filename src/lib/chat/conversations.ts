@@ -961,6 +961,47 @@ export async function removeConversationMember(
   }
 }
 
+/**
+ * Mark a conversation read, optionally only up to a given message.
+ *
+ * Fire-and-forget by design: the badge is already cleared optimistically, and
+ * a failed read is corrected by the next fetch. Blocking the UI on it, or
+ * surfacing an error for it, would be noise for something nobody asked for.
+ */
+export async function markConversationRead(
+  conversationId: string | number,
+  messageId?: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/read/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          messageId === undefined ? {} : { message_id: Number(messageId) },
+        ),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to mark as read.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function leaveConversation(
   conversationId: string | number,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
