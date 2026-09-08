@@ -2,6 +2,7 @@
 
 import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { ActivityToasts } from "@/components/app/ActivityToasts";
 import { AppNavRail } from "@/components/app/AppNavRail";
 import { AppShellProvider } from "@/lib/app/AppShellProvider";
 import { fetchCurrentUser, useAuth } from "@/lib/auth/client";
@@ -37,6 +38,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <main className="flex h-screen w-full overflow-hidden bg-[#f7fbff] dark:bg-slate-900">
         <AppNavRail />
         <div className="min-h-0 min-w-0 flex-1">{children}</div>
+        <ActivityToasts />
       </main>
     </AppShellProvider>
   );

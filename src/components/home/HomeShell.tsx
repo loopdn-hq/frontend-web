@@ -21,8 +21,11 @@ import {
   inviteConversationMemberByPhone,
   joinConversation,
   joinConversationWithCode,
+  clearConversationHistory,
   leaveConversation,
   markConversationRead,
+  setConversationArchived,
+  setConversationMuted,
   conversationMode,
   normalizeConversationPayload,
   normalizeParticipant,
@@ -45,10 +48,24 @@ import { AddMembersModal } from "./AddMembersModal";
 import { LoopAdminPanel, type AdminTab } from "./LoopAdminPanel";
 import { NotificationBadge } from "./NotificationBadge";
 import { VerifyPhoneModal } from "./VerifyPhoneModal";
+import {
+  composePreview,
+  conversationTimeLabel,
+  dayLabel,
+  describeMessageBody,
+} from "@/lib/chat/preview";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { ChatAvatar } from "./ChatAvatar";
 import {
+  Archive,
+  ArchiveRestore,
+  Bell,
+  BellOff,
+  LogOut,
+  Trash2,
+  Check,
   CheckCheck,
   ChevronLeft,
   EllipsisVertical,
@@ -61,9 +78,13 @@ type Message = {
   id: string | number;
   sender: string;
   senderUsername?: string;
+  senderAvatarUrl?: string;
   text: string;
   mine: boolean;
   time: string;
+  // Kept alongside the formatted `time` because the day separators and the
+  // run-grouping both need to compare real instants, not display strings.
+  createdAt: string;
   attachments?: ConversationMessage["attachments"];
 };
 
@@ -78,6 +99,10 @@ const defaultConversations: Conversation[] = [];
 // Shared so that "nobody is typing" is the same object every render, and the
 // memo that reads it does not invalidate on each pass.
 const EMPTY_TYPING_USERS: Map<string, number> = new Map();
+// A run is the same person talking without a long pause. Messages inside one
+// drop the avatar and the name, which is what stops a busy group reading as a
+// wall of repeated headers.
+const RUN_GAP_MS = 5 * 60 * 1000;
 const messageEmojis = [
   "😀",
   "😃",
@@ -280,13 +305,55 @@ export function HomeShell({ mode }: HomeShellProps) {
   // Everything the list renders is scoped to this mode; the selected
   // conversation is still looked up in the full set (see selectedConversation)
   // so an open panel survives a Loop switching modes underneath it.
-  const visibleConversations = useMemo(
+  const conversationsInMode = useMemo(
     () =>
       conversations.filter(
-        (conversation) => conversationMode(conversation) === mode,
+        (conversation) =>
+          conversationMode(conversation) === mode && !conversation.cleared,
       ),
     [conversations, mode],
   );
+  // The main list. Archived Loops are still members, still delivered to, and
+  // still counted - just not here.
+  const visibleConversations = useMemo(
+    () => conversationsInMode.filter((conversation) => !conversation.archived),
+    [conversationsInMode],
+  );
+  const archivedConversations = useMemo(
+    () => conversationsInMode.filter((conversation) => conversation.archived),
+    [conversationsInMode],
+  );
+  const [listFilter, setListFilter] = useState<
+    "all" | "unread" | "groups" | "archived"
+  >("all");
+
+  const archivedUnread = archivedConversations.reduce(
+    (sum, conversation) => sum + (conversation.unread || 0),
+    0,
+  );
+
+  // What the list actually renders. Archived is a filter rather than a drawer
+  // below the list, so the four chips are one control answering one question.
+  const listedConversations = useMemo(() => {
+    if (listFilter === "archived") return archivedConversations;
+    if (listFilter === "unread") {
+      return visibleConversations.filter(
+        (conversation) => (conversation.unread || 0) > 0,
+      );
+    }
+    if (listFilter === "groups") {
+      return visibleConversations.filter(
+        (conversation) => conversation.kind === "group",
+      );
+    }
+    return visibleConversations;
+  }, [listFilter, visibleConversations, archivedConversations]);
+  // Which row's overflow menu is open, if any.
+  const [rowMenuFor, setRowMenuFor] = useState<string | number | null>(null);
+  // Leaving and deleting are not undoable, so the menu asks first rather than
+  // acting on the click that opened it.
+  const [rowConfirm, setRowConfirm] = useState<"leave" | "clear" | null>(null);
+  const [rowActionError, setRowActionError] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
   >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
@@ -482,6 +549,8 @@ export function HomeShell({ mode }: HomeShellProps) {
         id: message.id,
         sender: message.sender,
         senderUsername: message.senderUsername,
+        senderAvatarUrl: message.senderAvatarUrl,
+        createdAt: message.createdAt,
         text: message.text,
         mine:
           message.mine ||
@@ -545,6 +614,44 @@ export function HomeShell({ mode }: HomeShellProps) {
         : [],
     [loopMessages, selectedConversationId],
   );
+
+  const thread = useMemo(() => {
+    const rows: (
+      | { kind: "day"; key: string; label: string }
+      | { kind: "message"; key: string; message: Message; startsRun: boolean }
+    )[] = [];
+
+    let previous: Message | null = null;
+    for (const message of currentMessages) {
+      const day = dayLabel(message.createdAt);
+      const previousDay = previous ? dayLabel(previous.createdAt) : null;
+
+      if (day && day !== previousDay) {
+        rows.push({ kind: "day", key: `day-${day}-${message.id}`, label: day });
+      }
+
+      const sameSender =
+        previous !== null &&
+        previous.mine === message.mine &&
+        previous.sender === message.sender;
+      const closeInTime =
+        previous !== null &&
+        Math.abs(
+          new Date(message.createdAt).getTime() -
+            new Date(previous.createdAt).getTime(),
+        ) < RUN_GAP_MS;
+
+      rows.push({
+        kind: "message",
+        key: String(message.id),
+        message,
+        startsRun: !(sameSender && closeInTime && day === previousDay),
+      });
+      previous = message;
+    }
+
+    return rows;
+  }, [currentMessages]);
 
   // Opening a Loop lands at the newest message, and re-arms following.
   useLayoutEffect(() => {
@@ -963,7 +1070,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             c.id === targetConversationId
               ? {
                   ...c,
-                  preview: newMessage.text.substring(0, 50),
+                  // The same composer the fetched path runs, so a live
+                  // message reads exactly like the same message reloaded.
+                  preview: composePreview(
+                    newMessage.sender,
+                    describeMessageBody(
+                      newMessage.text,
+                      newMessage.attachments ?? [],
+                    ),
+                  ),
+                  lastMessageAt: String(
+                    rawMessage.created_at ?? new Date().toISOString(),
+                  ),
                   unread: isForSelectedConversation ? 0 : (c.unread || 0) + 1,
                 }
               : c,
@@ -981,6 +1099,32 @@ export function HomeShell({ mode }: HomeShellProps) {
           document.hasFocus()
         ) {
           void markConversationRead(targetConversationId, newMessage.id);
+        }
+      } else if (message.type === "conversation.read.by") {
+        // Somebody else read up to a message. Their pointer lives on the
+        // membership row, which is what the receipts below are computed from.
+        const conversationId = message.conversation_id;
+        const readerId = message.user_id;
+        const upTo = message.last_read_message_id;
+        if (
+          typeof readerId === "number" &&
+          typeof upTo === "number" &&
+          conversationId !== undefined
+        ) {
+          setConversations((prev) =>
+            prev.map((c) =>
+              String(c.id) === String(conversationId)
+                ? {
+                    ...c,
+                    participants: c.participants.map((participant) =>
+                      participant.userId === String(readerId)
+                        ? { ...participant, lastReadMessageId: upTo }
+                        : participant,
+                    ),
+                  }
+                : c,
+            ),
+          );
         }
       } else if (message.type === "conversation.read") {
         // This account read the Loop somewhere else - another tab, the phone.
@@ -1337,50 +1481,223 @@ export function HomeShell({ mode }: HomeShellProps) {
         ? "border-transparent bg-[#F2F8FF] text-slate-900 hover:bg-[#F7FAFC] dark:bg-sky-950/40 dark:text-slate-100 dark:hover:bg-slate-700"
         : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-[#F7FAFC] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
+    const isMenuOpen = rowMenuFor === conversation.id;
+
     return (
-      <button
-        key={conversation.id}
-        type="button"
-        onClick={() => {
-          if (isSelectChatsMode) {
-            toggleChatSelection(conversation.id);
-            return;
-          }
-          handleSelectConversation(conversation.id);
-        }}
-        className={`w-full rounded-xl border p-3 text-left transition ${rowTone}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          {isSelectChatsMode && (
-            <span
-              className={`mt-0.5 h-4 w-4 rounded border ${
-                isSelectedForBatch
-                  ? "border-sky-600 bg-sky-600"
-                  : "border-slate-300 bg-white"
-              }`}
+      <div key={conversation.id} className="group/row relative">
+        <button
+          type="button"
+          onClick={() => {
+            if (isSelectChatsMode) {
+              toggleChatSelection(conversation.id);
+              return;
+            }
+            handleSelectConversation(conversation.id);
+          }}
+          className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${rowTone}`}
+        >
+          {/* The right padding is a lane for the row menu, which is absolutely
+              positioned so appearing on hover cannot reflow the row. Without it
+              the menu button lands on top of the unread badge. */}
+          <div className="flex items-center gap-3 pr-7">
+            {isSelectChatsMode && (
+              <span
+                className={`h-4 w-4 shrink-0 rounded border ${
+                  isSelectedForBatch
+                    ? "border-sky-600 bg-sky-600"
+                    : "border-slate-300 bg-white"
+                }`}
+              />
+            )}
+
+            <ChatAvatar
+              name={conversation.name}
+              imageUrl={conversation.logoImage}
+              isGroup={conversation.kind === "group"}
             />
-          )}
-          <div className="flex-1">
-            <p
-              className={`text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
-            >
-              {conversation?.name}
-            </p>
-            <p
-              className={`mt-0.5 text-xs ${
-                isOpen
-                  ? "text-sky-700 dark:text-sky-300"
-                  : isUnread
-                    ? "text-slate-700 dark:text-slate-300"
-                    : "text-slate-500 dark:text-slate-400"
-              }`}
-            >
-              {conversation.preview}
-            </p>
+
+            <div className="min-w-0 flex-1">
+              <p
+                className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
+              >
+                {conversation?.name}
+              </p>
+              <p
+                className={`mt-0.5 truncate text-xs ${
+                  isOpen
+                    ? "text-sky-700 dark:text-sky-300"
+                    : isUnread
+                      ? "text-slate-700 dark:text-slate-300"
+                      : "text-slate-500 dark:text-slate-400"
+                }`}
+              >
+                {conversation.preview}
+              </p>
+            </div>
+
+            {/* Time above, badge below - so neither competes with the name for
+                width, and a long group name truncates far later. */}
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="text-[11px] leading-none text-slate-400 dark:text-slate-500">
+                {conversationTimeLabel(conversation.lastMessageAt)}
+              </span>
+              <span className="flex items-center gap-1.5">
+                {conversation.muted && (
+                  <BellOff
+                    className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500"
+                    aria-label="Muted"
+                  />
+                )}
+                <NotificationBadge count={conversation.unread} />
+              </span>
+            </div>
           </div>
-          <NotificationBadge count={conversation.unread} />
-        </div>
-      </button>
+        </button>
+
+        {/* Outside the row button: a button nested in a button is invalid
+            markup, and the inner one stops receiving clicks. */}
+        {!isSelectChatsMode && (
+          <button
+            type="button"
+            aria-label="Chat options"
+            onClick={() => {
+              if (isMenuOpen) {
+                closeRowMenu();
+                return;
+              }
+              setRowConfirm(null);
+              setRowActionError(null);
+              setRowMenuFor(conversation.id);
+            }}
+            className={`absolute top-1/2 right-1 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/70 focus:opacity-100 group-hover/row:opacity-100 dark:text-slate-400 dark:hover:bg-slate-900/60 ${
+              isMenuOpen ? "opacity-100" : "opacity-0"
+            }`}
+          >
+            <EllipsisVertical className="h-4 w-4" />
+          </button>
+        )}
+
+        {isMenuOpen && (
+          <>
+            <button
+              type="button"
+              aria-label="Close menu"
+              onClick={closeRowMenu}
+              className="fixed inset-0 z-20 cursor-default"
+            />
+            <div className="absolute top-full right-2 z-30 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+              <button
+                type="button"
+                onClick={() => void handleToggleMuted(conversation)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                {conversation.muted ? (
+                  <Bell className="h-4 w-4" />
+                ) : (
+                  <BellOff className="h-4 w-4" />
+                )}
+                {conversation.muted ? "Unmute" : "Mute"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleToggleArchived(conversation)}
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                {conversation.archived ? (
+                  <ArchiveRestore className="h-4 w-4" />
+                ) : (
+                  <Archive className="h-4 w-4" />
+                )}
+                {conversation.archived ? "Unarchive" : "Archive"}
+              </button>
+              {/* Says the thing people get wrong about these two. */}
+              <p className="px-3 pt-1.5 pb-1 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+                {conversation.muted
+                  ? "Muted, so texts are paused too."
+                  : "Archiving still delivers texts."}
+              </p>
+
+              {/* Leaving and deleting are refused on a one-to-one - there is
+                  no way back into one - so they are not offered there. */}
+              <>
+                <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+
+                {rowConfirm === null ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setRowConfirm("clear")}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete chat
+                    </button>
+                    {/* Leaving is refused on a one-to-one - there is no way
+                        back into one - so it is not offered there. */}
+                    {conversation.kind === "group" && (
+                      <button
+                        type="button"
+                        onClick={() => setRowConfirm("leave")}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Leave group
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="px-3 py-2">
+                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      {rowConfirm === "leave"
+                        ? `Leave ${conversation.name}?`
+                        : `Delete ${conversation.name}?`}
+                    </p>
+                    <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                      {rowConfirm === "leave"
+                        ? "You stop receiving it. Your messages stay in the group."
+                        : "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages."}
+                    </p>
+
+                    {rowActionError && (
+                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                        {rowActionError}
+                      </p>
+                    )}
+
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRowConfirm(null);
+                          setRowActionError(null);
+                        }}
+                        className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void (rowConfirm === "leave"
+                            ? handleLeaveRow(conversation)
+                            : handleClearRow(conversation))
+                        }
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${
+                          rowConfirm === "leave"
+                            ? "bg-slate-700 hover:bg-slate-800"
+                            : "bg-rose-600 hover:bg-rose-700"
+                        }`}
+                      >
+                        {rowConfirm === "leave" ? "Leave" : "Delete"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            </div>
+          </>
+        )}
+      </div>
     );
   }
 
@@ -1443,6 +1760,96 @@ export function HomeShell({ mode }: HomeShellProps) {
     setIsLoopMenuOpen(false);
   }
 
+  async function handleToggleArchived(conversation: Conversation) {
+    closeRowMenu();
+    const next = !conversation.archived;
+    // Optimistic: the row leaves the list at once, and the request only
+    // corrects it if the server disagrees.
+    setConversations((current) =>
+      current.map((row) =>
+        row.id === conversation.id ? { ...row, archived: next } : row,
+      ),
+    );
+    if (next && conversation.id === selectedConversationId) {
+      setSelectedConversationId(null);
+    }
+    const result = await setConversationArchived(conversation.id, next);
+    if (!result.ok) {
+      setConversations((current) =>
+        current.map((row) =>
+          row.id === conversation.id ? { ...row, archived: !next } : row,
+        ),
+      );
+    }
+  }
+
+  function closeRowMenu() {
+    setRowMenuFor(null);
+    setRowConfirm(null);
+    setRowActionError(null);
+  }
+
+  function dropConversation(conversationId: string | number) {
+    setConversations((current) =>
+      current.filter((row) => row.id !== conversationId),
+    );
+    setSelectedConversationId((current) =>
+      current === conversationId ? null : current,
+    );
+  }
+
+  async function handleLeaveRow(conversation: Conversation) {
+    const result = await leaveConversation(conversation.id);
+    if (!result.ok) {
+      // The server refuses the last admin, and says why - that message is
+      // more use than anything this component could invent.
+      setRowActionError(result.message);
+      return;
+    }
+    closeRowMenu();
+    dropConversation(conversation.id);
+  }
+
+  async function handleClearRow(conversation: Conversation) {
+    const result = await clearConversationHistory(conversation.id);
+    if (!result.ok) {
+      setRowActionError(result.message);
+      return;
+    }
+    closeRowMenu();
+    // Cleared, so there is nothing left to show and it leaves the list. The
+    // membership is untouched - the server sends it back the moment somebody
+    // posts, and `cleared` flips false again.
+    setConversations((current) =>
+      current.map((row) =>
+        row.id === conversation.id
+          ? { ...row, cleared: true, unread: 0, preview: "" }
+          : row,
+      ),
+    );
+    setSelectedConversationId((current) =>
+      current === conversation.id ? null : current,
+    );
+  }
+
+  async function handleToggleMuted(conversation: Conversation) {
+    closeRowMenu();
+    const next = !conversation.muted;
+    setConversations((current) =>
+      current.map((row) =>
+        row.id === conversation.id ? { ...row, muted: next } : row,
+      ),
+    );
+    const result = await setConversationMuted(conversation.id, next);
+    if (!result.ok) {
+      setConversations((current) =>
+        current.map((row) =>
+          row.id === conversation.id ? { ...row, muted: !next } : row,
+        ),
+      );
+    }
+  }
+
   function handleToggleSelectChatsMode() {
     setIsSelectChatsMode((current) => !current);
     setSelectedChatIds(new Set());
@@ -1464,6 +1871,41 @@ export function HomeShell({ mode }: HomeShellProps) {
   // Broadcast groups take posts from admins only. Read through the helper:
   // the list endpoint leaves the top-level `mode` at its "chat" default, so
   // `selectedConversation.mode` alone would let anyone post anywhere.
+  /**
+   * Who could possibly read a message, and how many of them have.
+   *
+   * Counts only members with an account. A phone-only member receives by SMS,
+   * and SMS can report that a handset accepted a text but never that a person
+   * read it - so counting them would assert something nobody knows. They are
+   * left out of the denominator for the same reason.
+   */
+  const readableBy = useMemo(
+    () =>
+      (selectedConversation?.participants ?? []).filter(
+        (participant) =>
+          participant.userId && participant.username !== currentUsername,
+      ),
+    [selectedConversation, currentUsername],
+  );
+
+  const lastOwnMessageId = useMemo(() => {
+    for (let i = currentMessages.length - 1; i >= 0; i -= 1) {
+      if (currentMessages[i].mine) return currentMessages[i].id;
+    }
+    return null;
+  }, [currentMessages]);
+
+  const readersOf = useCallback(
+    (messageId: string | number) => {
+      const id = Number(messageId);
+      if (!Number.isFinite(id)) return 0;
+      return readableBy.filter(
+        (participant) => (participant.lastReadMessageId ?? 0) >= id,
+      ).length;
+    },
+    [readableBy],
+  );
+
   // Typing frames carry an account id; the membership rows carry the names.
   // Members load on their own request, so a frame can arrive before the name
   // for it exists - in which case say SOMETHING rather than nothing, or the
@@ -1660,20 +2102,89 @@ export function HomeShell({ mode }: HomeShellProps) {
                     Selected chats: {selectedChatIds.size}
                   </p>
                 )}
-                {visibleConversations.length === 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {(
+                    [
+                      { id: "all", label: "All", count: 0 },
+                      {
+                        id: "unread",
+                        label: "Unread",
+                        count: visibleConversations.filter(
+                          (c) => (c.unread || 0) > 0,
+                        ).length,
+                      },
+                      { id: "groups", label: "Groups", count: 0 },
+                      {
+                        id: "archived",
+                        label: "Archived",
+                        count: archivedUnread,
+                      },
+                    ] as const
+                  ).map((chip) => {
+                    // Archived only earns a chip once there is something in
+                    // it; the other three are always meaningful.
+                    if (
+                      chip.id === "archived" &&
+                      archivedConversations.length === 0
+                    ) {
+                      return null;
+                    }
+                    const active = listFilter === chip.id;
+                    return (
+                      <button
+                        key={chip.id}
+                        type="button"
+                        onClick={() => setListFilter(chip.id)}
+                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                          active
+                            ? "bg-[#168CFF] text-white"
+                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                        }`}
+                      >
+                        {chip.id === "archived" && (
+                          <Archive className="h-3.5 w-3.5" />
+                        )}
+                        {chip.label}
+                        {chip.count > 0 && (
+                          <span
+                            className={`rounded-full px-1.5 text-[10px] font-bold ${
+                              active
+                                ? "bg-white/25 text-white"
+                                : "bg-[#168CFF] text-white"
+                            }`}
+                          >
+                            {chip.count}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {listedConversations.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {isBroadcast ? "No broadcast Loops yet" : "No chats yet"}
+                      {listFilter === "unread"
+                        ? "Nothing unread"
+                        : listFilter === "archived"
+                          ? "Nothing archived"
+                          : listFilter === "groups"
+                            ? "No groups yet"
+                            : isBroadcast
+                              ? "No broadcast Loops yet"
+                              : "No chats yet"}
                     </p>
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      {isBroadcast
-                        ? "Loops set to broadcast mode appear here"
-                        : "Create a loop to get started"}
+                      {listFilter === "all"
+                        ? isBroadcast
+                          ? "Loops set to broadcast mode appear here"
+                          : "Create a loop to get started"
+                        : "Try another filter."}
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {visibleConversations.map(renderConversationButton)}
+                  <div className="space-y-1">
+                    {listedConversations.map(renderConversationButton)}
                   </div>
                 )}
               </div>
@@ -1831,7 +2342,7 @@ export function HomeShell({ mode }: HomeShellProps) {
           <div
             ref={messageListRef}
             onScroll={handleMessageListScroll}
-            className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 sm:px-5 sm:py-5"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 sm:px-5 sm:py-4"
           >
             {selectedConversationId && hasMoreHistory && (
               <div className="flex justify-center pb-2">
@@ -1945,61 +2456,148 @@ export function HomeShell({ mode }: HomeShellProps) {
                 </div>
               </div>
             ) : (
-              currentMessages.map((message) => (
-                <article
-                  key={message.id}
-                  className={`max-w-xl rounded-2xl px-4 py-3 ${
-                    message.mine
-                      ? "ml-auto bg-[#dff1ff] text-slate-900"
-                      : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
-                  }`}
-                >
-                  <p
-                    className={`text-xs ${message.mine ? "text-sky-700" : "text-slate-500 dark:text-slate-400"}`}
+              thread.map((row) =>
+                row.kind === "day" ? (
+                  <div key={row.key} className="flex justify-center py-2">
+                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
+                      {row.label}
+                    </span>
+                  </div>
+                ) : (
+                  <div
+                    key={row.key}
+                    className={`relative flex items-start gap-2 ${
+                      row.message.mine ? "justify-end" : "justify-start"
+                    } ${row.startsRun ? "mt-3" : "mt-0.5"} ${
+                      row.message.mine && row.message.id === lastOwnMessageId
+                        ? "mb-4"
+                        : ""
+                    }`}
                   >
-                    {message.sender}
-                  </p>
-                  <p className="mt-1 text-sm leading-relaxed">{message.text}</p>
-                  {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {message.attachments.map((attachment) => (
-                        <div key={attachment.id ?? attachment.url}>
-                          {attachment.contentType?.startsWith("audio/") && (
-                            <audio
-                              controls
-                              src={attachment.url}
-                              className="mb-1 max-w-full"
-                            />
-                          )}
-                          {attachment.contentType?.startsWith("image/") && (
-                            <Image
-                              src={attachment.url}
-                              alt={attachment.originalName}
-                              width={400}
-                              height={224}
-                              unoptimized
-                              className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
-                            />
-                          )}
-                          <a
-                            href={attachment.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={`block truncate text-xs underline ${message.mine ? "text-sky-700" : "text-sky-700"}`}
-                          >
-                            {attachment.originalName}
-                          </a>
-                        </div>
+                    {/* One avatar per run, and only for other people - your
+                        own messages are already identified by their side. A
+                        spacer keeps continuations aligned under the first. */}
+                    {!row.message.mine &&
+                      (row.startsRun ? (
+                        <ChatAvatar
+                          name={row.message.sender}
+                          imageUrl={row.message.senderAvatarUrl}
+                          size={32}
+                        />
+                      ) : (
+                        <span aria-hidden className="w-8 shrink-0" />
                       ))}
-                    </div>
-                  )}
-                  <p
-                    className={`mt-2 text-[11px] ${message.mine ? "text-sky-700" : "text-slate-400"}`}
-                  >
-                    {message.time}
-                  </p>
-                </article>
-              ))
+
+                    <article
+                      className={`max-w-xl rounded-2xl px-3 py-2 ${
+                        row.message.mine
+                          ? "bg-[#dff1ff] text-slate-900"
+                          : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
+                      }`}
+                    >
+                      {row.startsRun && !row.message.mine && (
+                        <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+                          {row.message.sender}
+                        </p>
+                      )}
+                      <div
+                        className={`flex items-end gap-2 ${
+                          row.startsRun && !row.message.mine ? "mt-0.5" : ""
+                        }`}
+                      >
+                        {row.message.text && (
+                          <p className="min-w-0 text-sm leading-snug break-words">
+                            {row.message.text}
+                          </p>
+                        )}
+                        <span
+                          className={`ml-auto flex shrink-0 items-center gap-1 text-[10px] leading-none ${
+                            row.message.mine
+                              ? "text-sky-700/70"
+                              : "text-slate-400"
+                          }`}
+                        >
+                          {row.message.time}
+                          {row.message.mine &&
+                            (() => {
+                              // Ticks only on your own messages, and only
+                              // where somebody could report reading them.
+                              if (readableBy.length === 0) return null;
+                              const seen = readersOf(row.message.id);
+                              if (seen === 0) {
+                                return (
+                                  <Check
+                                    className="h-3 w-3"
+                                    aria-label="Sent"
+                                  />
+                                );
+                              }
+                              return (
+                                <CheckCheck
+                                  className={`h-3 w-3 ${
+                                    seen >= readableBy.length
+                                      ? "text-emerald-600"
+                                      : ""
+                                  }`}
+                                  aria-label={`Read by ${seen}`}
+                                />
+                              );
+                            })()}
+                        </span>
+                      </div>
+                      {row.message.attachments &&
+                        row.message.attachments.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {row.message.attachments.map((attachment) => (
+                              <div key={attachment.id ?? attachment.url}>
+                                {attachment.contentType?.startsWith(
+                                  "audio/",
+                                ) && (
+                                  <audio
+                                    controls
+                                    src={attachment.url}
+                                    className="mb-1 max-w-full"
+                                  />
+                                )}
+                                {attachment.contentType?.startsWith(
+                                  "image/",
+                                ) && (
+                                  <Image
+                                    src={attachment.url}
+                                    alt={attachment.originalName}
+                                    width={400}
+                                    height={224}
+                                    unoptimized
+                                    className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
+                                  />
+                                )}
+                                <a
+                                  href={attachment.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block truncate text-xs text-sky-700 underline"
+                                >
+                                  {attachment.originalName}
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                    </article>
+
+                    {/* Spelled out once, under the newest message you sent -
+                        under every one it is noise, and the ticks already say
+                        it per message. */}
+                    {row.message.mine &&
+                      row.message.id === lastOwnMessageId &&
+                      readersOf(row.message.id) > 0 && (
+                        <span className="absolute -bottom-4 right-0 text-[10px] whitespace-nowrap text-slate-400 dark:text-slate-500">
+                          {readersOf(row.message.id)} read {row.message.time}
+                        </span>
+                      )}
+                  </div>
+                ),
+              )
             )}
           </div>
 

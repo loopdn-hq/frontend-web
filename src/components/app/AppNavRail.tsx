@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  Bell,
   CirclePlus,
   Contact,
   Image as ImageIcon,
@@ -13,9 +14,7 @@ import {
   Phone,
   RadioTower,
   Search,
-  Settings,
   Sparkles,
-  Star,
   Users,
   X,
   type LucideIcon,
@@ -41,6 +40,7 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: "/chats/", label: "Chats", icon: MessageCircle },
       { href: "/broadcast/", label: "Broadcast", icon: RadioTower },
+      { href: "/activity/", label: "Activity", icon: Bell },
       { href: "/communities/", label: "Communities", icon: Users },
       { href: "/calls/", label: "Calls", icon: Phone },
       { href: "/media/", label: "Media", icon: ImageIcon },
@@ -57,13 +57,6 @@ const NAV_SECTIONS: NavSection[] = [
     heading: "Discover",
     items: [{ href: "/find-groups/", label: "Find groups", icon: Search }],
   },
-  {
-    heading: "More",
-    items: [
-      { href: "/starred/", label: "Starred", icon: Star },
-      { href: "/settings/", label: "Settings", icon: Settings },
-    ],
-  },
 ];
 
 export function AppNavRail() {
@@ -71,6 +64,7 @@ export function AppNavRail() {
   const router = useRouter();
   const {
     unreadByMode,
+    activityUnread,
     userProfile,
     logOut,
     requestCreateLoop,
@@ -175,7 +169,9 @@ export function AppNavRail() {
                     ? unreadByMode.chat
                     : item.href === "/broadcast/"
                       ? unreadByMode.broadcast
-                      : 0;
+                      : item.href === "/activity/"
+                        ? activityUnread
+                        : 0;
 
                 return (
                   <Link
