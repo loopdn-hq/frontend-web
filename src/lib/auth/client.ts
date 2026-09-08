@@ -64,9 +64,57 @@ export function setTokens(access: string, refresh: string): void {
   try {
     window.localStorage.setItem(ACCESS_TOKEN_KEY, access);
     window.localStorage.setItem(REFRESH_TOKEN_KEY, refresh);
+    // Anything holding the old token has to hear about this. The websocket
+    // in particular puts the access token in its URL, so without a nudge it
+    // keeps reconnecting with the expired one until it gives up.
+    notify();
   } catch {
     // ignore
   }
+}
+
+// One refresh at a time, shared by every caller that wants one.
+//
+// This is not an optimisation. ROTATE_REFRESH_TOKENS and
+// BLACKLIST_AFTER_ROTATION are both on, so the refresh token is spent the
+// moment it is used - two requests refreshing in parallel means the second
+// presents an already-blacklisted token, is refused, and logs the user out.
+// A single in-flight promise is what makes a burst of expired requests safe.
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function performRefresh(): Promise<boolean> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return false;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/users/token/refresh/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+    if (!response.ok) return false;
+
+    const payload = (await response.json().catch(() => null)) as {
+      data?: { tokens?: { access?: string; refresh?: string } };
+    } | null;
+    const tokens = payload?.data?.tokens;
+    if (!tokens?.access || !tokens?.refresh) return false;
+
+    // Both, always: rotation means the refresh token that came back is the
+    // only one that will work next time.
+    setTokens(tokens.access, tokens.refresh);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Trade the refresh token for a new pair. Returns false if it could not. */
+export function refreshTokens(): Promise<boolean> {
+  refreshInFlight ??= performRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }
 
 export function getAccessToken(): string | null {
@@ -260,13 +308,37 @@ export async function logout(): Promise<void> {
 
 let unauthorizedLogout: Promise<void> | null = null;
 
-export function handleUnauthorizedResponse(response: Response): Promise<void> {
-  if (response.status !== 401) return Promise.resolve();
+export async function handleUnauthorizedResponse(
+  response: Response,
+  { alreadyRetried = false }: { alreadyRetried?: boolean } = {},
+): Promise<void> {
+  if (response.status !== 401) return;
+
+  // A 401 usually means the access token aged out, not that the session
+  // ended - it lasts thirty minutes against a refresh token good for thirty
+  // days. Spend the refresh token before concluding anything.
+  //
+  // `alreadyRetried` is how a caller that CAN retry says it already did: a
+  // second 401 after a successful refresh is a real authorisation failure,
+  // and refreshing again would keep the user signed in forever on a session
+  // the server is refusing.
+  if (!alreadyRetried && (await refreshTokens())) return;
 
   unauthorizedLogout ??= logout().finally(() => {
     unauthorizedLogout = null;
   });
   return unauthorizedLogout;
+}
+
+/**
+ * The access token, as something React can re-render on.
+ *
+ * The websocket builds its URL from this, and a refresh has to move it - a
+ * socket holding an expired token is closed by the server and reconnects with
+ * the same dead token until it runs out of attempts.
+ */
+export function useAccessToken(): string | null {
+  return useSyncExternalStore(subscribe, getAccessToken, () => null);
 }
 
 // "storage" only fires in *other* tabs, so setSession/clearSession dispatch

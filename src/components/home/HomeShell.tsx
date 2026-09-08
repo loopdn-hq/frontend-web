@@ -31,7 +31,6 @@ import {
   normalizeParticipant,
   removeConversationMember,
   respondToJoinRequest,
-  searchConversations,
   sendConversationMessage,
   updateGroupSettings,
   updateMemberRole,
@@ -54,10 +53,10 @@ import {
   dayLabel,
   describeMessageBody,
 } from "@/lib/chat/preview";
-import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import { ChatAvatar } from "./ChatAvatar";
+import { JoinGroupPanel } from "./JoinGroupPanel";
 import {
   Archive,
   ArchiveRestore,
@@ -300,6 +299,11 @@ export function HomeShell({ mode }: HomeShellProps) {
     socketStatus,
     sendSocketMessage,
     subscribeToSocket,
+    conversationToOpen,
+    clearConversationToOpen,
+    hasMoreConversations,
+    isLoadingMoreConversations,
+    loadMoreConversations,
   } = useAppShell();
   const isBroadcast = mode === "broadcast";
   // Everything the list renders is scoped to this mode; the selected
@@ -323,6 +327,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     () => conversationsInMode.filter((conversation) => conversation.archived),
     [conversationsInMode],
   );
+  const [searchQuery, setSearchQuery] = useState("");
   const [listFilter, setListFilter] = useState<
     "all" | "unread" | "groups" | "archived"
   >("all");
@@ -335,19 +340,28 @@ export function HomeShell({ mode }: HomeShellProps) {
   // What the list actually renders. Archived is a filter rather than a drawer
   // below the list, so the four chips are one control answering one question.
   const listedConversations = useMemo(() => {
-    if (listFilter === "archived") return archivedConversations;
-    if (listFilter === "unread") {
-      return visibleConversations.filter(
-        (conversation) => (conversation.unread || 0) > 0,
-      );
-    }
-    if (listFilter === "groups") {
-      return visibleConversations.filter(
-        (conversation) => conversation.kind === "group",
-      );
-    }
-    return visibleConversations;
-  }, [listFilter, visibleConversations, archivedConversations]);
+    const base =
+      listFilter === "archived"
+        ? archivedConversations
+        : listFilter === "unread"
+          ? visibleConversations.filter(
+              (conversation) => (conversation.unread || 0) > 0,
+            )
+          : listFilter === "groups"
+            ? visibleConversations.filter(
+                (conversation) => conversation.kind === "group",
+              )
+            : visibleConversations;
+
+    // Searching narrows the list you already have rather than asking the
+    // server: these are your own conversations and they are all in memory, so
+    // a request would only add latency to something that can be instant.
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) return base;
+    return base.filter((conversation) =>
+      conversation.name.toLowerCase().includes(query),
+    );
+  }, [listFilter, visibleConversations, archivedConversations, searchQuery]);
   // Which row's overflow menu is open, if any.
   const [rowMenuFor, setRowMenuFor] = useState<string | number | null>(null);
   // Leaving and deleting are not undoable, so the menu asks first rather than
@@ -357,6 +371,11 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
   >(defaultConversations.length > 0 ? defaultConversations[0].id : null);
+  // The last open-request this instance has acted on, so one request opens a
+  // Loop once rather than every render.
+  const [handledOpenRequest, setHandledOpenRequest] = useState<
+    string | number | null
+  >(null);
   const [isCreateLoopOpen, setIsCreateLoopOpen] = useState(false);
   const [isJoinLoopOpen, setIsJoinLoopOpen] = useState(false);
   const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
@@ -380,10 +399,6 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [loadingPendingRequestLoopIds, setLoadingPendingRequestLoopIds] =
     useState<Set<string | number>>(new Set());
   const seededPendingRequestLoopIds = useRef<Set<string | number>>(new Set());
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<Conversation[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchError, setSearchError] = useState("");
   const [pendingConversation, setPendingConversation] =
     useState<Conversation | null>(null);
   const [pendingJoinCode, setPendingJoinCode] = useState("");
@@ -396,7 +411,6 @@ export function HomeShell({ mode }: HomeShellProps) {
     new Set(),
   );
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
-  const debouncedSearchQuery = useDebouncedValue(searchQuery, 300);
 
   // The provider fetches the list; select the first Loop of this mode once it
   // arrives. Keyed on the filtered list so /broadcast/ never opens a chat Loop.
@@ -577,6 +591,22 @@ export function HomeShell({ mode }: HomeShellProps) {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
+  // Another screen asked for a specific Loop - Activity's "Open group". Acted
+  // on during render rather than in an effect, which is what React prescribes
+  // for adjusting state when an input changes, and waits for the list so a
+  // request that arrives first is not dropped.
+  if (
+    conversationToOpen !== null &&
+    conversationToOpen !== handledOpenRequest &&
+    conversations.some(
+      (conversation) => String(conversation.id) === String(conversationToOpen),
+    )
+  ) {
+    setHandledOpenRequest(conversationToOpen);
+    hasAutoSelected.current = true;
+    setSelectedConversationId(conversationToOpen);
+  }
+
   const isHistoryStateCurrent =
     historyState.conversationId === selectedConversationId;
   const historyPage = isHistoryStateCurrent ? historyState.page : 1;
@@ -597,6 +627,28 @@ export function HomeShell({ mode }: HomeShellProps) {
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
   // last message, otherwise following stops the moment anything is clipped.
   const BOTTOM_SLACK_PX = 120;
+
+  // Ask for the next page as the end comes into view rather than exactly at
+  // the bottom, so the rows are usually there before the reader arrives.
+  const handleChatListScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      if (!hasMoreConversations || isLoadingMoreConversations) return;
+      // A filter or a search shows a subset of what is loaded, so reaching the
+      // end of it says nothing about whether the server has more.
+      if (searchQuery.trim() || listFilter !== "all") return;
+
+      const node = event.currentTarget;
+      const remaining = node.scrollHeight - node.scrollTop - node.clientHeight;
+      if (remaining < 320) loadMoreConversations();
+    },
+    [
+      hasMoreConversations,
+      isLoadingMoreConversations,
+      loadMoreConversations,
+      searchQuery,
+      listFilter,
+    ],
+  );
 
   const handleMessageListScroll = useCallback(() => {
     const node = messageListRef.current;
@@ -672,28 +724,6 @@ export function HomeShell({ mode }: HomeShellProps) {
     const node = messageListRef.current;
     if (node) node.scrollTop = node.scrollHeight;
   }, [currentMessages]);
-
-  useEffect(() => {
-    const query = debouncedSearchQuery.trim();
-    if (!query) return;
-
-    let cancelled = false;
-    searchConversations(query).then((result) => {
-      if (cancelled) return;
-      setIsSearching(false);
-      if (!result.ok) {
-        setSearchError(result.message);
-        setSearchResults([]);
-        return;
-      }
-      setSearchError("");
-      setSearchResults(result.conversations);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSearchQuery]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -1366,6 +1396,8 @@ export function HomeShell({ mode }: HomeShellProps) {
   }
 
   function handleSelectConversation(conversationId: string | number) {
+    clearConversationToOpen();
+    setHandledOpenRequest(null);
     setPendingConversation(null);
     setSelectedConversationId(conversationId);
     // Clear the badge here AND on the server. The local zero below is
@@ -1379,14 +1411,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         unread: c.id === conversationId ? 0 : c.unread,
       })),
     );
-  }
-
-  function handleSelectSearchResult(conversation: Conversation) {
-    setPendingJoinError("");
-    setPendingJoinCode("");
-    setPendingJoinRequestSent(false);
-    setSelectedConversationId(null);
-    setPendingConversation(conversation);
   }
 
   async function handleJoinPending() {
@@ -2021,25 +2045,17 @@ export function HomeShell({ mode }: HomeShellProps) {
               <input
                 type="search"
                 value={searchQuery}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setSearchQuery(value);
-                  if (value.trim()) {
-                    setIsSearching(true);
-                  }
-                  if (!value.trim()) {
-                    setIsSearching(false);
-                    setSearchError("");
-                    setSearchResults([]);
-                  }
-                }}
-                placeholder="Search or start a new chat"
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search your chats"
                 className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
               />
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
+          <div
+            onScroll={handleChatListScroll}
+            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          >
             {loopsWithPendingRequests.length > 0 && (
               <button
                 type="button"
@@ -2055,136 +2071,103 @@ export function HomeShell({ mode }: HomeShellProps) {
               </button>
             )}
 
-            {searchQuery.trim() ? (
-              <div className="space-y-2">
-                {isSearching ? (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                    Searching...
-                  </p>
-                ) : searchError ? (
-                  <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-4 text-center text-xs text-rose-700">
-                    {searchError}
-                  </p>
-                ) : searchResults.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-center text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-400">
-                    No Loops found
-                  </p>
-                ) : (
-                  searchResults.map((conversation) => (
+            <div className="space-y-5">
+              {isSelectChatsMode && (
+                <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                  Selected chats: {selectedChatIds.size}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {(
+                  [
+                    { id: "all", label: "All", count: 0 },
+                    {
+                      id: "unread",
+                      label: "Unread",
+                      count: visibleConversations.filter(
+                        (c) => (c.unread || 0) > 0,
+                      ).length,
+                    },
+                    { id: "groups", label: "Groups", count: 0 },
+                    {
+                      id: "archived",
+                      label: "Archived",
+                      count: archivedUnread,
+                    },
+                  ] as const
+                ).map((chip) => {
+                  // Archived only earns a chip once there is something in
+                  // it; the other three are always meaningful.
+                  if (
+                    chip.id === "archived" &&
+                    archivedConversations.length === 0
+                  ) {
+                    return null;
+                  }
+                  const active = listFilter === chip.id;
+                  return (
                     <button
-                      key={conversation.id}
+                      key={chip.id}
                       type="button"
-                      onClick={() => handleSelectSearchResult(conversation)}
-                      className={`w-full rounded-xl border p-3 text-left transition ${
-                        pendingConversation?.id === conversation.id
-                          ? "border-sky-300 bg-sky-50 text-slate-900"
-                          : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      onClick={() => setListFilter(chip.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                        active
+                          ? "bg-[#168CFF] text-white"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                       }`}
                     >
-                      <p className="text-sm font-semibold">
-                        {conversation.name}
-                      </p>
-                      <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                        {conversation.description || "No description"}
-                      </p>
+                      {chip.id === "archived" && (
+                        <Archive className="h-3.5 w-3.5" />
+                      )}
+                      {chip.label}
+                      {chip.count > 0 && (
+                        <span
+                          className={`rounded-full px-1.5 text-[10px] font-bold ${
+                            active
+                              ? "bg-white/25 text-white"
+                              : "bg-[#168CFF] text-white"
+                          }`}
+                        >
+                          {chip.count}
+                        </span>
+                      )}
                     </button>
-                  ))
-                )}
+                  );
+                })}
               </div>
-            ) : (
-              <div className="space-y-5">
-                {isSelectChatsMode && (
-                  <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
-                    Selected chats: {selectedChatIds.size}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-1.5">
-                  {(
-                    [
-                      { id: "all", label: "All", count: 0 },
-                      {
-                        id: "unread",
-                        label: "Unread",
-                        count: visibleConversations.filter(
-                          (c) => (c.unread || 0) > 0,
-                        ).length,
-                      },
-                      { id: "groups", label: "Groups", count: 0 },
-                      {
-                        id: "archived",
-                        label: "Archived",
-                        count: archivedUnread,
-                      },
-                    ] as const
-                  ).map((chip) => {
-                    // Archived only earns a chip once there is something in
-                    // it; the other three are always meaningful.
-                    if (
-                      chip.id === "archived" &&
-                      archivedConversations.length === 0
-                    ) {
-                      return null;
-                    }
-                    const active = listFilter === chip.id;
-                    return (
-                      <button
-                        key={chip.id}
-                        type="button"
-                        onClick={() => setListFilter(chip.id)}
-                        className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
-                          active
-                            ? "bg-[#168CFF] text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        }`}
-                      >
-                        {chip.id === "archived" && (
-                          <Archive className="h-3.5 w-3.5" />
-                        )}
-                        {chip.label}
-                        {chip.count > 0 && (
-                          <span
-                            className={`rounded-full px-1.5 text-[10px] font-bold ${
-                              active
-                                ? "bg-white/25 text-white"
-                                : "bg-[#168CFF] text-white"
-                            }`}
-                          >
-                            {chip.count}
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
 
-                {listedConversations.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {listFilter === "unread"
-                        ? "Nothing unread"
-                        : listFilter === "archived"
-                          ? "Nothing archived"
-                          : listFilter === "groups"
-                            ? "No groups yet"
-                            : isBroadcast
-                              ? "No broadcast Loops yet"
-                              : "No chats yet"}
+              {listedConversations.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
+                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    {listFilter === "unread"
+                      ? "Nothing unread"
+                      : listFilter === "archived"
+                        ? "Nothing archived"
+                        : listFilter === "groups"
+                          ? "No groups yet"
+                          : isBroadcast
+                            ? "No broadcast Loops yet"
+                            : "No chats yet"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                    {listFilter === "all"
+                      ? isBroadcast
+                        ? "Loops set to broadcast mode appear here"
+                        : "Create a loop to get started"
+                      : "Try another filter."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {listedConversations.map(renderConversationButton)}
+                  {isLoadingMoreConversations && (
+                    <p className="py-3 text-center text-xs text-slate-400 dark:text-slate-500">
+                      Loading more...
                     </p>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      {listFilter === "all"
-                        ? isBroadcast
-                          ? "Loops set to broadcast mode appear here"
-                          : "Create a loop to get started"
-                        : "Try another filter."}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {listedConversations.map(renderConversationButton)}
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </aside>
 
@@ -2354,65 +2337,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             )}
             {pendingConversation ? (
               <div className="flex h-full items-center justify-center">
-                <div className="w-full max-w-sm rounded-2xl border border-sky-200 bg-white p-6 text-center shadow-[0_10px_30px_rgba(14,88,148,0.15)] dark:border-slate-700 dark:bg-slate-800">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                    {pendingConversation.name}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-                    {pendingConversation.description || "No description"}
-                  </p>
-
-                  {pendingJoinRequestSent ? (
-                    <p className="mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700">
-                      Request sent. An admin needs to approve your request to
-                      join.
-                    </p>
-                  ) : pendingConversation.joinMode === "code" ? (
-                    <div className="mt-4 space-y-3">
-                      <input
-                        type="text"
-                        value={pendingJoinCode}
-                        onChange={(event) =>
-                          setPendingJoinCode(event.target.value)
-                        }
-                        placeholder="Enter join code"
-                        disabled={isJoiningPending}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm uppercase tracking-widest text-slate-800 outline-none transition placeholder:normal-case placeholder:tracking-normal focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={handleJoinPendingWithCode}
-                        disabled={isJoiningPending || !pendingJoinCode.trim()}
-                        className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {isJoiningPending ? "Joining..." : "Submit Code"}
-                      </button>
-                    </div>
-                  ) : pendingConversation.joinMode === "invite" ? (
-                    <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-400">
-                      This Loop is invite-only. Ask a member to invite you.
-                    </p>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleJoinPending}
-                      disabled={isJoiningPending}
-                      className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {isJoiningPending
-                        ? "Joining..."
-                        : pendingConversation.joinMode === "approval"
-                          ? "Request to Join"
-                          : "Join Group"}
-                    </button>
-                  )}
-
-                  {pendingJoinError && (
-                    <p className="mt-3 text-xs text-rose-600">
-                      {pendingJoinError}
-                    </p>
-                  )}
-                </div>
+                <JoinGroupPanel
+                  name={pendingConversation.name}
+                  description={pendingConversation.description}
+                  joinMode={pendingConversation.joinMode}
+                  code={pendingJoinCode}
+                  onCodeChange={setPendingJoinCode}
+                  onJoin={handleJoinPending}
+                  onJoinWithCode={handleJoinPendingWithCode}
+                  isJoining={isJoiningPending}
+                  requestSent={pendingJoinRequestSent}
+                  error={pendingJoinError}
+                />
               </div>
             ) : !selectedConversation ? (
               <div className="flex h-full items-center justify-center">

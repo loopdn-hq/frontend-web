@@ -5,7 +5,7 @@
  * unread badges from `unread_count`, and a second count of the same thing is a
  * second thing to keep in agreement.
  */
-import { authorizedRequest } from "@/lib/chat/conversations";
+import { authorizedRequest, type JoinMode } from "@/lib/chat/conversations";
 
 export type NotificationType =
   | "member.added"
@@ -25,6 +25,10 @@ export type NotificationType =
 export type NotificationCategory =
   "groups" | "invites" | "sms" | "account" | "general";
 
+/** Where the recipient stands in the conversation right now, if anywhere. */
+export type ViewerStatus =
+  "active" | "pending" | "left" | "removed" | "blocked" | null;
+
 export type AppNotification = {
   id: number;
   type: NotificationType;
@@ -32,6 +36,12 @@ export type AppNotification = {
   actorName: string | null;
   conversationId: string | number | null;
   conversationName: string | null;
+  // How a stranger gets into that group, which is what decides what the
+  // detail panel can offer somebody who is not in it yet.
+  joinMode: JoinMode | null;
+  // Computed live by the server, not recorded with the event: the row is
+  // about the past, the action has to be about now.
+  viewerStatus: ViewerStatus;
   data: Record<string, unknown> | null;
   readAt: string | null;
   createdAt: string;
@@ -71,6 +81,21 @@ function normalize(item: unknown): AppNotification | null {
         : null,
     conversationName:
       typeof row.conversation_name === "string" ? row.conversation_name : null,
+    joinMode:
+      row.conversation_join_mode === "open" ||
+      row.conversation_join_mode === "code" ||
+      row.conversation_join_mode === "approval" ||
+      row.conversation_join_mode === "invite"
+        ? row.conversation_join_mode
+        : null,
+    viewerStatus:
+      row.viewer_status === "active" ||
+      row.viewer_status === "pending" ||
+      row.viewer_status === "left" ||
+      row.viewer_status === "removed" ||
+      row.viewer_status === "blocked"
+        ? row.viewer_status
+        : null,
     data,
     readAt: typeof row.read_at === "string" ? row.read_at : null,
     createdAt: typeof row.created_at === "string" ? row.created_at : "",
