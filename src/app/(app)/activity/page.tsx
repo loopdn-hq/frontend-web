@@ -15,6 +15,11 @@ import {
   markNotificationsRead,
   type AppNotification,
 } from "@/lib/chat/notifications";
+import {
+  joinConversation,
+  joinConversationWithCode,
+} from "@/lib/chat/conversations";
+import { JoinGroupPanel } from "@/components/home/JoinGroupPanel";
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -29,11 +34,19 @@ type FilterId = (typeof FILTERS)[number]["id"];
 
 export default function ActivityPage() {
   const router = useRouter();
-  const { activityUnread, setActivityUnread, activityVersion } = useAppShell();
+  const {
+    activityUnread,
+    setActivityUnread,
+    activityVersion,
+    requestOpenConversation,
+  } = useAppShell();
   const [filter, setFilter] = useState<FilterId>("all");
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Bumped after joining, so the feed refetches and the panel picks up the
+  // viewer's new standing.
+  const [refreshToken, setRefreshToken] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // activityVersion changes when a notification arrives on the socket, which
@@ -59,7 +72,7 @@ export default function ActivityPage() {
     return () => {
       cancelled = true;
     };
-  }, [filter, activityVersion, setActivityUnread]);
+  }, [filter, activityVersion, refreshToken, setActivityUnread]);
 
   const selected = useMemo(
     () => notifications.find((row) => row.id === selectedId) ?? null,
@@ -219,8 +232,13 @@ export default function ActivityPage() {
           <ActivityDetail
             notification={selected}
             onOpenGroup={() => {
-              if (selected.conversationId) router.push("/chats/");
+              if (!selected.conversationId) return;
+              // Ask Chats for this Loop specifically. Pushing /chats/ alone
+              // just lands on whatever was already selected.
+              requestOpenConversation(selected.conversationId);
+              router.push("/chats/");
             }}
+            onJoined={() => setRefreshToken((token) => token + 1)}
           />
         ) : (
           <div className="flex h-full items-center justify-center p-8 text-center">
@@ -303,12 +321,59 @@ function ActivityRow({
 function ActivityDetail({
   notification,
   onOpenGroup,
+  onJoined,
 }: {
   notification: AppNotification;
   onOpenGroup: () => void;
+  onJoined: () => void;
 }) {
   const { title, detail, icon: Icon, tone } = presentNotification(notification);
   const bucket = dayBucket(notification.createdAt);
+
+  // Two different questions, and they are asked in this order:
+  //
+  //   Am I in this group?      -> open it
+  //   Can I get in?            -> whatever the join mode allows
+  //   Was I put out of it?     -> nothing; the door is shut
+  //
+  // join_mode only decides the middle case. Somebody an admin added is ACTIVE
+  // whatever the mode is, which is why a code-required group still just opens.
+  const isMember = notification.viewerStatus === "active";
+  const isShutOut =
+    notification.viewerStatus === "removed" ||
+    notification.viewerStatus === "blocked" ||
+    notification.viewerStatus === "left";
+  const canOfferAWayIn =
+    Boolean(notification.conversationId) && !isMember && !isShutOut;
+
+  const [code, setCode] = useState("");
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState("");
+  const [requestSent, setRequestSent] = useState(false);
+
+  async function join(withCode: boolean) {
+    if (!notification.conversationId) return;
+    setIsJoining(true);
+    setJoinError("");
+    // The code alone identifies the group server-side, so this one takes no
+    // conversation id.
+    const result = withCode
+      ? await joinConversationWithCode(code.trim())
+      : await joinConversation(notification.conversationId);
+    setIsJoining(false);
+
+    if (!result.ok) {
+      setJoinError(result.message);
+      return;
+    }
+    // An approval group does not let you in, it queues you - so say so rather
+    // than pretending the door opened.
+    if (notification.joinMode === "approval") {
+      setRequestSent(true);
+      return;
+    }
+    onJoined();
+  }
 
   return (
     <div className="p-6">
@@ -319,7 +384,7 @@ function ActivityDetail({
           <Icon className="h-6 w-6" />
         </span>
 
-        {notification.conversationId && (
+        {isMember && notification.conversationId && (
           <button
             type="button"
             onClick={onOpenGroup}
@@ -344,6 +409,29 @@ function ActivityDetail({
           ? new Date(notification.createdAt).toLocaleString()
           : timeLabel(notification.createdAt, bucket)}
       </p>
+
+      {canOfferAWayIn && (
+        <div className="mt-6">
+          <JoinGroupPanel
+            name={notification.conversationName ?? "This group"}
+            description={detail}
+            joinMode={notification.joinMode}
+            code={code}
+            onCodeChange={setCode}
+            onJoin={() => void join(false)}
+            onJoinWithCode={() => void join(true)}
+            isJoining={isJoining}
+            requestSent={requestSent || notification.viewerStatus === "pending"}
+            error={joinError}
+          />
+        </div>
+      )}
+
+      {isShutOut && (
+        <p className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+          You are no longer in this group, so there is nothing to open.
+        </p>
+      )}
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
         <p className="text-sm text-slate-700 dark:text-slate-200">

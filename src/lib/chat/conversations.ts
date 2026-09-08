@@ -2,6 +2,7 @@ import {
   getAccessToken,
   getSession,
   handleUnauthorizedResponse,
+  refreshTokens,
 } from "@/lib/auth/client";
 import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 
@@ -445,6 +446,17 @@ function normalizeGroupSettings(item: ApiObject): GroupSettings {
   };
 }
 
+/**
+ * A request carrying the access token, refreshed once if it has expired.
+ *
+ * The access token lasts thirty minutes and the refresh token thirty days,
+ * so without this the app signed the user out every half hour and never once
+ * used the refresh token it had been storing all along.
+ *
+ * Retried at most once. If the refresh itself fails the session really is
+ * over - an expired or blacklisted refresh token is not something a second
+ * attempt fixes - and only then does the 401 become a logout.
+ */
 export async function authorizedRequest(
   input: string,
   init: RequestInit = {},
@@ -452,15 +464,28 @@ export async function authorizedRequest(
   const accessToken = getAccessToken();
   if (!accessToken) throw new Error("You must be signed in to manage loops.");
 
-  const response = await fetch(`${API_BASE_URL}${input}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...init.headers,
-    },
-  });
+  const send = (token: string) =>
+    fetch(`${API_BASE_URL}${input}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...init.headers,
+      },
+    });
 
-  await handleUnauthorizedResponse(response);
+  let response = await send(accessToken);
+  let retried = false;
+
+  if (response.status === 401) {
+    const refreshed = await refreshTokens();
+    const retryToken = refreshed ? getAccessToken() : null;
+    if (retryToken) {
+      response = await send(retryToken);
+      retried = true;
+    }
+  }
+
+  await handleUnauthorizedResponse(response, { alreadyRetried: retried });
   return response;
 }
 
@@ -501,11 +526,24 @@ export async function createConversation(
   }
 }
 
-export async function fetchConversations(): Promise<
-  { ok: true; conversations: Conversation[] } | { ok: false; message: string }
+/**
+ * A page of the caller's conversations, most recently active first.
+ *
+ * Twenty a page server-side. This used to read `results` and drop `next`, so
+ * a member of more than twenty groups could not reach the rest of them - and
+ * once the search box became a filter over what was loaded, could not search
+ * for them either.
+ */
+export async function fetchConversations(
+  options: { page?: number } = {},
+): Promise<
+  | { ok: true; conversations: Conversation[]; hasMore: boolean }
+  | { ok: false; message: string }
 > {
   try {
-    const response = await authorizedRequest("/chat/conversations/");
+    const suffix =
+      options.page && options.page > 1 ? `?page=${options.page}` : "";
+    const response = await authorizedRequest(`/chat/conversations/${suffix}`);
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       return {
@@ -520,6 +558,89 @@ export async function fetchConversations(): Promise<
         .filter(
           (conversation): conversation is Conversation => conversation !== null,
         ),
+      hasMore: hasNextPage(data),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * A group as somebody OUTSIDE it sees it, before deciding to join.
+ *
+ * Deliberately not a `Conversation`: this is the only shape a non-member
+ * reads, and it carries what is needed to choose - name, purpose, size, and
+ * how to get in - rather than anything belonging to the people already inside.
+ */
+export type DiscoverableGroup = {
+  id: string | number;
+  name: string;
+  description: string;
+  logoImage: string | null;
+  memberCount: number;
+  joinMode: JoinMode;
+  mode: ConversationMode;
+};
+
+function normalizeDiscoverableGroup(item: ApiObject): DiscoverableGroup | null {
+  const id = item.id;
+  if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
+    return null;
+  }
+
+  const joinModeRaw = item.join_mode;
+  // Invite-only never reaches here - the server does not return it - so
+  // anything unrecognised is treated as the strictest mode we can offer,
+  // never as "open".
+  const joinMode: JoinMode =
+    joinModeRaw === "open" ||
+    joinModeRaw === "code" ||
+    joinModeRaw === "approval"
+      ? joinModeRaw
+      : "approval";
+
+  return {
+    id,
+    name: asText(item.name),
+    description: asText(item.description),
+    logoImage: asText(item.image_url) || null,
+    memberCount: typeof item.member_count === "number" ? item.member_count : 0,
+    joinMode,
+    mode: item.mode === "broadcast" ? "broadcast" : "chat",
+  };
+}
+
+/**
+ * Search public groups. Returns [] for a term the server will not act on, so
+ * the caller does not have to know the two-character rule.
+ */
+export async function searchGroups(
+  query: string,
+): Promise<
+  { ok: true; groups: DiscoverableGroup[] } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/search/?q=${encodeURIComponent(query)}`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to search groups.",
+      };
+    }
+    return {
+      ok: true,
+      groups: getConversationItems(data)
+        .map(normalizeDiscoverableGroup)
+        .filter((group): group is DiscoverableGroup => group !== null),
     };
   } catch (error) {
     return {
