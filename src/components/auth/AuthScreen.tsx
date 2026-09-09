@@ -32,6 +32,7 @@ import {
   Input,
   InternationalPhoneInput,
 } from "@/components/ui";
+import { useTheme } from "@/lib/theme/ThemeProvider";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 
@@ -53,6 +54,7 @@ const panelSubTitle: Record<AuthMode, string> = {
 
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
+  const { resolvedTheme } = useTheme();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
 
   const [generalError, setGeneralError] = useState<string>("");
@@ -215,12 +217,12 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 sm:px-8">
-      <div className="pointer-events-none absolute -left-16 top-16 h-52 w-52 rounded-full bg-cyan-300/40 blur-3xl" />
-      <div className="pointer-events-none absolute -right-10 bottom-12 h-72 w-72 rounded-full bg-sky-400/25 blur-3xl" />
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 dark:bg-[radial-gradient(circle_at_15%_20%,#1e293b_0%,#0f172a_45%,#020617_100%)] sm:px-8">
+      <div className="pointer-events-none absolute -left-16 top-16 h-52 w-52 rounded-full bg-cyan-300/40 blur-3xl dark:bg-cyan-500/20" />
+      <div className="pointer-events-none absolute -right-10 bottom-12 h-72 w-72 rounded-full bg-sky-400/25 blur-3xl dark:bg-sky-700/20" />
 
-      <section className="relative mx-auto grid w-full max-w-6xl overflow-hidden rounded-3xl border border-white/60 bg-white/40 shadow-[0_20px_80px_rgba(0,102,179,0.17)] backdrop-blur-sm lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="relative flex flex-col justify-between bg-[linear-gradient(150deg,#00a6ff_0%,#0574cc_56%,#12386e_100%)] p-8 text-white sm:p-12">
+      <section className="relative mx-auto grid w-full max-w-6xl overflow-hidden rounded-3xl border border-white/60 bg-white/40 shadow-[0_20px_80px_rgba(0,102,179,0.17)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 dark:shadow-[0_22px_80px_rgba(2,6,23,0.55)] lg:grid-cols-[1.05fr_0.95fr]">
+        <div className="relative flex flex-col justify-between bg-[linear-gradient(150deg,#00a6ff_0%,#0574cc_56%,#12386e_100%)] p-8 text-white dark:bg-[linear-gradient(150deg,#0369a1_0%,#1e3a8a_55%,#0f172a_100%)] sm:p-12">
           <div>
             <p className="inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs tracking-[0.14em] uppercase">
               Loopdn
@@ -254,16 +256,16 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-6 sm:p-10">
-          <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
-            <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1">
+        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-6 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_100%)] sm:p-10">
+          <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_18px_44px_rgba(2,6,23,0.5)] sm:p-8">
+            <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
               <Link
                 href="/login/"
                 onClick={() => switchMode("login")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "login"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
               >
                 Log In
@@ -273,48 +275,51 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 onClick={() => switchMode("signup")}
                 className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
                   authMode === "signup"
-                    ? "bg-white text-sky-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-700"
+                    ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
                 } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
               >
                 Sign Up
               </Link>
             </div>
 
-            <h2 className="text-2xl font-bold text-slate-900">
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
               {panelTitle[authMode]}
             </h2>
-            <p className="mt-2 text-sm text-slate-600">
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
               {panelSubTitle[authMode]}
             </p>
 
-            <div className="flex w-full justify-center [&>div]:w-full">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={handleGoogleError}
-                width="336"
-                text={authMode === "login" ? "signin_with" : "signup_with"}
-              />
+            <div className="mt-4 rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
+              <div className="flex w-auto justify-center [&>div]:w-auto">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={handleGoogleError}
+                  width="336"
+                  text={authMode === "login" ? "signin_with" : "signup_with"}
+                  theme={resolvedTheme === "dark" ? "filled_black" : "outline"}
+                />
+              </div>
             </div>
             {isGoogleLoading && (
-              <p className="mt-2 text-center text-xs text-slate-500">
+              <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
                 Connecting to Google...
               </p>
             )}
 
             {authMode === "login" && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                <div className="h-px flex-1 bg-slate-200" />
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
                 or continue with email
-                <div className="h-px flex-1 bg-slate-200" />
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
               </div>
             )}
 
             {authMode === "signup" && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-                <div className="h-px flex-1 bg-slate-200" />
+              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
                 or sign up with email
-                <div className="h-px flex-1 bg-slate-200" />
+                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
               </div>
             )}
 
@@ -366,7 +371,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         aria-label={
                           showLoginPassword ? "Hide password" : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
                       >
                         {showLoginPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -488,7 +493,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         aria-label={
                           showSignupPassword ? "Hide password" : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
                       >
                         {showSignupPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -527,7 +532,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                             ? "Hide password"
                             : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -558,13 +563,19 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               {isSubmitting && <ProgressBar />}
             </form>
 
-            <p className="mt-6 text-center text-xs text-slate-500">
+            <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
               By continuing, you agree to Loopd&apos;n{" "}
-              <Link href="/terms/" className="underline hover:text-slate-700">
+              <Link
+                href="/terms/"
+                className="underline hover:text-slate-700 dark:hover:text-slate-200"
+              >
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="/privacy/" className="underline hover:text-slate-700">
+              <Link
+                href="/privacy/"
+                className="underline hover:text-slate-700 dark:hover:text-slate-200"
+              >
                 Privacy Policy
               </Link>
               .
