@@ -1,12 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
 import { changePasswordSchema } from "@/lib/validation/auth";
+import {
+  createCreditCheckoutSession,
+  createPlanCheckoutSession,
+  fetchBillingPlans,
+  fetchBillingSummary,
+  fetchCreditPackages,
+  type BillingPlan,
+  type BillingSummary,
+  type CreditPackage,
+} from "@/lib/billing";
+import {
+  Alert,
+  Button,
+  Checkbox,
+  Field,
+  Input,
+  RadioGroup,
+  Select,
+  Tabs,
+  Textarea,
+} from "@/components/ui";
 
 type SettingsTab =
-  "profile" | "security" | "appearance" | "notifications" | "privacy";
+  | "profile"
+  | "security"
+  | "appearance"
+  | "notifications"
+  | "privacy"
+  | "billing";
 
 export type UserProfile = {
   displayName: string;
@@ -70,30 +96,19 @@ export function UserSettingsPanel({
         </p>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-1 dark:border-slate-700 dark:bg-slate-900">
-        {(
-          [
-            { id: "profile", label: "👤 Profile" },
-            { id: "security", label: "🔑 Security" },
-            { id: "appearance", label: "🎨 Appearance" },
-            { id: "notifications", label: "🔔 Notifications" },
-            { id: "privacy", label: "🔒 Privacy" },
-          ] as { id: SettingsTab; label: string }[]
-        ).map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setActiveTab(tab.id)}
-            className={`min-w-[120px] flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
-              activeTab === tab.id
-                ? "bg-sky-600 text-white shadow-sm"
-                : "text-slate-700 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs<SettingsTab>
+        value={activeTab}
+        onChange={setActiveTab}
+        className="mb-6"
+        items={[
+          { value: "profile", label: "Profile" },
+          { value: "security", label: "Security" },
+          { value: "appearance", label: "Appearance" },
+          { value: "notifications", label: "Notifications" },
+          { value: "privacy", label: "Privacy" },
+          { value: "billing", label: "Billing" },
+        ]}
+      />
 
       <div className={`mb-6 ${bodyClassName}`}>
         {activeTab === "profile" && (
@@ -108,6 +123,333 @@ export function UserSettingsPanel({
           />
         )}
         {activeTab === "privacy" && <PrivacySettings onLogout={onLogout} />}
+        {activeTab === "billing" && <BillingSettings />}
+      </div>
+    </div>
+  );
+}
+
+function BillingSettings() {
+  const [summary, setSummary] = useState<BillingSummary | null>(null);
+  const [plans, setPlans] = useState<BillingPlan[]>([]);
+  const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [busyAction, setBusyAction] = useState<
+    "plan" | "credits" | "portal" | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      fetchBillingSummary(),
+      fetchBillingPlans(),
+      fetchCreditPackages(),
+    ])
+      .then(([summaryResult, plansResult, creditsResult]) => {
+        if (cancelled) return;
+
+        if (!summaryResult.ok) {
+          setError(summaryResult.message);
+          return;
+        }
+        if (!plansResult.ok) {
+          setError(plansResult.message);
+          return;
+        }
+        if (!creditsResult.ok) {
+          setError(creditsResult.message);
+          return;
+        }
+
+        setSummary(summaryResult.data);
+        setPlans(plansResult.data);
+        setCreditPackages(creditsResult.data);
+        setSelectedPackageId(creditsResult.data[0]?.id ?? "");
+        setError("");
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const activePlan = useMemo(() => {
+    return summary?.subscription.plan ?? null;
+  }, [summary]);
+
+  const upgradablePlans = useMemo(
+    () =>
+      plans
+        .filter((plan) =>
+          ["premium", "business"].includes(plan.code.toLowerCase()),
+        )
+        .sort(
+          (a, b) => (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0),
+        ),
+    [plans],
+  );
+
+  const selectedPackage = useMemo(
+    () => creditPackages.find((item) => item.id === selectedPackageId) ?? null,
+    [creditPackages, selectedPackageId],
+  );
+
+  const walletBalanceCents = summary?.wallet.balanceCents ?? 0;
+  const isLowWalletBalance = walletBalanceCents > 0 && walletBalanceCents < 500;
+
+  async function redirectTo(url: string) {
+    window.location.assign(url);
+  }
+
+  async function handleUpgrade(planCode: string) {
+    setBusyAction("plan");
+    setError("");
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+      const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+      const result = await createPlanCheckoutSession(
+        planCode,
+        successUrl,
+        cancelUrl,
+      );
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      await redirectTo(result.data.checkoutUrl);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  async function handleBuyCredits() {
+    if (!selectedPackage) return;
+    await handleBuyCreditPackage(selectedPackage);
+  }
+
+  async function handleBuyCreditPackage(creditPackage: CreditPackage) {
+    setBusyAction("credits");
+    setError("");
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/billing/success/?flow=credits&package=${encodeURIComponent(creditPackage.id)}`;
+      const cancelUrl = `${origin}/billing/cancel/?flow=credits&package=${encodeURIComponent(creditPackage.id)}`;
+      const result = await createCreditCheckoutSession(
+        creditPackage.id,
+        successUrl,
+        cancelUrl,
+      );
+      if (!result.ok) {
+        setError(result.message);
+        return;
+      }
+      await redirectTo(result.data.checkoutUrl);
+    } finally {
+      setBusyAction(null);
+    }
+  }
+
+  function formatCurrency(cents: number) {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(cents / 100);
+  }
+
+  return (
+    <div className="space-y-5">
+      {isLoading && (
+        <p className="text-sm text-slate-500">Loading billing...</p>
+      )}
+
+      {error && (
+        <Alert variant="error" className="text-xs">
+          {error}
+        </Alert>
+      )}
+
+      {summary && activePlan && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Current Plan
+          </p>
+          <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
+            {activePlan.name}
+          </p>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+            Status: {summary.subscription.status}
+            {summary.subscription.currentPeriodEnd
+              ? ` · Renews ${new Date(summary.subscription.currentPeriodEnd).toLocaleDateString()}`
+              : ""}
+            {summary.subscription.cancelAtPeriodEnd
+              ? " · Cancels at period end"
+              : ""}
+          </p>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+            Limits: {activePlan.maxGroups ?? "Unlimited"} groups, up to{" "}
+            {activePlan.maxMembersPerGroup ?? "Unlimited"} members per group
+          </p>
+          <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+            Wallet balance: {formatCurrency(summary.wallet.balanceCents)}
+          </p>
+          {summary.wallet.autoRechargeEnabled && (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Auto-recharge enabled
+              {summary.wallet.autoRechargePackage
+                ? ` (${summary.wallet.autoRechargePackage})`
+                : ""}
+            </p>
+          )}
+          {activePlan.features.length > 0 && (
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
+              {activePlan.features.map((feature) => (
+                <li key={feature}>{feature}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {summary && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Communication Wallet
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {formatCurrency(walletBalanceCents)}
+              </p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                Used for SMS and voice pay-as-you-go usage.
+              </p>
+            </div>
+            <div className="text-right">
+              <span
+                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  summary.wallet.autoRechargeEnabled
+                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                }`}
+              >
+                {summary.wallet.autoRechargeEnabled
+                  ? "Auto-recharge on"
+                  : "Auto-recharge off"}
+              </span>
+              {summary.wallet.autoRechargePackage && (
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Package: {summary.wallet.autoRechargePackage}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {isLowWalletBalance && (
+            <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+              Your wallet balance is running low. Top up to avoid interruptions.
+            </p>
+          )}
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {creditPackages.slice(0, 3).map((pkg) => (
+              <div
+                key={`wallet-quick-${pkg.id}`}
+                className="rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+              >
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {pkg.name}
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  {formatCurrency(pkg.priceCents)} top-up
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="mt-3"
+                  onClick={() => handleBuyCreditPackage(pkg)}
+                  disabled={busyAction !== null}
+                >
+                  {busyAction === "credits" ? "Redirecting..." : "Top up"}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          Upgrade plan
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Move to Premium or Business to unlock higher limits.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {upgradablePlans.map((plan) => (
+            <Button
+              key={plan.id}
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => handleUpgrade(plan.code)}
+              disabled={
+                busyAction !== null ||
+                summary?.subscription.plan.code === plan.code
+              }
+            >
+              {summary?.subscription.plan.code === plan.code
+                ? `${plan.name} (Current)`
+                : `${plan.name} ${
+                    plan.monthlyPriceCents !== null
+                      ? `- ${formatCurrency(plan.monthlyPriceCents)}/mo`
+                      : ""
+                  }`}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <p className="font-medium text-slate-900 dark:text-slate-100">
+          Buy communication credits
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Top up your wallet for pay-as-you-go messaging.
+        </p>
+        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+          <Field label="Credit package" htmlFor="credit-package">
+            <Select
+              id="credit-package"
+              value={selectedPackageId}
+              onChange={(event) => setSelectedPackageId(event.target.value)}
+              options={creditPackages.map((pkg) => ({
+                value: pkg.id,
+                label: `${pkg.name} - ${formatCurrency(pkg.priceCents)}`,
+              }))}
+            />
+          </Field>
+          <Button
+            type="button"
+            onClick={handleBuyCredits}
+            disabled={busyAction !== null || !selectedPackage}
+          >
+            {busyAction === "credits"
+              ? "Redirecting..."
+              : `Buy ${
+                  selectedPackage
+                    ? formatCurrency(selectedPackage.priceCents)
+                    : "credits"
+                }`}
+          </Button>
+        </div>
       </div>
     </div>
   );
@@ -157,68 +499,63 @@ function ProfileSettings({
         </div>
       </div>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Display Name
-        </label>
-        <input
+      <Field label="Display Name" htmlFor="settings-display-name">
+        <Input
+          id="settings-display-name"
           type="text"
           value={displayName}
           onChange={(e) => setDisplayName(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Bio
-        </label>
-        <textarea
+      <Field label="Bio" htmlFor="settings-bio">
+        <Textarea
+          id="settings-bio"
           value={bio}
           onChange={(e) => setBio(e.target.value)}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
+          rows={4}
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Email{" "}
-          {profile.emailVerified && (
-            <span className="text-xs text-emerald-600">(Verified)</span>
-          )}
-        </label>
-        <input
+      <Field
+        label={`Email ${profile.emailVerified ? "(Verified)" : ""}`}
+        htmlFor="settings-email"
+      >
+        <Input
+          id="settings-email"
           type="email"
           value={profile.email || ""}
           placeholder="you@example.com"
           disabled
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-80 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
         />
-      </div>
+      </Field>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Phone {profile.phoneVerified && "(Verified)"}
-        </label>
-        <input
+      <Field
+        label={`Phone ${profile.phoneVerified ? "(Verified)" : ""}`}
+        htmlFor="settings-phone"
+      >
+        <Input
+          id="settings-phone"
           type="tel"
           value={profile.phone || ""}
           placeholder="+1 (555) 123-4567"
           disabled
           readOnly
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:text-slate-300 disabled:opacity-80 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
         />
-      </div>
+      </Field>
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="button"
           onClick={handleSave}
           disabled={isSaving || !displayName.trim()}
-          className="rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {isSaving ? "Saving..." : "Save Profile"}
-        </button>
+        </Button>
         {saved && (
           <p className="text-xs font-medium text-emerald-600">Saved ✓</p>
         )}
@@ -277,58 +614,53 @@ function ChangePasswordSettings() {
 
   return (
     <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          Current Password
-        </label>
-        <input
+      <Field label="Current Password" htmlFor="settings-current-password">
+        <Input
+          id="settings-current-password"
           type="password"
           value={oldPassword}
           onChange={(e) => setOldPassword(e.target.value)}
           autoComplete="current-password"
           disabled={isSaving}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
         />
         {oldPasswordErrors.map((message) => (
           <p key={message} className="mt-1 text-xs text-rose-600">
             {message}
           </p>
         ))}
-      </div>
+      </Field>
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
-          New Password
-        </label>
-        <input
+      <Field label="New Password" htmlFor="settings-new-password">
+        <Input
+          id="settings-new-password"
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
           autoComplete="new-password"
           disabled={isSaving}
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-sky-400 disabled:cursor-not-allowed disabled:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+          className="rounded-lg px-3 py-2"
         />
         {newPasswordErrors.map((message) => (
           <p key={message} className="mt-1 text-xs text-rose-600">
             {message}
           </p>
         ))}
-      </div>
+      </Field>
 
       {generalError && (
-        <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-400">
+        <Alert variant="error" className="text-xs">
           {generalError}
-        </p>
+        </Alert>
       )}
 
       <div className="flex items-center gap-3">
-        <button
+        <Button
           type="submit"
           disabled={isSaving || !oldPassword || !newPassword}
-          className="rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
         >
           {isSaving ? "Saving..." : "Change Password"}
-        </button>
+        </Button>
         {saved && (
           <p className="text-xs font-medium text-emerald-600">
             Password changed ✓
@@ -373,28 +705,17 @@ function AppearanceSettings() {
       <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
         Theme
       </p>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        {options.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => setTheme(option.id)}
-            className={`rounded-xl border p-4 text-left transition ${
-              theme === option.id
-                ? "border-sky-500 bg-sky-50 dark:border-sky-400 dark:bg-sky-950/40"
-                : "border-slate-200 bg-white hover:border-sky-300 dark:border-slate-700 dark:bg-slate-900"
-            }`}
-          >
-            <div className="text-xl">{option.icon}</div>
-            <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-              {option.label}
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              {option.description}
-            </p>
-          </button>
-        ))}
-      </div>
+      <RadioGroup
+        name="theme-preference"
+        value={theme}
+        onChange={setTheme}
+        orientation="horizontal"
+        options={options.map((option) => ({
+          value: option.id,
+          label: `${option.icon} ${option.label}`,
+          description: option.description,
+        }))}
+      />
     </div>
   );
 }
@@ -464,13 +785,15 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Sign out of Loopdn on this device.
         </p>
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={onLogout}
-          className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="mt-3"
         >
           Log Out
-        </button>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
@@ -481,13 +804,15 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
           Request a copy of your account data. This will be available once the
           backend is connected.
         </p>
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           disabled
-          className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-400 dark:border-slate-700"
+          className="mt-3"
         >
           Request Export (coming soon)
-        </button>
+        </Button>
       </div>
 
       <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
@@ -498,13 +823,15 @@ function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
           Permanently delete your account and all associated data. This action
           cannot be undone.
         </p>
-        <button
+        <Button
           type="button"
+          variant="danger"
+          size="sm"
           disabled
-          className="mt-3 rounded-lg border border-rose-300 px-3 py-1.5 text-xs font-semibold text-rose-400"
+          className="mt-3"
         >
           Delete Account (coming soon)
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -522,28 +849,13 @@ function ToggleRow({
   onChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:border-sky-700 dark:hover:bg-sky-950/30">
-      <div>
-        <p className="font-medium text-slate-900 dark:text-slate-100">
-          {label}
-        </p>
-        <p className="text-xs text-slate-600 dark:text-slate-400">
-          {description}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-          checked ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
+    <Checkbox
+      checked={checked}
+      onChange={(event) => onChange(event.target.checked)}
+      label={label}
+      description={description}
+      containerClassName="items-start justify-between"
+      className="mt-1"
+    />
   );
 }

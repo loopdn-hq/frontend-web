@@ -41,6 +41,7 @@ import {
   type ConversationParticipant,
   type GroupSettings,
 } from "@/lib/chat/conversations";
+import { fetchBillingSummary, type BillingSummary } from "@/lib/billing";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
@@ -290,6 +291,7 @@ type HomeShellProps = {
 };
 
 export function HomeShell({ mode }: HomeShellProps) {
+  const currentUsername = getSession();
   // The conversation list lives in the (app) layout's provider so it survives
   // navigating to another destination and back.
   const {
@@ -405,6 +407,13 @@ export function HomeShell({ mode }: HomeShellProps) {
     new Set(),
   );
   const [isVerifyPhoneOpen, setIsVerifyPhoneOpen] = useState(false);
+  const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(
+    null,
+  );
+  const [billingError, setBillingError] = useState<string | null>(null);
+  const [billingLimitError, setBillingLimitError] = useState<string | null>(
+    null,
+  );
 
   // The provider fetches the list; select the first Loop of this mode once it
   // arrives. Keyed on the filtered list so /broadcast/ never opens a chat Loop.
@@ -426,11 +435,94 @@ export function HomeShell({ mode }: HomeShellProps) {
     // setIsVerifyPhoneOpen(true);
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchBillingSummary().then((summaryResult) => {
+      if (cancelled) return;
+      if (!summaryResult.ok) {
+        setBillingError(summaryResult.message);
+        return;
+      }
+
+      setBillingSummary(summaryResult.data);
+      setBillingError(null);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const activePlan = billingSummary?.subscription.plan ?? null;
+
+  const ownedGroupCount = useMemo(
+    () =>
+      conversations.filter(
+        (conversation) =>
+          conversation.kind === "group" &&
+          ((currentUsername &&
+            conversation.createdByUsername === currentUsername) ||
+            (!conversation.createdByUsername && conversation.isAdmin)),
+      ).length,
+    [conversations, currentUsername],
+  );
+
+  const maxGroups = activePlan?.maxGroups ?? null;
+  const maxMembersPerGroup = activePlan?.maxMembersPerGroup ?? null;
+  const selectedConversationForLimits = selectedConversationId
+    ? conversations.find(
+        (conversation) => conversation.id === selectedConversationId,
+      )
+    : null;
+
+  const isCreateLoopBlocked =
+    typeof maxGroups === "number" && ownedGroupCount >= maxGroups;
+
+  const isAddMembersBlocked =
+    !!selectedConversationForLimits &&
+    typeof maxMembersPerGroup === "number" &&
+    selectedConversationForLimits.participants.length >= maxMembersPerGroup;
+
+  const handleOpenCreateLoop = useCallback(() => {
+    if (isCreateLoopBlocked) {
+      setBillingLimitError(
+        `You have reached your ${activePlan?.name ?? "current"} plan limit of ${maxGroups} groups. Upgrade your plan to create more groups.`,
+      );
+      return;
+    }
+    setBillingLimitError(null);
+    requirePhoneVerified(() => setIsCreateLoopOpen(true));
+  }, [isCreateLoopBlocked, activePlan?.name, maxGroups, requirePhoneVerified]);
+
+  const handleOpenAddMembers = useCallback(() => {
+    if (!selectedConversationForLimits) return;
+    if (isAddMembersBlocked) {
+      setBillingLimitError(
+        `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to add more members.`,
+      );
+      return;
+    }
+    setBillingLimitError(null);
+    setIsAddMembersOpen(true);
+  }, [
+    selectedConversationForLimits,
+    isAddMembersBlocked,
+    activePlan?.name,
+    maxMembersPerGroup,
+  ]);
+
   // "Create group" in the nav rail routes here and bumps this counter.
   useEffect(() => {
     if (createLoopRequest === 0) return;
-    requirePhoneVerified(() => setIsCreateLoopOpen(true));
-  }, [createLoopRequest, requirePhoneVerified]);
+    const timer = window.setTimeout(() => {
+      handleOpenCreateLoop();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [createLoopRequest, handleOpenCreateLoop]);
 
   // Store messages per loop
   const [loopMessages, setLoopMessages] = useState<
@@ -485,8 +577,6 @@ export function HomeShell({ mode }: HomeShellProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const currentUsername = getSession();
-
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
@@ -1519,11 +1609,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             />
 
             <div className="min-w-0 flex-1">
-              <p
-                className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
-              >
-                {conversation?.name}
-              </p>
+              <div className="flex items-center gap-2">
+                <p
+                  className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
+                >
+                  {conversation?.name}
+                </p>
+                {conversation.kind === "group" && conversation.isAdmin && (
+                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+                    Admin
+                  </span>
+                )}
+              </div>
               <p
                 className={`mt-0.5 truncate text-xs ${
                   isOpen
@@ -1928,9 +2025,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 <button
                   type="button"
                   title="Create Loop"
-                  onClick={() =>
-                    requirePhoneVerified(() => setIsCreateLoopOpen(true))
-                  }
+                  onClick={handleOpenCreateLoop}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
                   <Plus className="h-5 w-5" />
@@ -1952,7 +2047,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                         type="button"
                         onClick={() => {
                           setIsLoopMenuOpen(false);
-                          requirePhoneVerified(() => setIsCreateLoopOpen(true));
+                          handleOpenCreateLoop();
                         }}
                         className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
                       >
@@ -2002,6 +2097,25 @@ export function HomeShell({ mode }: HomeShellProps) {
             className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
           >
             <div className="space-y-5">
+              {billingError && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
+                  Billing info unavailable right now: {billingError}
+                </p>
+              )}
+              {billingLimitError && (
+                <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                  {billingLimitError}
+                </p>
+              )}
+              {activePlan && (
+                <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                  Plan: {activePlan.name} · Groups {ownedGroupCount}
+                  {typeof maxGroups === "number" ? `/${maxGroups}` : ""}
+                  {typeof maxMembersPerGroup === "number"
+                    ? ` · Members per group up to ${maxMembersPerGroup}`
+                    : ""}
+                </p>
+              )}
               {isSelectChatsMode && (
                 <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
                   Selected chats: {selectedChatIds.size}
@@ -2192,10 +2306,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                     {canAddMembers && (
                       <button
                         type="button"
-                        onClick={() => setIsAddMembersOpen(true)}
+                        onClick={handleOpenAddMembers}
                         title="Add members"
                         aria-label="Add members"
-                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                        disabled={isAddMembersBlocked}
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                       >
                         <svg
                           className="h-5 w-5"

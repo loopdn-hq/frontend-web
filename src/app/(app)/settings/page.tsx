@@ -11,7 +11,7 @@ export default function SettingsPage() {
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-5xl">
         <NavDrawerButton className="mt-4 ml-4 bg-slate-900 text-white" />
         <UserSettingsPanel
           profile={userProfile}
