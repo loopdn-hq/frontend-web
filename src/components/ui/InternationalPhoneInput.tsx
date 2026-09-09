@@ -1,6 +1,7 @@
 "use client";
 
 import PhoneInput, { type Country } from "react-phone-number-input";
+import { cn } from "@/lib/ui/cn";
 
 type InternationalPhoneInputProps = {
   value: string;
@@ -13,6 +14,7 @@ type InternationalPhoneInputProps = {
   autoFocus?: boolean;
   autoComplete?: string;
   defaultCountry?: Country;
+  className?: string;
 };
 
 export function InternationalPhoneInput({
@@ -26,6 +28,7 @@ export function InternationalPhoneInput({
   autoFocus,
   autoComplete,
   defaultCountry = "US",
+  className,
 }: InternationalPhoneInputProps) {
   return (
     <PhoneInput
@@ -35,7 +38,10 @@ export function InternationalPhoneInput({
       smartCaret={false}
       value={value || undefined}
       onChange={(nextValue) => onChange(nextValue ?? "")}
-      className="intl-phone w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-800 transition focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100"
+      className={cn(
+        "intl-phone w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-800 transition focus-within:border-sky-500 focus-within:ring-4 focus-within:ring-sky-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100",
+        className,
+      )}
       numberInputProps={{
         id,
         name,

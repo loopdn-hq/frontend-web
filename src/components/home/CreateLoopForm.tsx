@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
+import { Alert, Button, Field, Input, Textarea } from "@/components/ui";
 import {
   MembersField,
   commitPendingMember,
@@ -175,39 +176,31 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
       {/* Loop Name */}
-      <div>
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Loop Name *
-          </span>
-          <input
-            type="text"
-            placeholder="e.g., Family HQ, Neighborhood Watch"
-            {...register("name")}
-            disabled={isSubmitting}
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 dark:text-slate-200 dark:bg-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-          />
-        </label>
-        {errors.name && (
-          <p className="mt-1 text-xs text-rose-600">{errors.name.message}</p>
-        )}
-      </div>
+      <Field
+        label="Loop Name *"
+        htmlFor="loop-name"
+        error={errors.name?.message}
+      >
+        <Input
+          id="loop-name"
+          type="text"
+          placeholder="e.g., Family HQ, Neighborhood Watch"
+          {...register("name")}
+          disabled={isSubmitting}
+          state={errors.name ? "error" : "default"}
+        />
+      </Field>
 
       {/* Description */}
-      <div>
-        <label className="block">
-          <span className="mb-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
-            Description
-          </span>
-          <textarea
-            placeholder="What is this Loop about? (optional)"
-            {...register("description")}
-            disabled={isSubmitting}
-            rows={3}
-            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 dark:text-slate-200 dark:bg-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-          />
-        </label>
-      </div>
+      <Field label="Description" htmlFor="loop-description">
+        <Textarea
+          id="loop-description"
+          placeholder="What is this Loop about? (optional)"
+          {...register("description")}
+          disabled={isSubmitting}
+          rows={3}
+        />
+      </Field>
 
       {/* Members */}
       <MembersField
@@ -395,28 +388,25 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
 
       {/* Error Message */}
       {errors.root?.server && (
-        <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <Alert variant="error" className="px-4 py-3">
           {errors.root.server.message}
-        </div>
+        </Alert>
       )}
 
       {/* Actions */}
       <div className="flex gap-3 border-t border-slate-200 pt-6">
-        <button
+        <Button
           type="button"
           onClick={onClose}
           disabled={isSubmitting}
-          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          variant="secondary"
+          fullWidth
         >
           Cancel
-        </button>
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex-1 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-        >
+        </Button>
+        <Button type="submit" disabled={isSubmitting} fullWidth>
           {isSubmitting ? <LoadingSpinner /> : "Create Loop"}
-        </button>
+        </Button>
       </div>
     </form>
   );

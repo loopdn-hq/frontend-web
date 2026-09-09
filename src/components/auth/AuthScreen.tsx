@@ -25,9 +25,15 @@ import {
   type LoginPayload,
   type SignupPayload,
 } from "@/lib/validation/auth";
+import {
+  Alert,
+  Button,
+  Field,
+  Input,
+  InternationalPhoneInput,
+} from "@/components/ui";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
-import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
 
 export type AuthMode = "login" | "signup";
 
@@ -323,36 +329,35 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             >
               {authMode === "login" ? (
                 <>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Username or Email
-                    </span>
-                    <input
+                  <Field
+                    label="Username or Email"
+                    htmlFor="login-username"
+                    error={loginErrors.username?.message}
+                  >
+                    <Input
+                      id="login-username"
                       type="text"
                       placeholder="sam.loopdn"
                       {...registerLogin("username")}
                       disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      state={loginErrors.username ? "error" : "default"}
                     />
-                  </label>
+                  </Field>
 
-                  {loginErrors.username && (
-                    <p className="text-xs text-rose-600">
-                      {loginErrors.username.message}
-                    </p>
-                  )}
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Password
-                    </span>
+                  <Field
+                    label="Password"
+                    htmlFor="login-password"
+                    error={loginErrors.password?.message}
+                  >
                     <div className="relative">
-                      <input
+                      <Input
+                        id="login-password"
                         type={showLoginPassword ? "text" : "password"}
                         placeholder="Enter your password"
                         {...registerLogin("password")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="pr-11"
+                        state={loginErrors.password ? "error" : "default"}
                       />
                       <button
                         type="button"
@@ -370,58 +375,47 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </label>
-
-                  {loginErrors.password && (
-                    <p className="text-xs text-rose-600">
-                      {loginErrors.password.message}
-                    </p>
-                  )}
+                  </Field>
                 </>
               ) : (
                 <>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Username
-                    </span>
-                    <input
+                  <Field
+                    label="Username"
+                    htmlFor="signup-username"
+                    error={signupErrors.username?.message}
+                  >
+                    <Input
+                      id="signup-username"
                       type="text"
                       placeholder="sam.loopdn"
                       {...registerSignup("username")}
                       disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      state={signupErrors.username ? "error" : "default"}
                     />
-                  </label>
+                  </Field>
 
-                  {signupErrors.username && (
-                    <p className="text-xs text-rose-600">
-                      {signupErrors.username.message}
-                    </p>
-                  )}
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Email Address
-                    </span>
-                    <input
+                  <Field
+                    label="Email Address"
+                    htmlFor="signup-email"
+                    error={signupErrors.email?.message}
+                  >
+                    <Input
+                      id="signup-email"
                       type="email"
                       placeholder="you@example.com"
                       {...registerSignup("email")}
                       disabled={isSubmitting}
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      state={signupErrors.email ? "error" : "default"}
                     />
-                  </label>
+                  </Field>
 
-                  {signupErrors.email && (
-                    <p className="text-xs text-rose-600">
-                      {signupErrors.email.message}
-                    </p>
-                  )}
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Phone Number
-                    </span>
+                  <Field
+                    label="Phone Number"
+                    error={signupErrors.phoneNumber?.message}
+                    hint={
+                      "By providing your number, you agree to receive SMS messages from Loopd'n. Msg & data rates may apply. Msg frequency may vary. Reply HELP for help and STOP to opt out."
+                    }
+                  >
                     <Controller
                       control={control}
                       name="phoneNumber"
@@ -438,69 +432,54 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         />
                       )}
                     />
-                    <span className="my-1 block text-xs font-normal text-slate-500">
-                      By providing your number, you agree to receive SMS
-                      messages from Loopd&apos;n. Msg & data rates may apply.
-                      Msg frequency may vary. Reply HELP for help and STOP to
-                      opt out.
-                    </span>
-                  </label>
-
-                  {signupErrors.phoneNumber && (
-                    <p className="text-xs text-rose-600">
-                      {signupErrors.phoneNumber.message}
-                    </p>
-                  )}
+                  </Field>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">
-                        First Name
-                      </span>
-                      <input
+                    <Field
+                      label="First Name"
+                      htmlFor="signup-first-name"
+                      error={signupErrors.firstName?.message}
+                    >
+                      <Input
+                        id="signup-first-name"
                         type="text"
                         placeholder="Sam"
                         {...registerSignup("firstName")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        state={signupErrors.firstName ? "error" : "default"}
                       />
-                      {signupErrors.firstName && (
-                        <p className="mt-1 text-xs text-rose-600">
-                          {signupErrors.firstName.message}
-                        </p>
-                      )}
-                    </label>
+                    </Field>
 
-                    <label className="block">
-                      <span className="mb-1 block text-sm font-medium text-slate-700">
-                        Last Name
-                      </span>
-                      <input
+                    <Field
+                      label="Last Name"
+                      htmlFor="signup-last-name"
+                      error={signupErrors.lastName?.message}
+                    >
+                      <Input
+                        id="signup-last-name"
                         type="text"
                         placeholder="Taylor"
                         {...registerSignup("lastName")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        state={signupErrors.lastName ? "error" : "default"}
                       />
-                      {signupErrors.lastName && (
-                        <p className="mt-1 text-xs text-rose-600">
-                          {signupErrors.lastName.message}
-                        </p>
-                      )}
-                    </label>
+                    </Field>
                   </div>
 
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Password
-                    </span>
+                  <Field
+                    label="Password"
+                    htmlFor="signup-password"
+                    error={signupErrors.password?.message}
+                  >
                     <div className="relative">
-                      <input
+                      <Input
+                        id="signup-password"
                         type={showSignupPassword ? "text" : "password"}
                         placeholder="Create a password"
                         {...registerSignup("password")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="pr-11"
+                        state={signupErrors.password ? "error" : "default"}
                       />
                       <button
                         type="button"
@@ -518,25 +497,24 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </label>
+                  </Field>
 
-                  {signupErrors.password && (
-                    <p className="text-xs text-rose-600">
-                      {signupErrors.password.message}
-                    </p>
-                  )}
-
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-medium text-slate-700">
-                      Confirm Password
-                    </span>
+                  <Field
+                    label="Confirm Password"
+                    htmlFor="signup-confirm-password"
+                    error={signupErrors.confirmPassword?.message}
+                  >
                     <div className="relative">
-                      <input
+                      <Input
+                        id="signup-confirm-password"
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Re-enter your password"
                         {...registerSignup("confirmPassword")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="pr-11"
+                        state={
+                          signupErrors.confirmPassword ? "error" : "default"
+                        }
                       />
                       <button
                         type="button"
@@ -558,34 +536,24 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </label>
+                  </Field>
 
-                  {signupErrors.confirmPassword && (
-                    <p className="text-xs text-rose-600">
-                      {signupErrors.confirmPassword.message}
-                    </p>
-                  )}
-
-                  <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                  <Alert variant="success" className="text-xs">
                     We&apos;ll email you a verification code next, then text one
                     to your phone.
-                  </p>
+                  </Alert>
                 </>
               )}
 
               {generalError && (
-                <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <Alert variant="error" className="text-xs">
                   {generalError}
-                </p>
+                </Alert>
               )}
 
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
-              >
+              <Button type="submit" disabled={isSubmitting} fullWidth>
                 {isSubmitting ? <LoadingSpinner /> : ctaText}
-              </button>
+              </Button>
 
               {isSubmitting && <ProgressBar />}
             </form>
