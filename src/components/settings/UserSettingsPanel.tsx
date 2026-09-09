@@ -468,25 +468,6 @@ function BillingSettings() {
           </Button>
         </div>
       </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">
-          Manage billing
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Open Stripe portal to manage cards, invoices, and subscription.
-        </p>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="mt-3"
-          onClick={handleOpenPortal}
-          disabled={busyAction !== null}
-        >
-          {busyAction === "portal" ? "Opening..." : "Open billing portal"}
-        </Button>
-      </div>
     </div>
   );
 }
