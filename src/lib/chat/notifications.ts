@@ -42,6 +42,9 @@ export type AppNotification = {
   // Computed live by the server, not recorded with the event: the row is
   // about the past, the action has to be about now.
   viewerStatus: ViewerStatus;
+  // For a join request: where THAT request stands now, so the panel can stop
+  // offering to answer one somebody has already answered.
+  requestStatus: ViewerStatus;
   data: Record<string, unknown> | null;
   readAt: string | null;
   createdAt: string;
@@ -50,6 +53,16 @@ export type AppNotification = {
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
+    : null;
+}
+
+function asStatus(value: unknown): ViewerStatus {
+  return value === "active" ||
+    value === "pending" ||
+    value === "left" ||
+    value === "removed" ||
+    value === "blocked"
+    ? value
     : null;
 }
 
@@ -88,14 +101,8 @@ function normalize(item: unknown): AppNotification | null {
       row.conversation_join_mode === "invite"
         ? row.conversation_join_mode
         : null,
-    viewerStatus:
-      row.viewer_status === "active" ||
-      row.viewer_status === "pending" ||
-      row.viewer_status === "left" ||
-      row.viewer_status === "removed" ||
-      row.viewer_status === "blocked"
-        ? row.viewer_status
-        : null,
+    viewerStatus: asStatus(row.viewer_status),
+    requestStatus: asStatus(row.request_status),
     data,
     readAt: typeof row.read_at === "string" ? row.read_at : null,
     createdAt: typeof row.created_at === "string" ? row.created_at : "",
