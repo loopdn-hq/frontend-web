@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function BillingCancelPage() {
-  const [flow, setFlow] = useState("");
-  const [plan, setPlan] = useState("");
-  const [packageId, setPackageId] = useState("");
+  return (
+    <Suspense fallback={<BillingCancelShell />}>
+      <BillingCancelContent />
+    </Suspense>
+  );
+}
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setFlow(params.get("flow") ?? "");
-    setPlan(params.get("plan") ?? "");
-    setPackageId(params.get("package") ?? "");
-  }, []);
+function BillingCancelContent() {
+  const searchParams = useSearchParams();
+  const flow = searchParams.get("flow") ?? "";
+  const plan = searchParams.get("plan") ?? "";
+  const packageId = searchParams.get("package") ?? "";
 
   const detailMessage =
     flow === "plan" && plan
@@ -22,6 +25,14 @@ export default function BillingCancelPage() {
         ? `Selected credit package was ${packageId}.`
         : "";
 
+  return <BillingCancelShell detailMessage={detailMessage} />;
+}
+
+function BillingCancelShell({
+  detailMessage = "",
+}: {
+  detailMessage?: string;
+}) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_25%_20%,#ffe8de_0%,#fff4ef_40%,#fffaf8_100%)] px-6 py-12 sm:px-8">
       <div className="mx-auto max-w-2xl rounded-3xl border border-amber-200 bg-white p-8 text-slate-900 shadow-sm">

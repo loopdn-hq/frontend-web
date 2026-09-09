@@ -1,19 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 export default function BillingSuccessPage() {
-  const [flow, setFlow] = useState("");
-  const [plan, setPlan] = useState("");
-  const [packageId, setPackageId] = useState("");
+  return (
+    <Suspense fallback={<BillingSuccessShell />}>
+      <BillingSuccessContent />
+    </Suspense>
+  );
+}
 
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    setFlow(params.get("flow") ?? "");
-    setPlan(params.get("plan") ?? "");
-    setPackageId(params.get("package") ?? "");
-  }, []);
+function BillingSuccessContent() {
+  const searchParams = useSearchParams();
+  const flow = searchParams.get("flow") ?? "";
+  const plan = searchParams.get("plan") ?? "";
+  const packageId = searchParams.get("package") ?? "";
 
   const detailMessage =
     flow === "plan" && plan
@@ -22,6 +25,14 @@ export default function BillingSuccessPage() {
         ? `Credit package: ${packageId}.`
         : "";
 
+  return <BillingSuccessShell detailMessage={detailMessage} />;
+}
+
+function BillingSuccessShell({
+  detailMessage = "",
+}: {
+  detailMessage?: string;
+}) {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_25%_20%,#d9f4ff_0%,#eef8ff_40%,#f8fcff_100%)] px-6 py-12 sm:px-8">
       <div className="mx-auto max-w-2xl rounded-3xl border border-emerald-200 bg-white p-8 text-slate-900 shadow-sm">
