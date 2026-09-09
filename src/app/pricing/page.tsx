@@ -84,11 +84,11 @@ const plans: Plan[] = [
 
 export default function PricingPage() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] px-6 py-10 text-slate-900 sm:px-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] px-6 py-10 text-slate-900 dark:bg-[radial-gradient(circle_at_20%_15%,#0f172a_0%,#0b1220_45%,#060b17_100%)] dark:text-slate-100 sm:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold tracking-[0.2em] text-sky-700 uppercase">
+            <p className="text-xs font-semibold tracking-[0.2em] text-sky-700 uppercase dark:text-sky-300">
               Pricing
             </p>
             <h1
@@ -99,7 +99,7 @@ export default function PricingPage() {
             </h1>
             <p
               id="pricing-subtitle"
-              className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-base"
+              className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-700 dark:text-slate-300 sm:text-base"
             >
               Choose a plan based on how many groups you run and how large your
               communities are. Limits are enforced to keep plans predictable,
@@ -109,13 +109,13 @@ export default function PricingPage() {
           <nav aria-label="Pricing actions" className="flex gap-2">
             <Link
               href="/contact/"
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
             >
               Contact Sales
             </Link>
             <Link
               href="/signup/"
-              className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+              className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
             >
               Start Free
             </Link>
@@ -133,40 +133,44 @@ export default function PricingPage() {
               aria-label={`${plan.name} plan`}
               className={`rounded-3xl border p-5 shadow-sm backdrop-blur-sm ${
                 plan.highlighted
-                  ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)]"
-                  : "border-slate-200 bg-white/90"
+                  ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)] dark:border-sky-700 dark:bg-slate-900 dark:shadow-[0_12px_32px_rgba(2,132,199,0.28)]"
+                  : "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90"
               }`}
             >
               {plan.highlighted && (
                 <p
                   aria-label="Most popular plan"
-                  className="mb-3 inline-flex rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase"
+                  className="mb-3 inline-flex rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 dark:text-sky-300"
                 >
                   Most Popular
                 </p>
               )}
 
               <h2 className="text-2xl font-extrabold">{plan.name}</h2>
-              <p className="mt-1 text-3xl font-black tracking-tight text-slate-900">
+              <p className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
                 {plan.price}
               </p>
-              <p className="mt-3 text-sm text-slate-600">{plan.summary}</p>
+              <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                {plan.summary}
+              </p>
 
-              <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
+              <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-700 dark:bg-slate-800/80">
                 {plan.limits.map((limit) => (
                   <div
                     key={limit.label}
                     className="flex items-center justify-between gap-3"
                   >
-                    <dt className="text-slate-600">{limit.label}</dt>
-                    <dd className="font-semibold text-slate-900">{limit.value}</dd>
+                    <dt className="text-slate-600 dark:text-slate-300">{limit.label}</dt>
+                    <dd className="font-semibold text-slate-900 dark:text-slate-100">
+                      {limit.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
 
               <ul
                 aria-label={`${plan.name} features`}
-                className="mt-4 space-y-2 text-sm text-slate-800"
+                className="mt-4 space-y-2 text-sm text-slate-800 dark:text-slate-200"
               >
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex gap-2">
@@ -183,14 +187,14 @@ export default function PricingPage() {
                 {plan.code === "enterprise" ? (
                   <Link
                     href="/contact/"
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                   >
                     Contact Sales
                   </Link>
                 ) : (
                   <Link
                     href="/signup/"
-                    className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                    className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                   >
                     Choose {plan.name}
                   </Link>
@@ -202,7 +206,7 @@ export default function PricingPage() {
 
         <section
           aria-labelledby="enterprise-section-title"
-          className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+          className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8"
         >
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-center">
             <div>
@@ -212,7 +216,7 @@ export default function PricingPage() {
               >
                 Enterprise Needs A Custom Buildout
               </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700 sm:text-base">
+              <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300 sm:text-base">
                 Enterprise includes custom group and member limits, onboarding,
                 support SLAs, and contract terms. Tell us your community size,
                 compliance requirements, and rollout timeline.
@@ -221,13 +225,13 @@ export default function PricingPage() {
             <div className="flex flex-col gap-2">
               <Link
                 href="/contact/"
-                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
               >
                 Request Enterprise Quote
               </Link>
               <Link
                 href="/login/"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
               >
                 I already have an account
               </Link>
