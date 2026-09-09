@@ -5,7 +5,6 @@ import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
 import { changePasswordSchema } from "@/lib/validation/auth";
 import {
-  createBillingPortalLink,
   createCreditCheckoutSession,
   createPlanCheckoutSession,
   fetchBillingPlans,
@@ -252,22 +251,6 @@ function BillingSettings() {
         return;
       }
       await redirectTo(result.data.checkoutUrl);
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function handleOpenPortal() {
-    setBusyAction("portal");
-    setError("");
-    try {
-      const returnUrl = `${window.location.origin}/settings/`;
-      const result = await createBillingPortalLink(returnUrl);
-      if (!result.ok) {
-        setError(result.message);
-        return;
-      }
-      await redirectTo(result.data.portalUrl);
     } finally {
       setBusyAction(null);
     }

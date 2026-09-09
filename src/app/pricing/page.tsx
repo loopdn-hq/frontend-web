@@ -84,42 +84,53 @@ const plans: Plan[] = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] px-6 py-10 text-slate-900 sm:px-8">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] px-6 py-10 text-slate-900 sm:px-8">
       <div className="mx-auto max-w-7xl">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-xs font-semibold tracking-[0.2em] text-sky-700 uppercase">
               Pricing
             </p>
-            <h1 className="mt-2 text-4xl font-black tracking-tight sm:text-5xl">
+            <h1
+              id="pricing-title"
+              className="mt-2 text-4xl font-black tracking-tight sm:text-5xl"
+            >
               Plans Built For Every Loop
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
+            <p
+              id="pricing-subtitle"
+              className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-700 sm:text-base"
+            >
               Choose a plan based on how many groups you run and how large your
               communities are. Limits are enforced to keep plans predictable,
               and you can upgrade anytime.
             </p>
           </div>
-          <div className="flex gap-2">
+          <nav aria-label="Pricing actions" className="flex gap-2">
             <Link
               href="/contact/"
-              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
             >
               Contact Sales
             </Link>
             <Link
               href="/signup/"
-              className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110"
+              className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
             >
               Start Free
             </Link>
-          </div>
+          </nav>
         </header>
 
-        <section className="grid gap-5 lg:grid-cols-4">
+        <section
+          aria-labelledby="pricing-title"
+          aria-describedby="pricing-subtitle"
+          className="grid gap-5 lg:grid-cols-4"
+        >
           {plans.map((plan) => (
             <article
               key={plan.code}
+              aria-label={`${plan.name} plan`}
               className={`rounded-3xl border p-5 shadow-sm backdrop-blur-sm ${
                 plan.highlighted
                   ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)]"
@@ -127,7 +138,10 @@ export default function PricingPage() {
               }`}
             >
               {plan.highlighted && (
-                <p className="mb-3 inline-flex rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase">
+                <p
+                  aria-label="Most popular plan"
+                  className="mb-3 inline-flex rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase"
+                >
                   Most Popular
                 </p>
               )}
@@ -138,24 +152,28 @@ export default function PricingPage() {
               </p>
               <p className="mt-3 text-sm text-slate-600">{plan.summary}</p>
 
-              <ul className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
+              <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
                 {plan.limits.map((limit) => (
-                  <li
+                  <div
                     key={limit.label}
                     className="flex items-center justify-between gap-3"
                   >
-                    <span className="text-slate-500">{limit.label}</span>
-                    <span className="font-semibold text-slate-800">
-                      {limit.value}
-                    </span>
-                  </li>
+                    <dt className="text-slate-600">{limit.label}</dt>
+                    <dd className="font-semibold text-slate-900">{limit.value}</dd>
+                  </div>
                 ))}
-              </ul>
+              </dl>
 
-              <ul className="mt-4 space-y-2 text-sm text-slate-700">
+              <ul
+                aria-label={`${plan.name} features`}
+                className="mt-4 space-y-2 text-sm text-slate-800"
+              >
                 {plan.features.map((feature) => (
                   <li key={feature} className="flex gap-2">
-                    <span className="mt-[2px] h-2 w-2 shrink-0 rounded-full bg-sky-500" />
+                    <span
+                      aria-hidden="true"
+                      className="mt-[2px] h-2 w-2 shrink-0 rounded-full bg-sky-500"
+                    />
                     <span>{feature}</span>
                   </li>
                 ))}
@@ -165,14 +183,14 @@ export default function PricingPage() {
                 {plan.code === "enterprise" ? (
                   <Link
                     href="/contact/"
-                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800"
+                    className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
                   >
                     Contact Sales
                   </Link>
                 ) : (
                   <Link
                     href="/signup/"
-                    className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+                    className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
                   >
                     Choose {plan.name}
                   </Link>
@@ -182,13 +200,19 @@ export default function PricingPage() {
           ))}
         </section>
 
-        <section className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <section
+          aria-labelledby="enterprise-section-title"
+          className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+        >
           <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-center">
             <div>
-              <h3 className="text-2xl font-extrabold tracking-tight">
+              <h2
+                id="enterprise-section-title"
+                className="text-2xl font-extrabold tracking-tight"
+              >
                 Enterprise Needs A Custom Buildout
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base">
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-slate-700 sm:text-base">
                 Enterprise includes custom group and member limits, onboarding,
                 support SLAs, and contract terms. Tell us your community size,
                 compliance requirements, and rollout timeline.
@@ -197,13 +221,13 @@ export default function PricingPage() {
             <div className="flex flex-col gap-2">
               <Link
                 href="/contact/"
-                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110"
+                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
               >
                 Request Enterprise Quote
               </Link>
               <Link
                 href="/login/"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
               >
                 I already have an account
               </Link>
@@ -211,6 +235,6 @@ export default function PricingPage() {
           </div>
         </section>
       </div>
-    </div>
+    </main>
   );
 }
