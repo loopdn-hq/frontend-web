@@ -30,6 +30,18 @@ export default function RootPage() {
         </div>
 
         <nav className="flex items-center gap-3 sm:gap-4">
+          <Link
+            href="/pricing/"
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/contact/"
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+          >
+            Contact
+          </Link>
           {session ? (
             <>
               <span className="hidden text-xs text-slate-500 sm:inline">
@@ -39,7 +51,7 @@ export default function RootPage() {
                 </strong>
               </span>
               <Link
-                href="/home/"
+                href="/chats/"
                 className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(0,143,223,0.3)] transition hover:brightness-110"
               >
                 Go to Home
@@ -84,7 +96,7 @@ export default function RootPage() {
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             {session ? (
               <Link
-                href="/home/"
+                href="/chats/"
                 className="w-full rounded-2xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-8 py-4 text-center text-base font-bold text-white shadow-[0_12px_28px_rgba(0,143,223,0.35)] transition hover:brightness-110 sm:w-auto"
               >
                 Open Loopd&apos;n Home &rarr;
@@ -158,6 +170,18 @@ export default function RootPage() {
             &copy; {new Date().getFullYear()} Loopd&apos;n. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
+            <Link
+              href="/pricing/"
+              className="text-slate-600 underline hover:text-slate-900"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/contact/"
+              className="text-slate-600 underline hover:text-slate-900"
+            >
+              Contact Sales
+            </Link>
             <Link
               href="/terms/"
               className="text-slate-600 underline hover:text-slate-900"

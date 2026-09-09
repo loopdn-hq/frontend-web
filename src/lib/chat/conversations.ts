@@ -2,12 +2,34 @@ import {
   getAccessToken,
   getSession,
   handleUnauthorizedResponse,
+  refreshTokens,
 } from "@/lib/auth/client";
+import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 export type JoinMode = "open" | "code" | "approval" | "invite";
 export type ConversationMode = "chat" | "broadcast";
+
+/**
+ * Which mode a conversation is in, whichever shape the payload arrived in.
+ *
+ * The two endpoints disagree about where `mode` lives, so neither field alone
+ * is reliable:
+ *   - ConversationSerializer (list + detail) omits a top-level `mode` and
+ *     reports it only inside `settings`, so `conversation.mode` falls back to
+ *     its "chat" default for EVERY row, broadcast groups included.
+ *   - ConversationSearchSerializer (discovery) is the reverse: a top-level
+ *     `mode` and no `settings` at all.
+ *
+ * Prefer settings.mode and fall back to the top-level field.
+ */
+export function conversationMode(conversation: {
+  mode: ConversationMode;
+  settings: GroupSettings | null;
+}): ConversationMode {
+  return conversation.settings?.mode ?? conversation.mode;
+}
 export type GroupMemberPermission = "members" | "admins";
 
 export type GroupSettings = {
@@ -41,8 +63,13 @@ export type CreateConversationPayload = {
   settings: GroupSettings;
 };
 
+export type ConversationKind = "group" | "direct";
+
 export type Conversation = {
   id: string | number;
+  // Leaving and deleting are both refused on a one-to-one, so the client has
+  // to know which it is before offering either.
+  kind: ConversationKind;
   name: string;
   description: string;
   mode: ConversationMode;
@@ -50,14 +77,38 @@ export type Conversation = {
   logoImage: string | null;
   settings: GroupSettings | null;
   preview: string;
+  // When the newest message landed, for the timestamp on each row.
+  lastMessageAt: string | null;
   unread: number;
+  // Both are this member's own state, never an admin's. `muted` stops
+  // delivery on every channel, SMS included; `archived` stops nothing and
+  // only decides which list the conversation appears in.
+  muted: boolean;
+  archived: boolean;
+  // The member cleared their view and nothing has arrived since, so there is
+  // nothing to show. Goes false again on the next message, which is what
+  // brings the conversation back holding only what came after.
+  cleared: boolean;
   isAdmin: boolean;
+  createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
 };
 
 export type ConversationParticipant = {
   id: string;
+  avatarUrl?: string;
+  // How far this member has read. Null when they have read nothing, and
+  // permanently null for a phone-only member - SMS reports that a handset
+  // took a text, never that a person read it, so they cannot be counted in a
+  // receipt without inventing the fact.
+  lastReadMessageId?: number;
+  // The ACCOUNT's id, where there is an account. Distinct from `id`, which is
+  // the membership row. Realtime events identify people by account id - the
+  // `typing` frame carries a bare `user_id` - so without this there is no way
+  // to turn one into a name. Undefined for phone-only members, who have no
+  // account and cannot open a socket to type on.
+  userId?: string;
   name: string;
   username?: string;
   email?: string;
@@ -65,6 +116,7 @@ export type ConversationParticipant = {
   role: "admin" | "moderator" | "member";
   joinedAt: string;
   isBlocked?: boolean;
+  isOnline?: boolean;
   lastActive?: string;
 };
 
@@ -73,6 +125,9 @@ export type ConversationAttachment = {
   url: string;
   originalName: string;
   contentType?: string;
+  // The server files uploads as image or file; content_type is what actually
+  // distinguishes a GIF from a photo or a voice note from a document.
+  kind?: "image" | "file";
 };
 
 export type ConversationMessage = {
@@ -80,6 +135,7 @@ export type ConversationMessage = {
   conversationId: string | number;
   sender: string;
   senderUsername?: string;
+  senderAvatarUrl?: string;
   text: string;
   createdAt: string;
   attachments: ConversationAttachment[];
@@ -141,7 +197,11 @@ export function normalizeParticipant(
   item: unknown,
 ): ConversationParticipant | null {
   if (!isApiObject(item)) return null;
-  const user = isApiObject(item.user) ? item.user : item;
+  // Only a nested `user` key is an account. Where there is none the row is
+  // phone-only and `item` stands in for rendering - but its id is the
+  // MEMBERSHIP's, so it must not be read back out as a user id.
+  const nestedUser = isApiObject(item.user) ? item.user : null;
+  const user = nestedUser ?? item;
   // The membership row's own id, not the account's - every action endpoint
   // (remove/role/requests) looks a participant up by Participant.pk, and
   // that differs from the user's id as soon as an account has more than one
@@ -151,6 +211,11 @@ export function normalizeParticipant(
   if (typeof id !== "string" && typeof id !== "number") return null;
   const profile = isApiObject(user.profile) ? user.profile : user;
   const username = asText(user.username) || undefined;
+  const userId =
+    nestedUser &&
+    (typeof nestedUser.id === "string" || typeof nestedUser.id === "number")
+      ? String(nestedUser.id)
+      : undefined;
   const name = asText(
     user.display_label,
     asText(profile.display_label, username ?? "Member"),
@@ -160,6 +225,7 @@ export function normalizeParticipant(
 
   return {
     id: String(id),
+    userId,
     name,
     username,
     email: asText(user.email) || undefined,
@@ -167,6 +233,12 @@ export function normalizeParticipant(
     role,
     joinedAt: asText(item.joined_at, "Recently"),
     isBlocked: item.is_blocked === true,
+    avatarUrl: asText(profile.avatar_url) || undefined,
+    lastReadMessageId:
+      typeof item.last_read_message === "number"
+        ? item.last_read_message
+        : undefined,
+    isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
   };
 }
@@ -209,22 +281,6 @@ function senderLabelFrom(sender: unknown): string {
   );
 }
 
-/**
- * What a message reads as in the sidebar when it has no text of its own.
- * A photo-only message would otherwise render as a bare "yul:".
- */
-function previewBodyFor(message: ApiObject): string {
-  const text = asText(message.text);
-  if (text) return text;
-
-  const attachments = Array.isArray(message.attachments)
-    ? message.attachments
-    : [];
-  if (attachments.length > 1) return `${attachments.length} attachments`;
-  if (attachments.length === 1) return "Attachment";
-  return "";
-}
-
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
   if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
@@ -242,16 +298,34 @@ function normalizeConversation(item: ApiObject): Conversation | null {
       ? joinModeRaw
       : null;
   const lastMessage = isApiObject(item.last_message) ? item.last_message : null;
-  // "yul: hey" rather than "hey" - in a group the who matters as much as the
-  // what. Falls back to the description only when there is genuinely nothing
-  // to show, so an empty group still reads as itself rather than as a blank.
-  const lastBody = lastMessage ? previewBodyFor(lastMessage) : "";
-  const preview = lastBody
-    ? `${senderLabelFrom(lastMessage?.sender)}: ${lastBody}`
-    : asText(item.description, "New Loop");
+  const lastMessageNormalized = lastMessage
+    ? normalizeMessage(lastMessage)
+    : null;
+  // "yul: Photo" rather than "hey" - in a group the who matters as much as
+  // the what, and what was sent matters when it was not words. Composed here
+  // rather than read off the server's `preview` string, so the live socket
+  // path can run the same code. Two implementations is what let them drift
+  // apart once already.
+  //
+  // Falls back to the description only when there is genuinely nothing to
+  // show, so an empty group still reads as itself rather than as a blank.
+  const preview =
+    (lastMessageNormalized &&
+      composePreview(
+        lastMessageNormalized.sender,
+        describeMessageBody(
+          lastMessageNormalized.text,
+          lastMessageNormalized.attachments,
+        ),
+      )) ||
+    // asText's fallback only fires for a non-string, so an empty description
+    // came through as an empty line rather than as this.
+    asText(item.description) ||
+    "No messages yet";
 
   return {
     id,
+    kind: item.kind === "direct" ? "direct" : "group",
     name: asText(item.title, asText(item.name)),
     description: asText(item.description),
     mode,
@@ -261,13 +335,20 @@ function normalizeConversation(item: ApiObject): Conversation | null {
       ? normalizeGroupSettings(item.settings)
       : null,
     preview,
+    lastMessageAt: lastMessageNormalized?.createdAt || null,
     unread:
       typeof item.unread_count === "number"
         ? item.unread_count
         : typeof item.unread === "number"
           ? item.unread
           : 0,
+    muted: item.muted === true,
+    archived: item.archived === true,
+    cleared: item.cleared === true,
     isAdmin: isCurrentUserAdmin(item),
+    createdByUsername: isApiObject(item.created_by)
+      ? asText((item.created_by as ApiObject).username) || undefined
+      : undefined,
     participants: Array.isArray(item.participants)
       ? item.participants
           .map(normalizeParticipant)
@@ -291,6 +372,7 @@ function normalizeAttachment(item: ApiObject): ConversationAttachment | null {
     url,
     originalName: asText(item.original_name, "Attachment"),
     contentType: asText(item.content_type) || undefined,
+    kind: item.kind === "image" ? "image" : "file",
   };
 }
 
@@ -313,11 +395,21 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
       ? sender
       : undefined;
 
+  const senderProfile =
+    senderObject && isApiObject(senderObject.profile)
+      ? senderObject.profile
+      : null;
+
   return {
     id,
     conversationId,
     sender: senderName,
     senderUsername,
+    // Null for anybody who texted in without an account - the serializer keeps
+    // the key and empties it rather than dropping the whole sender object.
+    senderAvatarUrl: senderProfile
+      ? asText(senderProfile.avatar_url) || undefined
+      : undefined,
     text: asText(item.text),
     createdAt: asText(item.created_at),
     mine: item.mine === true,
@@ -358,22 +450,46 @@ function normalizeGroupSettings(item: ApiObject): GroupSettings {
   };
 }
 
-async function authorizedRequest(
+/**
+ * A request carrying the access token, refreshed once if it has expired.
+ *
+ * The access token lasts thirty minutes and the refresh token thirty days,
+ * so without this the app signed the user out every half hour and never once
+ * used the refresh token it had been storing all along.
+ *
+ * Retried at most once. If the refresh itself fails the session really is
+ * over - an expired or blacklisted refresh token is not something a second
+ * attempt fixes - and only then does the 401 become a logout.
+ */
+export async function authorizedRequest(
   input: string,
   init: RequestInit = {},
 ): Promise<Response> {
   const accessToken = getAccessToken();
   if (!accessToken) throw new Error("You must be signed in to manage loops.");
 
-  const response = await fetch(`${API_BASE_URL}${input}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      ...init.headers,
-    },
-  });
+  const send = (token: string) =>
+    fetch(`${API_BASE_URL}${input}`, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...init.headers,
+      },
+    });
 
-  await handleUnauthorizedResponse(response);
+  let response = await send(accessToken);
+  let retried = false;
+
+  if (response.status === 401) {
+    const refreshed = await refreshTokens();
+    const retryToken = refreshed ? getAccessToken() : null;
+    if (retryToken) {
+      response = await send(retryToken);
+      retried = true;
+    }
+  }
+
+  await handleUnauthorizedResponse(response, { alreadyRetried: retried });
   return response;
 }
 
@@ -414,11 +530,24 @@ export async function createConversation(
   }
 }
 
-export async function fetchConversations(): Promise<
-  { ok: true; conversations: Conversation[] } | { ok: false; message: string }
+/**
+ * A page of the caller's conversations, most recently active first.
+ *
+ * Twenty a page server-side. This used to read `results` and drop `next`, so
+ * a member of more than twenty groups could not reach the rest of them - and
+ * once the search box became a filter over what was loaded, could not search
+ * for them either.
+ */
+export async function fetchConversations(
+  options: { page?: number } = {},
+): Promise<
+  | { ok: true; conversations: Conversation[]; hasMore: boolean }
+  | { ok: false; message: string }
 > {
   try {
-    const response = await authorizedRequest("/chat/conversations/");
+    const suffix =
+      options.page && options.page > 1 ? `?page=${options.page}` : "";
+    const response = await authorizedRequest(`/chat/conversations/${suffix}`);
     const data = await response.json().catch(() => null);
     if (!response.ok) {
       return {
@@ -433,6 +562,89 @@ export async function fetchConversations(): Promise<
         .filter(
           (conversation): conversation is Conversation => conversation !== null,
         ),
+      hasMore: hasNextPage(data),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * A group as somebody OUTSIDE it sees it, before deciding to join.
+ *
+ * Deliberately not a `Conversation`: this is the only shape a non-member
+ * reads, and it carries what is needed to choose - name, purpose, size, and
+ * how to get in - rather than anything belonging to the people already inside.
+ */
+export type DiscoverableGroup = {
+  id: string | number;
+  name: string;
+  description: string;
+  logoImage: string | null;
+  memberCount: number;
+  joinMode: JoinMode;
+  mode: ConversationMode;
+};
+
+function normalizeDiscoverableGroup(item: ApiObject): DiscoverableGroup | null {
+  const id = item.id;
+  if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
+    return null;
+  }
+
+  const joinModeRaw = item.join_mode;
+  // Invite-only never reaches here - the server does not return it - so
+  // anything unrecognised is treated as the strictest mode we can offer,
+  // never as "open".
+  const joinMode: JoinMode =
+    joinModeRaw === "open" ||
+    joinModeRaw === "code" ||
+    joinModeRaw === "approval"
+      ? joinModeRaw
+      : "approval";
+
+  return {
+    id,
+    name: asText(item.name),
+    description: asText(item.description),
+    logoImage: asText(item.image_url) || null,
+    memberCount: typeof item.member_count === "number" ? item.member_count : 0,
+    joinMode,
+    mode: item.mode === "broadcast" ? "broadcast" : "chat",
+  };
+}
+
+/**
+ * Search public groups. Returns [] for a term the server will not act on, so
+ * the caller does not have to know the two-character rule.
+ */
+export async function searchGroups(
+  query: string,
+): Promise<
+  { ok: true; groups: DiscoverableGroup[] } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/search/?q=${encodeURIComponent(query)}`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to search groups.",
+      };
+    }
+    return {
+      ok: true,
+      groups: getConversationItems(data)
+        .map(normalizeDiscoverableGroup)
+        .filter((group): group is DiscoverableGroup => group !== null),
     };
   } catch (error) {
     return {
@@ -923,6 +1135,158 @@ export async function removeConversationMember(
   }
 }
 
+/**
+ * Mark a conversation read, optionally only up to a given message.
+ *
+ * Fire-and-forget by design: the badge is already cleared optimistically, and
+ * a failed read is corrected by the next fetch. Blocking the UI on it, or
+ * surfacing an error for it, would be noise for something nobody asked for.
+ */
+export async function markConversationRead(
+  conversationId: string | number,
+  messageId?: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/read/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          messageId === undefined ? {} : { message_id: Number(messageId) },
+        ),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to mark as read.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Tidy a conversation out of this member's list, or bring it back.
+ *
+ * Not leaving and not muting: they stay in the group and every channel keeps
+ * delivering. Only which list it appears in changes.
+ */
+export async function setConversationArchived(
+  conversationId: string | number,
+  archived: boolean,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/archive/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ archived }),
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to update this Loop.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Silence a conversation for this member, on every channel.
+ *
+ * The same switch texting MUTE sets, and the one the SMS fan-out checks - so
+ * muting here stops the texts too, not just the in-app noise.
+ */
+export async function setConversationMuted(
+  conversationId: string | number,
+  muted: boolean,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/delivery/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ muted }),
+      },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to update this Loop.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Empty this member's own view of a conversation.
+ *
+ * Not leaving, and not deleting it for anybody else: they stay in the group,
+ * and their history simply restarts after the newest message. It drops out of
+ * their list while there is nothing to show, and returns on its own when
+ * somebody posts - carrying only what arrived after.
+ */
+export async function clearConversationHistory(
+  conversationId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/clear/`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to clear this chat.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function leaveConversation(
   conversationId: string | number,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
@@ -950,14 +1314,42 @@ export async function leaveConversation(
   }
 }
 
+/** True when a DRF paginated envelope reports another page after this one. */
+function hasNextPage(payload: unknown): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const data = (payload as ApiObject).data;
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  return Boolean((data as ApiObject).next);
+}
+
+export type MessageHistoryOptions = {
+  // 1-based page of newest-first history. PAGE_SIZE is 20 server-side, so
+  // page 1 is the newest 20, page 2 the twenty before those, and so on.
+  page?: number;
+  // Resume cursor: return only messages newer than this id, oldest-first.
+  // Used after a dropped socket to fetch just what was missed. Mutually
+  // exclusive with `page` - the server ignores paging semantics here.
+  afterId?: string | number;
+};
+
 export async function fetchMessageHistory(
   conversationId: string | number,
+  options: MessageHistoryOptions = {},
 ): Promise<
-  { ok: true; messages: ConversationMessage[] } | { ok: false; message: string }
+  | { ok: true; messages: ConversationMessage[]; hasMore: boolean }
+  | { ok: false; message: string }
 > {
   try {
+    const query = new URLSearchParams();
+    if (options.afterId !== undefined) {
+      query.set("after_id", String(options.afterId));
+    } else if (options.page && options.page > 1) {
+      query.set("page", String(options.page));
+    }
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+
     const response = await authorizedRequest(
-      `/chat/conversations/${conversationId}/messages/`,
+      `/chat/conversations/${conversationId}/messages/${suffix}`,
     );
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -967,13 +1359,17 @@ export async function fetchMessageHistory(
       };
     }
 
-    const items = getConversationItems(data);
+    const items = getConversationItems(data)
+      .map(normalizeMessage)
+      .filter((message): message is ConversationMessage => message !== null);
+
     return {
       ok: true,
-      messages: items
-        .map(normalizeMessage)
-        .filter((message): message is ConversationMessage => message !== null)
-        .reverse(),
+      // Default history comes back newest-first and is reversed into reading
+      // order. The after_id branch is already ascending server-side (it is
+      // built for appending), so reversing it would put it backwards.
+      messages: options.afterId !== undefined ? items : items.reverse(),
+      hasMore: hasNextPage(data),
     };
   } catch (error) {
     return {

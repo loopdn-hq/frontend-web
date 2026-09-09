@@ -79,6 +79,11 @@ export const signupSchema = z
         (value) => e164Phone.test(normalizePhone(value)),
         "Enter a valid phone number including country code.",
       ),
+    smsConsent: z.literal(true, {
+      errorMap: () => ({
+        message: "You must agree to receive SMS messages before continuing.",
+      }),
+    }),
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords do not match.",

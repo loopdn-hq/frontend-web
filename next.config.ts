@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
   // Each route becomes <route>/index.html, which the CloudFront function
   // rewrites directory requests onto.
   trailingSlash: true,
+  // Hides the floating Next.js dev tools badge, which sits bottom-left by
+  // default and overlaps the nav rail's profile row. Dev-only either way -
+  // it is never part of the exported build. Compile and runtime errors are
+  // still surfaced.
+  devIndicators: false,
 };
 
 export default nextConfig;

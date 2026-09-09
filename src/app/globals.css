@@ -26,14 +26,14 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-space-grotesk);
+  --font-sans: var(--font-public-sans);
   --font-mono: var(--font-space-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-space-grotesk), "Segoe UI", sans-serif;
+  font-family: var(--font-public-sans), "Segoe UI", sans-serif;
 }
 
 button,
@@ -98,10 +98,31 @@ button:disabled,
   background: transparent;
   padding: 0.25rem;
   color: inherit;
+  color-scheme: light;
+}
+
+.intl-phone .PhoneInputCountrySelect:focus-visible {
+  outline: 2px solid #0ea5e9;
+  outline-offset: 2px;
+}
+
+.dark .intl-phone .PhoneInputCountrySelect {
+  color-scheme: dark;
+}
+
+.dark .intl-phone .PhoneInputCountrySelect option {
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 .intl-phone .PhoneInputCountryIcon {
   box-shadow: none;
+}
+
+.dark .intl-phone .PhoneInputCountryIcon--border {
+  box-shadow:
+    0 0 0 1px rgba(51, 65, 85, 0.9),
+    inset 0 0 0 1px rgba(51, 65, 85, 0.9);
 }
 
 .intl-phone .PhoneInputInput {
