@@ -30,6 +30,7 @@ import { AccessIcon, SmsWebIcon, VoiceIcon } from "./FeatureIcons";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
 import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const FEATURES = [
   {
@@ -470,17 +471,33 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         />
                       )}
                     />
-                    <span className="my-1 block text-xs font-normal text-slate-500">
-                      By providing your number, you agree to receive SMS
-                      messages from Loopd&apos;n. Msg & data rates may apply.
-                      Msg frequency may vary. Reply HELP for help and STOP to
-                      opt out.
-                    </span>
                   </label>
 
                   {signupErrors.phoneNumber && (
                     <p className="text-xs text-rose-600">
                       {signupErrors.phoneNumber.message}
+                    </p>
+                  )}
+
+                  <Checkbox
+                    {...registerSignup("smsConsent")}
+                    disabled={isSubmitting}
+                    className="mt-0.5"
+                    containerClassName="bg-white"
+                    labelClassName="text-xs font-normal text-slate-600 dark:text-slate-600"
+                    label={
+                      <>
+                        By providing your number, you agree to receive SMS
+                        messages from Loopd&apos;n. Msg &amp; data rates may
+                        apply. Msg frequency may vary. Reply HELP for help and
+                        STOP to opt out.
+                      </>
+                    }
+                  />
+
+                  {signupErrors.smsConsent && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.smsConsent.message}
                     </p>
                   )}
 

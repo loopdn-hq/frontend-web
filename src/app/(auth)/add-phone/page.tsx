@@ -6,6 +6,7 @@ import { isValidPhoneNumber } from "libphonenumber-js";
 import { updatePhoneNumber, useAuth } from "@/lib/auth/client";
 import { normalizePhone } from "@/lib/validation/auth";
 import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // New Google accounts have no phone_number yet - collect one here, then hand
 // off to /verify-phone/ to confirm it.
@@ -13,6 +14,7 @@ export default function AddPhonePage() {
   const router = useRouter();
   const { session, isLoaded } = useAuth();
   const [phone, setPhone] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -28,6 +30,11 @@ export default function AddPhonePage() {
     const normalizedPhone = normalizePhone(phone);
     if (!normalizedPhone || !isValidPhoneNumber(normalizedPhone)) {
       setError("Enter a valid phone number including country code.");
+      return;
+    }
+
+    if (!smsConsent) {
+      setError("You must agree to receive SMS messages before continuing.");
       return;
     }
 
@@ -77,12 +84,26 @@ export default function AddPhonePage() {
               placeholder="Enter your phone number"
               disabled={isSubmitting}
             />
-            <span className="my-1 block text-xs font-normal text-slate-500">
-              By providing your number, you agree to receive SMS messages from
-              Loopd&apos;n. Msg & data rates may apply. Msg frequency may vary.
-              Reply HELP for help and STOP to opt out.
-            </span>
           </label>
+
+          <Checkbox
+            checked={smsConsent}
+            onChange={(event) => {
+              setSmsConsent(event.target.checked);
+              if (error) setError("");
+            }}
+            disabled={isSubmitting}
+            className="mt-0.5"
+            containerClassName="bg-white"
+            labelClassName="text-xs font-normal text-slate-600 dark:text-slate-600"
+            label={
+              <>
+                By providing your number, you agree to receive SMS messages from
+                Loopd&apos;n. Msg &amp; data rates may apply. Msg frequency may
+                vary. Reply HELP for help and STOP to opt out.
+              </>
+            }
+          />
 
           {error && (
             <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
@@ -92,7 +113,7 @@ export default function AddPhonePage() {
 
           <button
             type="submit"
-            disabled={isSubmitting || phone.trim().length === 0}
+            disabled={isSubmitting || phone.trim().length === 0 || !smsConsent}
             className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting ? "Saving..." : "Continue"}
