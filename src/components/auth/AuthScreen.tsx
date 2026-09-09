@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -25,16 +26,20 @@ import {
   type LoginPayload,
   type SignupPayload,
 } from "@/lib/validation/auth";
-import {
-  Alert,
-  Button,
-  Field,
-  Input,
-  InternationalPhoneInput,
-} from "@/components/ui";
-import { useTheme } from "@/lib/theme/ThemeProvider";
+import { AccessIcon, SmsWebIcon, VoiceIcon } from "./FeatureIcons";
 import { LoadingSpinner } from "./LoadingSpinner";
 import { ProgressBar } from "./LoadingSkeletons";
+import { InternationalPhoneInput } from "@/components/ui/InternationalPhoneInput";
+
+const FEATURES = [
+  {
+    icon: SmsWebIcon,
+    label: "SMS + Web",
+    copy: "One conversation. Every channel.",
+  },
+  { icon: VoiceIcon, label: "Voice", copy: "Record once. Share everywhere." },
+  { icon: AccessIcon, label: "Access", copy: "No app. Just join your group." },
+] as const;
 
 export type AuthMode = "login" | "signup";
 
@@ -43,18 +48,17 @@ type AuthScreenProps = {
 };
 
 const panelTitle: Record<AuthMode, string> = {
-  login: "Welcome back",
+  login: "Welcome Back",
   signup: "Create your Loopdn account",
 };
 
 const panelSubTitle: Record<AuthMode, string> = {
-  login: "Sign in to manage groups, members, and broadcasts.",
+  login: "Sign in to manage groups, members, and broadcasts",
   signup: "Create an account with your email and phone number.",
 };
 
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
-  const { resolvedTheme } = useTheme();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
 
   const [generalError, setGeneralError] = useState<string>("");
@@ -217,55 +221,72 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] px-4 py-8 dark:bg-[radial-gradient(circle_at_15%_20%,#1e293b_0%,#0f172a_45%,#020617_100%)] sm:px-8">
-      <div className="pointer-events-none absolute -left-16 top-16 h-52 w-52 rounded-full bg-cyan-300/40 blur-3xl dark:bg-cyan-500/20" />
-      <div className="pointer-events-none absolute -right-10 bottom-12 h-72 w-72 rounded-full bg-sky-400/25 blur-3xl dark:bg-sky-700/20" />
-
-      <section className="relative mx-auto grid w-full max-w-6xl overflow-hidden rounded-3xl border border-white/60 bg-white/40 shadow-[0_20px_80px_rgba(0,102,179,0.17)] backdrop-blur-sm dark:border-slate-700/70 dark:bg-slate-900/50 dark:shadow-[0_22px_80px_rgba(2,6,23,0.55)] lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="relative flex flex-col justify-between bg-[linear-gradient(150deg,#00a6ff_0%,#0574cc_56%,#12386e_100%)] p-8 text-white dark:bg-[linear-gradient(150deg,#0369a1_0%,#1e3a8a_55%,#0f172a_100%)] sm:p-12">
+    <main className="relative grid min-h-screen place-items-center overflow-hidden bg-[#E8F5FE] px-4 py-8 sm:px-8">
+      <section className="relative mx-auto grid w-full max-w-[1020px] overflow-hidden rounded-[40px] border border-[#D1ECFF] bg-white p-[11px] lg:min-h-[676px] lg:grid-cols-[522px_1fr]">
+        <div className="relative flex flex-col justify-between overflow-hidden rounded-[31px] bg-[radial-gradient(ellipse_58%_78%_at_63%_44%,#04173f_0%,#082255_42%,rgba(11,42,105,0.55)_68%,rgba(11,42,105,0)_86%),radial-gradient(ellipse_62%_58%_at_10%_80%,#dcf0fd_0%,#a2d8fa_32%,rgba(92,176,236,0.45)_62%,rgba(92,176,236,0)_84%),linear-gradient(135deg,#0a2c74_0%,#1663c2_34%,#3392e4_58%,#1a5cb0_100%)] p-7 text-white">
           <div>
-            <p className="inline-flex rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs tracking-[0.14em] uppercase">
-              Loopdn
-            </p>
-            <h1 className="mt-6 max-w-md text-4xl leading-tight font-bold sm:text-5xl">
-              One group. Any phone. Everyone connected.
+            {/* The real lockup, not an approximation of it. RGBA with a
+                genuinely transparent ground, so it sits on the gradient
+                without a plate behind it. `priority` because this is the
+                first thing painted on the one screen nobody is signed in
+                for yet. */}
+            <Image
+              src="/full-logo.png"
+              alt="Loopd'n"
+              width={1300}
+              height={319}
+              priority
+              className="h-8 w-auto"
+            />
+
+            {/* 53px/100%/-3% at weight 500. Clamped below lg because the
+                panel is the full card width there and 53px would set three
+                words to a line. */}
+            <h1 className="mt-[46px] max-w-[400px] text-[40px] leading-[1.17] font-medium tracking-[-0.03em] lg:text-[53px] lg:leading-[62px]">
+              One Group. Any Phone. Everyone Connected
             </h1>
-            <p className="mt-4 max-w-lg text-sm text-cyan-100 sm:text-base">
+            <p className="mt-[38px] max-w-[407px] text-[15px] leading-[150%] font-normal text-white">
               Coordinate chats for members on web and SMS with clear admin
               control, broadcast options, and fast voice updates.
             </p>
           </div>
 
-          <div className="mt-10 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">
-                Realtime
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                Web + SMS thread sync
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/20 bg-white/10 p-4">
-              <p className="text-xs uppercase tracking-[0.12em] text-cyan-100">
-                Voice
-              </p>
-              <p className="mt-1 text-lg font-semibold">
-                Record once, share everywhere
-              </p>
-            </div>
+          {/* 146x119 cards at 15px radius. The inner offsets come straight
+              from the spec - 10px inset, heading baseline at 52, copy at 77 -
+              so the icon, heading and copy land where they were drawn. */}
+          <div className="mt-10 grid gap-[10px] sm:grid-cols-3">
+            {FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.label}
+                  className="h-[119px] rounded-[15px] bg-white p-[10px] sm:max-w-[146px]"
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-[6px] bg-[#9CDAF8] text-[#0E357B]">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <p className="mt-[10px] text-[13px] leading-[150%] font-semibold text-[#0E357B] uppercase">
+                    {feature.label}
+                  </p>
+                  <p className="mt-[5px] text-[11px] leading-[138%] font-medium text-[#0E357B]">
+                    {feature.copy}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
-        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-6 dark:bg-[linear-gradient(180deg,#0f172a_0%,#0b1220_100%)] sm:p-10">
-          <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] dark:border-slate-700 dark:bg-slate-900 dark:shadow-[0_18px_44px_rgba(2,6,23,0.5)] sm:p-8">
-            <div className="mb-6 flex items-center justify-between rounded-xl bg-slate-100 p-1 dark:bg-slate-800">
+        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-6 sm:p-10">
+          <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
+            <div className="mb-[26px] flex h-[52px] items-center gap-[7px] rounded-[13px] bg-[#F4F4F4] p-[5px]">
               <Link
                 href="/login/"
                 onClick={() => switchMode("login")}
-                className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
+                className={`flex h-[42px] flex-1 items-center justify-center rounded-[10px] text-center text-[16px] leading-[138%] font-medium capitalize transition ${
                   authMode === "login"
-                    ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    ? "bg-white text-black"
+                    : "text-[#05205A]/60 hover:text-[#05205A]"
                 } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
               >
                 Log In
@@ -273,53 +294,53 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               <Link
                 href="/signup/"
                 onClick={() => switchMode("signup")}
-                className={`w-1/2 rounded-lg px-3 py-2 text-center text-sm font-semibold transition ${
+                className={`flex h-[42px] flex-1 items-center justify-center rounded-[10px] text-center text-[16px] leading-[138%] font-medium capitalize transition ${
                   authMode === "signup"
-                    ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                    ? "bg-white text-black"
+                    : "text-[#05205A]/60 hover:text-[#05205A]"
                 } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
               >
                 Sign Up
               </Link>
             </div>
 
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+            <h2 className="text-[30px] leading-none font-medium tracking-[-0.03em] text-[#05205A]">
               {panelTitle[authMode]}
             </h2>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+            <p className="mt-3 text-[15px] leading-[150%] font-normal text-[#05205A]">
               {panelSubTitle[authMode]}
             </p>
 
-            <div className="mt-4 rounded-xl bg-slate-100 p-2 dark:bg-slate-800">
-              <div className="flex w-auto justify-center [&>div]:w-auto">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={handleGoogleError}
-                  width="336"
-                  text={authMode === "login" ? "signin_with" : "signup_with"}
-                  theme={resolvedTheme === "dark" ? "filled_black" : "outline"}
-                />
-              </div>
+            {/* 23px, per Frame 22's gap between the Welcome block and the
+                Google button. It had none, so the button sat flush
+                against the subtitle. */}
+            <div className="mt-[23px] flex w-full justify-center [&>div]:w-full">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={handleGoogleError}
+                width="336"
+                text={authMode === "login" ? "signin_with" : "signup_with"}
+              />
             </div>
             {isGoogleLoading && (
-              <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
+              <p className="mt-2 text-center text-xs text-slate-500">
                 Connecting to Google...
               </p>
             )}
 
             {authMode === "login" && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              <div className="mt-[23px] mb-[23px] flex items-center gap-[6px] text-[15px] leading-[150%] text-[#05205A]">
+                <div className="h-px flex-1 bg-[#D7D7D7]" />
                 or continue with email
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                <div className="h-px flex-1 bg-[#D7D7D7]" />
               </div>
             )}
 
             {authMode === "signup" && (
-              <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              <div className="mt-[23px] mb-[23px] flex items-center gap-[6px] text-[15px] leading-[150%] text-[#05205A]">
+                <div className="h-px flex-1 bg-[#D7D7D7]" />
                 or sign up with email
-                <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+                <div className="h-px flex-1 bg-[#D7D7D7]" />
               </div>
             )}
 
@@ -334,35 +355,36 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             >
               {authMode === "login" ? (
                 <>
-                  <Field
-                    label="Username or Email"
-                    htmlFor="login-username"
-                    error={loginErrors.username?.message}
-                  >
-                    <Input
-                      id="login-username"
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Username or Email
+                    </span>
+                    <input
                       type="text"
                       placeholder="sam.loopdn"
                       {...registerLogin("username")}
                       disabled={isSubmitting}
-                      state={loginErrors.username ? "error" : "default"}
+                      className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
-                  </Field>
+                  </label>
 
-                  <Field
-                    label="Password"
-                    htmlFor="login-password"
-                    error={loginErrors.password?.message}
-                  >
+                  {loginErrors.username && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.username.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Password
+                    </span>
                     <div className="relative">
-                      <Input
-                        id="login-password"
+                      <input
                         type={showLoginPassword ? "text" : "password"}
                         placeholder="Enter your password"
                         {...registerLogin("password")}
                         disabled={isSubmitting}
-                        className="pr-11"
-                        state={loginErrors.password ? "error" : "default"}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       <button
                         type="button"
@@ -371,7 +393,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         aria-label={
                           showLoginPassword ? "Hide password" : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
                       >
                         {showLoginPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -380,47 +402,58 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </Field>
+                  </label>
+
+                  {loginErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {loginErrors.password.message}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
-                  <Field
-                    label="Username"
-                    htmlFor="signup-username"
-                    error={signupErrors.username?.message}
-                  >
-                    <Input
-                      id="signup-username"
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Username
+                    </span>
+                    <input
                       type="text"
                       placeholder="sam.loopdn"
                       {...registerSignup("username")}
                       disabled={isSubmitting}
-                      state={signupErrors.username ? "error" : "default"}
+                      className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
-                  </Field>
+                  </label>
 
-                  <Field
-                    label="Email Address"
-                    htmlFor="signup-email"
-                    error={signupErrors.email?.message}
-                  >
-                    <Input
-                      id="signup-email"
+                  {signupErrors.username && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.username.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Email Address
+                    </span>
+                    <input
                       type="email"
                       placeholder="you@example.com"
                       {...registerSignup("email")}
                       disabled={isSubmitting}
-                      state={signupErrors.email ? "error" : "default"}
+                      className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                     />
-                  </Field>
+                  </label>
 
-                  <Field
-                    label="Phone Number"
-                    error={signupErrors.phoneNumber?.message}
-                    hint={
-                      "By providing your number, you agree to receive SMS messages from Loopd'n. Msg & data rates may apply. Msg frequency may vary. Reply HELP for help and STOP to opt out."
-                    }
-                  >
+                  {signupErrors.email && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.email.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Phone Number
+                    </span>
                     <Controller
                       control={control}
                       name="phoneNumber"
@@ -437,54 +470,69 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         />
                       )}
                     />
-                  </Field>
+                    <span className="my-1 block text-xs font-normal text-slate-500">
+                      By providing your number, you agree to receive SMS
+                      messages from Loopd&apos;n. Msg & data rates may apply.
+                      Msg frequency may vary. Reply HELP for help and STOP to
+                      opt out.
+                    </span>
+                  </label>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field
-                      label="First Name"
-                      htmlFor="signup-first-name"
-                      error={signupErrors.firstName?.message}
-                    >
-                      <Input
-                        id="signup-first-name"
+                  {signupErrors.phoneNumber && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.phoneNumber.message}
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-[9px]">
+                    <label className="block">
+                      <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                        First Name
+                      </span>
+                      <input
                         type="text"
                         placeholder="Sam"
                         {...registerSignup("firstName")}
                         disabled={isSubmitting}
-                        state={signupErrors.firstName ? "error" : "default"}
+                        className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
-                    </Field>
+                      {signupErrors.firstName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.firstName.message}
+                        </p>
+                      )}
+                    </label>
 
-                    <Field
-                      label="Last Name"
-                      htmlFor="signup-last-name"
-                      error={signupErrors.lastName?.message}
-                    >
-                      <Input
-                        id="signup-last-name"
+                    <label className="block">
+                      <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                        Last Name
+                      </span>
+                      <input
                         type="text"
                         placeholder="Taylor"
                         {...registerSignup("lastName")}
                         disabled={isSubmitting}
-                        state={signupErrors.lastName ? "error" : "default"}
+                        className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
-                    </Field>
+                      {signupErrors.lastName && (
+                        <p className="mt-1 text-xs text-rose-600">
+                          {signupErrors.lastName.message}
+                        </p>
+                      )}
+                    </label>
                   </div>
 
-                  <Field
-                    label="Password"
-                    htmlFor="signup-password"
-                    error={signupErrors.password?.message}
-                  >
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Password
+                    </span>
                     <div className="relative">
-                      <Input
-                        id="signup-password"
+                      <input
                         type={showSignupPassword ? "text" : "password"}
                         placeholder="Create a password"
                         {...registerSignup("password")}
                         disabled={isSubmitting}
-                        className="pr-11"
-                        state={signupErrors.password ? "error" : "default"}
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       <button
                         type="button"
@@ -493,7 +541,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         aria-label={
                           showSignupPassword ? "Hide password" : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
                       >
                         {showSignupPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -502,24 +550,25 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </Field>
+                  </label>
 
-                  <Field
-                    label="Confirm Password"
-                    htmlFor="signup-confirm-password"
-                    error={signupErrors.confirmPassword?.message}
-                  >
+                  {signupErrors.password && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.password.message}
+                    </p>
+                  )}
+
+                  <label className="block">
+                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
+                      Confirm Password
+                    </span>
                     <div className="relative">
-                      <Input
-                        id="signup-confirm-password"
+                      <input
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="Re-enter your password"
                         {...registerSignup("confirmPassword")}
                         disabled={isSubmitting}
-                        className="pr-11"
-                        state={
-                          signupErrors.confirmPassword ? "error" : "default"
-                        }
+                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       <button
                         type="button"
@@ -532,7 +581,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                             ? "Hide password"
                             : "Show password"
                         }
-                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed dark:text-slate-500 dark:hover:text-slate-300"
+                        className="absolute inset-y-0 right-0 flex items-center px-3 text-slate-400 hover:text-slate-600 disabled:cursor-not-allowed"
                       >
                         {showConfirmPassword ? (
                           <EyeOff className="h-5 w-5" />
@@ -541,41 +590,45 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </Field>
+                  </label>
 
-                  <Alert variant="success" className="text-xs">
+                  {signupErrors.confirmPassword && (
+                    <p className="text-xs text-rose-600">
+                      {signupErrors.confirmPassword.message}
+                    </p>
+                  )}
+
+                  <p className="rounded-[12px] bg-[#DAFFED] p-[14px] text-center text-[14px] leading-[140%] text-[#1A7351]">
                     We&apos;ll email you a verification code next, then text one
                     to your phone.
-                  </Alert>
+                  </p>
                 </>
               )}
 
               {generalError && (
-                <Alert variant="error" className="text-xs">
+                <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">
                   {generalError}
-                </Alert>
+                </p>
               )}
 
-              <Button type="submit" disabled={isSubmitting} fullWidth>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex h-[56px] w-full items-center justify-center rounded-[12px] border border-[#1883C6] bg-[#3CB3FD] text-[16px] leading-[150%] font-normal text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-70"
+              >
                 {isSubmitting ? <LoadingSpinner /> : ctaText}
-              </Button>
+              </button>
 
               {isSubmitting && <ProgressBar />}
             </form>
 
-            <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-[17px] text-center text-[14px] leading-[150%] text-[#AAAAAA]">
               By continuing, you agree to Loopd&apos;n{" "}
-              <Link
-                href="/terms/"
-                className="underline hover:text-slate-700 dark:hover:text-slate-200"
-              >
+              <Link href="/terms/" className="underline hover:text-slate-700">
                 Terms
               </Link>{" "}
               and{" "}
-              <Link
-                href="/privacy/"
-                className="underline hover:text-slate-700 dark:hover:text-slate-200"
-              >
+              <Link href="/privacy/" className="underline hover:text-slate-700">
                 Privacy Policy
               </Link>
               .

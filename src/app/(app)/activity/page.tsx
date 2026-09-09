@@ -18,6 +18,7 @@ import {
 import {
   joinConversation,
   joinConversationWithCode,
+  respondToJoinRequest,
 } from "@/lib/chat/conversations";
 import { JoinGroupPanel } from "@/components/home/JoinGroupPanel";
 
@@ -230,6 +231,7 @@ export default function ActivityPage() {
       <section className="hidden min-h-0 flex-col overflow-y-auto bg-[#f7fbff] md:flex dark:bg-slate-950">
         {selected ? (
           <ActivityDetail
+            key={selected.id}
             notification={selected}
             onOpenGroup={() => {
               if (!selected.conversationId) return;
@@ -318,6 +320,11 @@ function ActivityRow({
   );
 }
 
+/** What became of a request, read from the membership it pointed at. */
+function outcomeOf(status: AppNotification["requestStatus"]) {
+  return status === "active" ? "approve" : "decline";
+}
+
 function ActivityDetail({
   notification,
   onOpenGroup,
@@ -338,6 +345,19 @@ function ActivityDetail({
   //
   // join_mode only decides the middle case. Somebody an admin added is ACTIVE
   // whatever the mode is, which is why a code-required group still just opens.
+  // Somebody is asking to get in, and the reader is an admin who can answer.
+  // Checked before membership: an admin IS a member, so the "open it" branch
+  // would otherwise swallow this and leave a request with no way to act on it.
+  const isJoinRequest =
+    notification.type === "join.requested" &&
+    typeof notification.data?.participant_id === "number";
+  const requestingParticipantId = isJoinRequest
+    ? (notification.data?.participant_id as number)
+    : null;
+  // The server's word, not this component's memory. The request may have been
+  // answered from the admin panel, by another admin, or here a moment ago.
+  const isRequestOpen = notification.requestStatus === "pending";
+
   const isMember = notification.viewerStatus === "active";
   const isShutOut =
     notification.viewerStatus === "removed" ||
@@ -350,6 +370,31 @@ function ActivityDetail({
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState("");
   const [requestSent, setRequestSent] = useState(false);
+  const [decision, setDecision] = useState<"approve" | "decline" | null>(null);
+  const [isDeciding, setIsDeciding] = useState(false);
+  const [decisionError, setDecisionError] = useState("");
+
+  async function decide(choice: "approve" | "decline") {
+    if (!notification.conversationId || requestingParticipantId === null)
+      return;
+    setIsDeciding(true);
+    setDecisionError("");
+    const result = await respondToJoinRequest(
+      notification.conversationId,
+      requestingParticipantId,
+      choice,
+    );
+    setIsDeciding(false);
+
+    if (!result.ok) {
+      // Includes "that request is no longer pending" - another admin got
+      // there first, which is worth saying rather than silently failing.
+      setDecisionError(result.message);
+      return;
+    }
+    setDecision(choice);
+    onJoined();
+  }
 
   async function join(withCode: boolean) {
     if (!notification.conversationId) return;
@@ -384,7 +429,7 @@ function ActivityDetail({
           <Icon className="h-6 w-6" />
         </span>
 
-        {isMember && notification.conversationId && (
+        {isMember && !isJoinRequest && notification.conversationId && (
           <button
             type="button"
             onClick={onOpenGroup}
@@ -409,6 +454,50 @@ function ActivityDetail({
           ? new Date(notification.createdAt).toLocaleString()
           : timeLabel(notification.createdAt, bucket)}
       </p>
+
+      {isJoinRequest && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          {decision || !isRequestOpen ? (
+            <p className="text-sm text-slate-700 dark:text-slate-200">
+              {(decision ?? outcomeOf(notification.requestStatus)) === "approve"
+                ? `${notification.actorName ?? "They"} is now in ${notification.conversationName ?? "the group"}.`
+                : "This request has already been answered."}
+            </p>
+          ) : (
+            <>
+              <p className="text-sm text-slate-700 dark:text-slate-200">
+                {notification.actorName ?? "Someone"} has asked to join{" "}
+                {notification.conversationName ?? "your group"}.
+              </p>
+
+              {decisionError && (
+                <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                  {decisionError}
+                </p>
+              )}
+
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => void decide("decline")}
+                  disabled={isDeciding}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  Decline
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void decide("approve")}
+                  disabled={isDeciding}
+                  className="flex-1 rounded-xl bg-[#168CFF] px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {isDeciding ? "Working..." : "Approve"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {canOfferAWayIn && (
         <div className="mt-6">

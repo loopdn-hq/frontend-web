@@ -392,12 +392,6 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [pendingRequestsByLoop, setPendingRequestsByLoop] = useState<
     Map<string | number, ConversationParticipant[]>
   >(new Map());
-  // How many of those requests haven't been looked at yet, per Loop - this is
-  // what drives the notification badges. Resets to 0 when the admin opens
-  // the Members tab for that Loop; independent of the worklist above.
-  const [unseenRequestCountByLoop, setUnseenRequestCountByLoop] = useState<
-    Map<string | number, number>
-  >(new Map());
   const [loadingPendingRequestLoopIds, setLoadingPendingRequestLoopIds] =
     useState<Set<string | number>>(new Set());
   const seededPendingRequestLoopIds = useRef<Set<string | number>>(new Set());
@@ -867,13 +861,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         }
         return next;
       });
-      setUnseenRequestCountByLoop((prev) => {
-        const next = new Map(prev);
-        for (const { loopId, result } of results) {
-          if (result.ok) next.set(loopId, result.requests.length);
-        }
-        return next;
-      });
       setLoadingPendingRequestLoopIds((prev) => {
         const next = new Set(prev);
         results.forEach(({ loopId }) => next.delete(loopId));
@@ -1302,11 +1289,6 @@ export function HomeShell({ mode }: HomeShellProps) {
             return prev;
           const next = new Map(prev);
           next.set(conversationId, [...existing, participant]);
-          return next;
-        });
-        setUnseenRequestCountByLoop((prev) => {
-          const next = new Map(prev);
-          next.set(conversationId, (next.get(conversationId) ?? 0) + 1);
           return next;
         });
       }
@@ -1818,38 +1800,8 @@ export function HomeShell({ mode }: HomeShellProps) {
     );
   }
 
-  // Everything below counts only the Loops this list shows. Scoped to the
-  // mode, or the Chats badge would total broadcast unreads and the Invites
-  // worklist could jump to a Loop that is not in this list at all.
-  const loopsWithPendingRequests = visibleConversations.filter(
-    (conversation) =>
-      (pendingRequestsByLoop.get(conversation.id)?.length ?? 0) > 0,
-  );
-  // Requests nobody has looked at yet - drives the Invites badge specifically.
-  const totalUnseenInvites = visibleConversations.reduce(
-    (sum, conversation) =>
-      sum + (unseenRequestCountByLoop.get(conversation.id) ?? 0),
-    0,
-  );
-
-  function handleOpenInvites() {
-    const loop = loopsWithPendingRequests[0];
-    if (!loop) return;
-    handleSelectConversation(loop.id);
-    setAdminPanelTab("members");
-    setIsAdminPanelOpen(true);
-  }
-
   function handleTabChange(tab: AdminTab) {
     setAdminPanelTab(tab);
-    if (tab === "members" && selectedConversationId) {
-      setUnseenRequestCountByLoop((prev) => {
-        if (!prev.get(selectedConversationId)) return prev;
-        const next = new Map(prev);
-        next.set(selectedConversationId, 0);
-        return next;
-      });
-    }
   }
 
   function handleMarkAllRead() {
@@ -1867,13 +1819,6 @@ export function HomeShell({ mode }: HomeShellProps) {
           : conversation,
       ),
     );
-    setUnseenRequestCountByLoop((prev) => {
-      const next = new Map(prev);
-      for (const key of next.keys()) {
-        next.set(key, 0);
-      }
-      return next;
-    });
     setIsLoopMenuOpen(false);
   }
 
@@ -2151,21 +2096,6 @@ export function HomeShell({ mode }: HomeShellProps) {
             onScroll={handleChatListScroll}
             className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
           >
-            {loopsWithPendingRequests.length > 0 && (
-              <button
-                type="button"
-                onClick={handleOpenInvites}
-                className="mb-4 w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left transition hover:bg-amber-100 dark:border-amber-900/40 dark:bg-amber-950/20 dark:hover:bg-amber-950/40"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-semibold text-amber-900 dark:text-amber-300">
-                    Invites
-                  </p>
-                  <NotificationBadge count={totalUnseenInvites} />
-                </div>
-              </button>
-            )}
-
             <div className="space-y-5">
               {billingError && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/30 dark:text-amber-300">
