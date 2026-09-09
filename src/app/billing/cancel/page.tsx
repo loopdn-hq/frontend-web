@@ -1,13 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 
 export default function BillingCancelPage() {
-  const searchParams = useSearchParams();
-  const flow = searchParams.get("flow") ?? "";
-  const plan = searchParams.get("plan") ?? "";
-  const packageId = searchParams.get("package") ?? "";
+  const [flow, setFlow] = useState("");
+  const [plan, setPlan] = useState("");
+  const [packageId, setPackageId] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setFlow(params.get("flow") ?? "");
+    setPlan(params.get("plan") ?? "");
+    setPackageId(params.get("package") ?? "");
+  }, []);
 
   const detailMessage =
     flow === "plan" && plan
