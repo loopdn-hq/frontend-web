@@ -1537,11 +1537,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             />
 
             <div className="min-w-0 flex-1">
-              <p
-                className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
-              >
-                {conversation?.name}
-              </p>
+              <div className="flex items-center gap-2">
+                <p
+                  className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}
+                >
+                  {conversation?.name}
+                </p>
+                {conversation.kind === "group" && conversation.isAdmin && (
+                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+                    Admin
+                  </span>
+                )}
+              </div>
               <p
                 className={`mt-0.5 truncate text-xs ${
                   isOpen

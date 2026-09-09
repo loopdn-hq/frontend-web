@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Alert, Button, Checkbox, RadioGroup, Select } from "@/components/ui";
 import type { GroupSettings } from "@/lib/chat/conversations";
 
 type LoopAdminSettingsProps = {
@@ -75,22 +76,28 @@ export function LoopAdminSettings({
       </div>
 
       {!canEdit && (
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <Alert
+          variant="neutral"
+          className="border border-slate-200 px-4 py-3 dark:border-slate-700"
+        >
           Only admins can edit these settings. You&apos;re viewing them in
           read-only mode.
-        </div>
+        </Alert>
       )}
 
       {/* Messages */}
       {saveError && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <Alert variant="error" className="border border-rose-200 px-4 py-3">
           {saveError}
-        </div>
+        </Alert>
       )}
       {successMessage && (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300">
+        <Alert
+          variant="success"
+          className="border border-emerald-200 px-4 py-3 dark:border-emerald-900/40"
+        >
           {successMessage}
-        </div>
+        </Alert>
       )}
 
       {/* Communication Mode */}
@@ -102,57 +109,29 @@ export function LoopAdminSettings({
           How do members communicate in this Loop?
         </p>
 
-        <div className="space-y-3">
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
-            <input
-              type="radio"
-              name="mode"
-              value="chat"
-              checked={settings.mode === "chat"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  mode: e.target.value as GroupSettings["mode"],
-                })
-              }
-              disabled={isSaving || isLoading || !canEdit}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900 dark:text-slate-100">
-                Chat Group
-              </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Members communicate with everyone
-              </p>
-            </div>
-          </label>
-
-          <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
-            <input
-              type="radio"
-              name="mode"
-              value="broadcast"
-              checked={settings.mode === "broadcast"}
-              onChange={(e) =>
-                setSettings({
-                  ...settings,
-                  mode: e.target.value as GroupSettings["mode"],
-                })
-              }
-              disabled={isSaving || isLoading || !canEdit}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-            />
-            <div>
-              <p className="font-medium text-slate-900 dark:text-slate-100">
-                Broadcast Group
-              </p>
-              <p className="text-xs text-slate-600 dark:text-slate-400">
-                Admins send announcements to members
-              </p>
-            </div>
-          </label>
-        </div>
+        <RadioGroup
+          name="mode"
+          value={settings.mode}
+          onChange={(value) =>
+            setSettings({
+              ...settings,
+              mode: value,
+            })
+          }
+          disabled={isSaving || isLoading || !canEdit}
+          options={[
+            {
+              value: "chat",
+              label: "Chat Group",
+              description: "Members communicate with everyone",
+            },
+            {
+              value: "broadcast",
+              label: "Broadcast Group",
+              description: "Admins send announcements to members",
+            },
+          ]}
+        />
       </section>
 
       {/* Join Mode */}
@@ -164,60 +143,39 @@ export function LoopAdminSettings({
           How can new members join this Loop?
         </p>
 
-        <div className="space-y-3">
-          {(
-            [
-              {
-                value: "open",
-                label: "Open",
-                description: "Anyone with the link can join",
-              },
-              {
-                value: "code",
-                label: "Code Required",
-                description: "Members need a code to join",
-              },
-              {
-                value: "approval",
-                label: "Admin Approval",
-                description: "Members request access; admin approves",
-              },
-              {
-                value: "invite",
-                label: "Invite Only",
-                description: "Only invited members can join",
-              },
-            ] as const
-          ).map((option) => (
-            <label
-              key={option.value}
-              className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
-            >
-              <input
-                type="radio"
-                name="join_mode"
-                value={option.value}
-                checked={settings.join_mode === option.value}
-                onChange={(e) =>
-                  setSettings({
-                    ...settings,
-                    join_mode: e.target.value as GroupSettings["join_mode"],
-                  })
-                }
-                disabled={isSaving || isLoading || !canEdit}
-                className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-              />
-              <div>
-                <p className="font-medium text-slate-900 dark:text-slate-100">
-                  {option.label}
-                </p>
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  {option.description}
-                </p>
-              </div>
-            </label>
-          ))}
-        </div>
+        <RadioGroup
+          name="join_mode"
+          value={settings.join_mode}
+          onChange={(value) =>
+            setSettings({
+              ...settings,
+              join_mode: value,
+            })
+          }
+          disabled={isSaving || isLoading || !canEdit}
+          options={[
+            {
+              value: "open",
+              label: "Open",
+              description: "Anyone with the link can join",
+            },
+            {
+              value: "code",
+              label: "Code Required",
+              description: "Members need a code to join",
+            },
+            {
+              value: "approval",
+              label: "Admin Approval",
+              description: "Members request access; admin approves",
+            },
+            {
+              value: "invite",
+              label: "Invite Only",
+              description: "Only invited members can join",
+            },
+          ]}
+        />
 
         {settings.join_mode === "code" && (
           <div className="mt-4 rounded-lg border border-sky-200 bg-sky-50 p-4 dark:border-sky-900/40 dark:bg-sky-950/20">
@@ -229,14 +187,14 @@ export function LoopAdminSettings({
                 {joinCode}
               </p>
             ) : (
-              <button
+              <Button
                 type="button"
                 onClick={handleShowJoinCode}
                 disabled={isLoadingJoinCode || !onFetchJoinCode}
-                className="rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                size="sm"
               >
                 {isLoadingJoinCode ? "Loading..." : "Show Join Code"}
-              </button>
+              </Button>
             )}
             {joinCodeError && (
               <p className="mt-2 text-xs text-rose-600">{joinCodeError}</p>
@@ -256,66 +214,42 @@ export function LoopAdminSettings({
             <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Who can add new members?
             </p>
-            <div className="space-y-2">
-              {(["members", "admins"] as const).map((option) => (
-                <label
-                  key={option}
-                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
-                >
-                  <input
-                    type="radio"
-                    name="add_member_permission"
-                    value={option}
-                    checked={settings.add_member_permission === option}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        add_member_permission: e.target
-                          .value as GroupSettings["add_member_permission"],
-                      })
-                    }
-                    disabled={isSaving || isLoading || !canEdit}
-                    className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-                  />
-                  <p className="font-medium text-slate-900 capitalize dark:text-slate-100">
-                    {option}
-                  </p>
-                </label>
-              ))}
-            </div>
+            <Select
+              value={settings.add_member_permission}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  add_member_permission: event.target
+                    .value as GroupSettings["add_member_permission"],
+                })
+              }
+              disabled={isSaving || isLoading || !canEdit}
+              options={[
+                { value: "members", label: "Members" },
+                { value: "admins", label: "Admins" },
+              ]}
+            />
           </div>
 
           <div>
             <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
               Who can edit group details?
             </p>
-            <div className="space-y-2">
-              {(["members", "admins"] as const).map((option) => (
-                <label
-                  key={option}
-                  className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800"
-                >
-                  <input
-                    type="radio"
-                    name="edit_group_permission"
-                    value={option}
-                    checked={settings.edit_group_permission === option}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        edit_group_permission: e.target
-                          .value as GroupSettings["edit_group_permission"],
-                      })
-                    }
-                    disabled={isSaving || isLoading || !canEdit}
-                    className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
-                  />
-                  <p className="font-medium text-slate-900 capitalize dark:text-slate-100">
-                    {option}
-                  </p>
-                </label>
-              ))}
-            </div>
+            <Select
+              value={settings.edit_group_permission}
+              onChange={(event) =>
+                setSettings({
+                  ...settings,
+                  edit_group_permission: event.target
+                    .value as GroupSettings["edit_group_permission"],
+                })
+              }
+              disabled={isSaving || isLoading || !canEdit}
+              options={[
+                { value: "members", label: "Members" },
+                { value: "admins", label: "Admins" },
+              ]}
+            />
           </div>
         </div>
       </section>
@@ -362,14 +296,14 @@ export function LoopAdminSettings({
       {/* Save Button */}
       {canEdit && (
         <div className="flex gap-3">
-          <button
+          <Button
             type="button"
             disabled={isSaving || isLoading}
-            className="flex-1 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+            fullWidth
             onClick={handleSave}
           >
             {isSaving ? "Saving..." : "Save Settings"}
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -390,29 +324,13 @@ function FeatureToggle({
   disabled?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between rounded-lg border border-slate-200 p-4 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800">
-      <div>
-        <p className="font-medium text-slate-900 dark:text-slate-100">
-          {label}
-        </p>
-        <p className="text-xs text-slate-600 dark:text-slate-400">
-          {description}
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={() => onChange(!checked)}
-        disabled={disabled}
-        className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors ${
-          checked ? "bg-emerald-500" : "bg-slate-300"
-        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-      >
-        <span
-          className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
-            checked ? "translate-x-5" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </div>
+    <Checkbox
+      checked={checked}
+      onChange={(event) => onChange(event.target.checked)}
+      disabled={disabled}
+      label={label}
+      description={description}
+      containerClassName="items-start"
+    />
   );
 }

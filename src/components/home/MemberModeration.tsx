@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Alert, Button, Input, Select } from "@/components/ui";
 
 type MemberRole = "admin" | "moderator" | "member";
 
@@ -117,19 +118,18 @@ export function MemberModeration({
 
       {/* Error Message */}
       {error && (
-        <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <Alert variant="error" className="border border-rose-200 px-4 py-3">
           {error}
-        </div>
+        </Alert>
       )}
 
       {/* Search */}
       <div>
-        <input
+        <Input
           type="text"
           placeholder="Search members by name, email, or phone..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
         />
       </div>
 
@@ -319,51 +319,51 @@ function MemberCard({
               <p className="mb-2 text-xs font-semibold text-slate-600 uppercase dark:text-slate-400">
                 Role
               </p>
-              <div className="flex gap-2">
-                {(["member", "moderator", "admin"] as const).map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => onRoleChange(role)}
-                    disabled={isActionInProgress || isLoading}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition ${
-                      member.role === role
-                        ? "border-sky-400 bg-sky-100 text-sky-900 dark:border-sky-500 dark:bg-sky-950/40 dark:text-sky-200"
-                        : "border-slate-200 bg-white text-slate-700 hover:border-sky-300 hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    {role.charAt(0).toUpperCase() + role.slice(1)}
-                  </button>
-                ))}
-              </div>
+              <Select
+                value={member.role}
+                onChange={(event) =>
+                  void onRoleChange(event.target.value as MemberRole)
+                }
+                disabled={isActionInProgress || isLoading}
+                options={[
+                  { value: "member", label: "Member" },
+                  { value: "moderator", label: "Moderator" },
+                  { value: "admin", label: "Admin" },
+                ]}
+                className="max-w-xs"
+              />
             </div>
 
             {/* Actions */}
             <div className="flex gap-2 border-t border-slate-200 pt-4 dark:border-slate-700">
               {member.isBlocked ? (
-                <button
+                <Button
                   onClick={onUnblock}
                   disabled={isActionInProgress || isLoading}
-                  className="flex-1 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
+                  variant="secondary"
+                  className="flex-1 border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300 dark:hover:bg-emerald-900/40"
                 >
                   Unblock
-                </button>
+                </Button>
               ) : (
-                <button
+                <Button
                   onClick={onBlock}
                   disabled={isActionInProgress || isLoading}
-                  className="flex-1 rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-sm font-medium text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-900/40"
+                  variant="secondary"
+                  className="flex-1 border-orange-300 bg-orange-50 text-orange-700 hover:bg-orange-100 dark:border-orange-900/40 dark:bg-orange-950/30 dark:text-orange-300 dark:hover:bg-orange-900/40"
                 >
                   Block
-                </button>
+                </Button>
               )}
 
-              <button
+              <Button
                 onClick={onRemove}
                 disabled={isActionInProgress || isLoading}
-                className="flex-1 rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
+                variant="secondary"
+                className="flex-1 border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-900/40"
               >
                 Remove
-              </button>
+              </Button>
             </div>
           </div>
         </div>

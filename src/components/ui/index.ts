@@ -1,7 +1,11 @@
 export { Alert } from "./alert";
 export { Button } from "./button";
+export { Checkbox } from "./checkbox";
 export { Field } from "./field";
 export { Input } from "./input";
 export { InternationalPhoneInput } from "./InternationalPhoneInput";
 export { Modal } from "./modal";
+export { RadioGroup, type RadioOption } from "./radio-group";
+export { Select, type SelectOption } from "./select";
+export { Tabs, type TabsItem } from "./tabs";
 export { Textarea } from "./textarea";
