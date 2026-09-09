@@ -30,6 +30,18 @@ export default function RootPage() {
         </div>
 
         <nav className="flex items-center gap-3 sm:gap-4">
+          <Link
+            href="/pricing/"
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+          >
+            Pricing
+          </Link>
+          <Link
+            href="/contact/"
+            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+          >
+            Contact
+          </Link>
           {session ? (
             <>
               <span className="hidden text-xs text-slate-500 sm:inline">
@@ -158,6 +170,18 @@ export default function RootPage() {
             &copy; {new Date().getFullYear()} Loopd&apos;n. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
+            <Link
+              href="/pricing/"
+              className="text-slate-600 underline hover:text-slate-900"
+            >
+              Pricing
+            </Link>
+            <Link
+              href="/contact/"
+              className="text-slate-600 underline hover:text-slate-900"
+            >
+              Contact Sales
+            </Link>
             <Link
               href="/terms/"
               className="text-slate-600 underline hover:text-slate-900"

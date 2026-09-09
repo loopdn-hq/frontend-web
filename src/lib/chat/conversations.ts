@@ -90,6 +90,7 @@ export type Conversation = {
   // brings the conversation back holding only what came after.
   cleared: boolean;
   isAdmin: boolean;
+  createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
 };
@@ -345,6 +346,9 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     archived: item.archived === true,
     cleared: item.cleared === true,
     isAdmin: isCurrentUserAdmin(item),
+    createdByUsername: isApiObject(item.created_by)
+      ? asText((item.created_by as ApiObject).username) || undefined
+      : undefined,
     participants: Array.isArray(item.participants)
       ? item.participants
           .map(normalizeParticipant)
