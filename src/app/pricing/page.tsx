@@ -131,7 +131,7 @@ export default function PricingPage() {
             <article
               key={plan.code}
               aria-label={`${plan.name} plan`}
-              className={`rounded-3xl border p-5 shadow-sm backdrop-blur-sm ${
+              className={`rounded-3xl border p-5 relative shadow-sm backdrop-blur-sm ${
                 plan.highlighted
                   ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)] dark:border-sky-700 dark:bg-slate-900 dark:shadow-[0_12px_32px_rgba(2,132,199,0.28)]"
                   : "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90"
@@ -140,7 +140,7 @@ export default function PricingPage() {
               {plan.highlighted && (
                 <p
                   aria-label="Most popular plan"
-                  className="mb-3 inline-flex rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 dark:text-sky-300"
+                  className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
                 >
                   Most Popular
                 </p>
@@ -160,7 +160,9 @@ export default function PricingPage() {
                     key={limit.label}
                     className="flex items-center justify-between gap-3"
                   >
-                    <dt className="text-slate-600 dark:text-slate-300">{limit.label}</dt>
+                    <dt className="text-slate-600 dark:text-slate-300">
+                      {limit.label}
+                    </dt>
                     <dd className="font-semibold text-slate-900 dark:text-slate-100">
                       {limit.value}
                     </dd>
