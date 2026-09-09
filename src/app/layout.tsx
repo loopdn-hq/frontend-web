@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
-import { Space_Grotesk, Space_Mono } from "next/font/google";
+import { Public_Sans, Space_Mono } from "next/font/google";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
 
-const sans = Space_Grotesk({
-  variable: "--font-space-grotesk",
+// Public Sans is a variable font, so no `weight` list: every weight the UI
+// asks for comes from the one file rather than a request each.
+const sans = Public_Sans({
+  variable: "--font-public-sans",
   subsets: ["latin"],
 });
 
