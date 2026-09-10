@@ -41,7 +41,13 @@ import {
   type ConversationParticipant,
   type GroupSettings,
 } from "@/lib/chat/conversations";
-import { fetchBillingSummary, type BillingSummary } from "@/lib/billing";
+import {
+  createPlanCheckoutSession,
+  fetchBillingPlans,
+  fetchBillingSummary,
+  type BillingPlan,
+  type BillingSummary,
+} from "@/lib/billing";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
@@ -411,6 +417,7 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [billingSummary, setBillingSummary] = useState<BillingSummary | null>(
     null,
   );
+  const [billingPlans, setBillingPlans] = useState<BillingPlan[]>([]);
   const [billingError, setBillingError] = useState<string | null>(null);
   const [billingLimitError, setBillingLimitError] = useState<string | null>(
     null,
@@ -419,6 +426,12 @@ export function HomeShell({ mode }: HomeShellProps) {
     title: string;
     message: string;
   } | null>(null);
+  const [upgradeCheckoutPlanCode, setUpgradeCheckoutPlanCode] = useState<
+    string | null
+  >(null);
+  const [upgradeCheckoutError, setUpgradeCheckoutError] = useState<
+    string | null
+  >(null);
 
   // The provider fetches the list; select the first Loop of this mode once it
   // arrives. Keyed on the filtered list so /broadcast/ never opens a chat Loop.
@@ -443,23 +456,111 @@ export function HomeShell({ mode }: HomeShellProps) {
   useEffect(() => {
     let cancelled = false;
 
-    fetchBillingSummary().then((summaryResult) => {
-      if (cancelled) return;
-      if (!summaryResult.ok) {
-        setBillingError(summaryResult.message);
-        return;
-      }
+    Promise.all([fetchBillingSummary(), fetchBillingPlans()]).then(
+      ([summaryResult, plansResult]) => {
+        if (cancelled) return;
 
-      setBillingSummary(summaryResult.data);
-      setBillingError(null);
-    });
+        if (!summaryResult.ok) {
+          setBillingError(summaryResult.message);
+          return;
+        }
+
+        setBillingSummary(summaryResult.data);
+        setBillingError(plansResult.ok ? null : plansResult.message);
+        setBillingPlans(plansResult.ok ? plansResult.data : []);
+      },
+    );
 
     return () => {
       cancelled = true;
     };
   }, []);
 
+  const modalPlans = useMemo(() => {
+    const rankByCode: Record<string, number> = {
+      free: 0,
+      premium: 1,
+      business: 2,
+      enterprise: 3,
+    };
+
+    const sorted = [...billingPlans].sort((a, b) => {
+      const aCode = a.code.toLowerCase();
+      const bCode = b.code.toLowerCase();
+      if (aCode === "enterprise" && bCode !== "enterprise") return 1;
+      if (bCode === "enterprise" && aCode !== "enterprise") return -1;
+      const aRank = rankByCode[aCode] ?? 50;
+      const bRank = rankByCode[bCode] ?? 50;
+      return aRank - bRank;
+    });
+
+    return sorted.map((plan) => {
+      const code = plan.code.toLowerCase();
+      const summary =
+        code === "free"
+          ? "Good for getting started with smaller groups."
+          : code === "premium"
+            ? "For growing communities that need larger limits."
+            : code === "business"
+              ? "For larger teams with advanced operational needs."
+              : code === "enterprise"
+                ? "Custom package for organizations with complex requirements."
+                : "Scale your plan to match your team needs.";
+
+      return {
+        code,
+        name: plan.name,
+        price: plan.priceDisplay,
+        summary,
+        features: plan.features,
+      };
+    });
+  }, [billingPlans]);
+
   const activePlan = billingSummary?.subscription.plan ?? null;
+  const currentPlanCode = activePlan?.code?.toLowerCase() ?? "";
+
+  const closeUpgradePrompt = useCallback(() => {
+    setBillingLimitModal(null);
+    setUpgradeCheckoutError(null);
+    setUpgradeCheckoutPlanCode(null);
+  }, []);
+
+  const handleUpgradePlanSelection = useCallback(async (planCode: string) => {
+    const normalizedCode = planCode.toLowerCase();
+    if (normalizedCode === "enterprise") {
+      closeUpgradePrompt();
+      window.location.assign("/contact/");
+      return;
+    }
+
+    if (normalizedCode === "free") {
+      closeUpgradePrompt();
+      return;
+    }
+
+    setUpgradeCheckoutError(null);
+    setUpgradeCheckoutPlanCode(planCode);
+    try {
+      const origin = window.location.origin;
+      const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+      const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+      const result = await createPlanCheckoutSession(
+        planCode,
+        successUrl,
+        cancelUrl,
+      );
+
+      if (!result.ok) {
+        setUpgradeCheckoutError(result.message);
+        return;
+      }
+
+      window.location.assign(result.data.checkoutUrl);
+    } finally {
+      setUpgradeCheckoutPlanCode(null);
+    }
+  }, [closeUpgradePrompt]);
 
   const ownedGroupCount = useMemo(
     () =>
@@ -497,6 +598,8 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   const showUpgradeLimitPrompt = useCallback(
     (title: string, message: string) => {
+      setUpgradeCheckoutError(null);
+      setUpgradeCheckoutPlanCode(null);
       setBillingLimitError(message);
       setBillingLimitModal({ title, message });
     },
@@ -2854,7 +2957,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       {billingLimitModal && (
         <Modal
           isOpen={Boolean(billingLimitModal)}
-          onClose={() => setBillingLimitModal(null)}
+          onClose={closeUpgradePrompt}
           title={billingLimitModal.title}
           description="Your current plan limit has been reached."
           closeLabel="Close upgrade prompt"
@@ -2863,20 +2966,10 @@ export function HomeShell({ mode }: HomeShellProps) {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={() => setBillingLimitModal(null)}
+                onClick={closeUpgradePrompt}
                 fullWidth
               >
                 Not now
-              </Button>
-              <Button
-                type="button"
-                onClick={() => {
-                  setBillingLimitModal(null);
-                  window.location.assign("/pricing/");
-                }}
-                fullWidth
-              >
-                Upgrade plan
               </Button>
             </div>
           }
@@ -2884,6 +2977,83 @@ export function HomeShell({ mode }: HomeShellProps) {
           <p className="text-sm text-slate-700 dark:text-slate-300">
             {billingLimitModal.message}
           </p>
+          {upgradeCheckoutError && (
+            <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+              {upgradeCheckoutError}
+            </p>
+          )}
+          <div className="mt-4 space-y-3 max-h-80 overflow-y-auto">
+            {modalPlans.length === 0 && (
+              <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                Plans are loading. You can still view all options on the pricing
+                page.
+              </p>
+            )}
+            {modalPlans.map((plan) => (
+              (() => {
+                const code = plan.code.toLowerCase();
+                const isCurrentPlan = code === currentPlanCode;
+                const isFreePlan = code === "free";
+                const isEnterprisePlan = code === "enterprise";
+                const canChoose = !isCurrentPlan && !isFreePlan && !isEnterprisePlan;
+                const isRedirectingToCheckout =
+                  upgradeCheckoutPlanCode === plan.code;
+
+                return (
+              <article
+                key={`upgrade-plan-${plan.code}`}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {plan.name}
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      {plan.price}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      {plan.summary}
+                    </p>
+                  </div>
+                  {isCurrentPlan ? (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      Current plan
+                    </span>
+                  ) : isEnterprisePlan ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleUpgradePlanSelection(plan.code)}
+                      disabled={upgradeCheckoutPlanCode !== null}
+                    >
+                      Contact sales
+                    </Button>
+                  ) : canChoose ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => void handleUpgradePlanSelection(plan.code)}
+                      disabled={upgradeCheckoutPlanCode !== null}
+                    >
+                      {isRedirectingToCheckout ? "Redirecting..." : "Choose"}
+                    </Button>
+                  ) : (
+                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                      Included
+                    </span>
+                  )}
+                </div>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
+                  {plan.features.map((feature) => (
+                    <li key={`${plan.code}-${feature}`}>{feature}</li>
+                  ))}
+                </ul>
+              </article>
+                );
+              })()
+            ))}
+          </div>
         </Modal>
       )}
 
