@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { createPlanCheckoutSession, fetchBillingSummary } from "@/lib/billing";
+import { useAuth } from "@/lib/auth/client";
 
 type Plan = {
-  code: "free" | "premium" | "business" | "enterprise";
+  code: string;
   name: string;
   price: string;
   summary: string;
@@ -156,14 +158,18 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
 // ];
 
 function planSummaryFromCode(code: string): string {
-  if (code === "free") {
+  const normalizedCode = code.toLowerCase();
+  if (normalizedCode === "free") {
     return "For small groups getting started with Loopdn.";
   }
-  if (code === "premium") {
+  if (normalizedCode.startsWith("premium")) {
     return "For active teams and communities with growth needs.";
   }
-  if (code === "business") {
+  if (normalizedCode.startsWith("business")) {
     return "For operations-heavy organizations running many groups.";
+  }
+  if (normalizedCode === "enterprise") {
+    return "For large organizations requiring custom contracts and limits.";
   }
   return "For large organizations requiring custom contracts and limits.";
 }
@@ -173,22 +179,14 @@ function normalizePlanValue(value: number | null, unit?: string): string {
   return unit ? `${value} ${unit}` : String(value);
 }
 
-function mapApiPlanToUi(plan: ApiPlan): Plan | null {
-  if (
-    plan.code !== "free" &&
-    plan.code !== "premium" &&
-    plan.code !== "business" &&
-    plan.code !== "enterprise"
-  ) {
-    return null;
-  }
-
+function mapApiPlanToUi(plan: ApiPlan): Plan {
+  const normalizedCode = plan.code.toLowerCase();
   return {
     code: plan.code,
     name: plan.name,
     price: plan.price_display,
     summary: planSummaryFromCode(plan.code),
-    highlighted: plan.code === "premium",
+    highlighted: normalizedCode.startsWith("premium"),
     limits: [
       { label: "Max groups", value: normalizePlanValue(plan.max_groups) },
       {
@@ -212,13 +210,35 @@ function mapApiPlanToUi(plan: ApiPlan): Plan | null {
 }
 
 function sortPlans(plans: Plan[]): Plan[] {
-  const rank: Record<Plan["code"], number> = {
+  const rank: Record<string, number> = {
     free: 0,
     premium: 1,
     business: 2,
     enterprise: 3,
   };
-  return [...plans].sort((a, b) => rank[a.code] - rank[b.code]);
+
+  return [...plans].sort((a, b) => {
+    const aCode = a.code.toLowerCase();
+    const bCode = b.code.toLowerCase();
+
+    if (aCode === "enterprise" && bCode !== "enterprise") return 1;
+    if (bCode === "enterprise" && aCode !== "enterprise") return -1;
+
+    const aRank =
+      aCode.startsWith("premium") || aCode.startsWith("business")
+        ? 1
+        : (rank[aCode] ?? 50);
+    const bRank =
+      bCode.startsWith("premium") || bCode.startsWith("business")
+        ? 1
+        : (rank[bCode] ?? 50);
+
+    if (aRank !== bRank) return aRank - bRank;
+
+    const aPrice = typeof a.price === "string" ? a.price : "";
+    const bPrice = typeof b.price === "string" ? b.price : "";
+    return aPrice.localeCompare(bPrice);
+  });
 }
 
 function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
@@ -231,9 +251,31 @@ function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
 }
 
 export default function PricingPage() {
+  const { session, isLoaded } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
   const [plansError, setPlansError] = useState<string | null>(null);
+  const [currentPlanCode, setCurrentPlanCode] = useState<string | null>(null);
+  const [checkoutPlanCode, setCheckoutPlanCode] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  const isAuthenticated = isLoaded && Boolean(session);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let cancelled = false;
+    fetchBillingSummary().then((result) => {
+      if (cancelled || !result.ok) return;
+      setCurrentPlanCode(result.data.subscription.plan.code.toLowerCase());
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  const effectiveCurrentPlanCode = isAuthenticated ? currentPlanCode : null;
 
   const loadPlans = useCallback(async () => {
     setIsLoadingPlans(true);
@@ -261,9 +303,7 @@ export default function PricingPage() {
         throw new Error(message);
       }
 
-      const mapped = prependDefaultPlans(payload.data)
-        .map(mapApiPlanToUi)
-        .filter((item): item is Plan => item !== null);
+      const mapped = prependDefaultPlans(payload.data).map(mapApiPlanToUi);
 
       if (mapped.length === 0) {
         setPlans([]);
@@ -304,6 +344,43 @@ export default function PricingPage() {
   }, [isLoadingPlans, plansError]);
 
   const hasPlans = plans.length > 0;
+
+  const handlePlanAction = useCallback(
+    async (planCode: string) => {
+      const normalizedCode = planCode.toLowerCase();
+      if (normalizedCode === "enterprise") {
+        window.location.assign("/contact/");
+        return;
+      }
+
+      if (!isAuthenticated) {
+        window.location.assign("/login/");
+        return;
+      }
+
+      setCheckoutError(null);
+      setCheckoutPlanCode(planCode);
+      try {
+        const origin = window.location.origin;
+        const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+        const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+        const result = await createPlanCheckoutSession(
+          planCode,
+          successUrl,
+          cancelUrl,
+        );
+        if (!result.ok) {
+          setCheckoutError(result.message);
+          return;
+        }
+
+        window.location.assign(result.data.checkoutUrl);
+      } finally {
+        setCheckoutPlanCode(null);
+      }
+    },
+    [isAuthenticated],
+  );
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] px-6 py-10 text-slate-900 dark:bg-[radial-gradient(circle_at_20%_15%,#0f172a_0%,#0b1220_45%,#060b17_100%)] dark:text-slate-100 sm:px-8">
@@ -395,6 +472,13 @@ export default function PricingPage() {
             </div>
           )}
 
+          {!isLoadingPlans && checkoutError && (
+            <div className="lg:col-span-4 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300">
+              <p className="text-sm font-semibold">Unable to start checkout</p>
+              <p className="mt-1 text-xs">{checkoutError}</p>
+            </div>
+          )}
+
           {!isLoadingPlans && !hasPlans && !plansError && (
             <div className="lg:col-span-4 rounded-2xl border border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900">
               <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
@@ -423,83 +507,107 @@ export default function PricingPage() {
 
           {!isLoadingPlans &&
             hasPlans &&
-            plans.map((plan) => (
-              <article
-                key={plan.code}
-                aria-label={`${plan.name} plan`}
-                className={`group relative flex h-full flex-col rounded-3xl border p-5 shadow-sm backdrop-blur-sm transition-transform duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_16px_36px_rgba(15,23,42,0.12)] ${
-                  plan.highlighted
-                    ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)] dark:border-sky-700 dark:bg-slate-900 dark:shadow-[0_12px_32px_rgba(2,132,199,0.28)]"
-                    : "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90"
-                }`}
-              >
-                {plan.highlighted && (
-                  <p
-                    aria-label="Most popular plan"
-                    className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
+            plans.map((plan) =>
+              (() => {
+                const normalizedCode = plan.code.toLowerCase();
+                const isCurrentPlan =
+                  Boolean(effectiveCurrentPlanCode) &&
+                  normalizedCode === effectiveCurrentPlanCode;
+
+                return (
+                  <article
+                    key={plan.code}
+                    aria-label={`${plan.name} plan`}
+                    className={`group relative flex h-full flex-col rounded-3xl border p-5 shadow-sm backdrop-blur-sm transition-transform duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_16px_36px_rgba(15,23,42,0.12)] ${
+                      isCurrentPlan
+                        ? "border-emerald-300 bg-emerald-50/40 dark:border-emerald-700 dark:bg-emerald-950/15"
+                        : ""
+                    } ${
+                      plan.highlighted
+                        ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)] dark:border-sky-700 dark:bg-slate-900 dark:shadow-[0_12px_32px_rgba(2,132,199,0.28)]"
+                        : "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90"
+                    }`}
                   >
-                    Most Popular
-                  </p>
-                )}
+                    {plan.highlighted && (
+                      <p
+                        aria-label="Most popular plan"
+                        className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
+                      >
+                        Most Popular
+                      </p>
+                    )}
 
-                <h2 className="text-2xl font-extrabold">{plan.name}</h2>
-                <p className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-                  {plan.price}
-                </p>
-                <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                  {plan.summary}
-                </p>
+                    {isCurrentPlan && (
+                      <p className="mb-3 inline-flex absolute -top-2 left-3 rounded-full border bg-emerald-100 px-3 py-1 text-[11px] font-bold tracking-wide text-emerald-800 uppercase dark:bg-emerald-950/50 dark:text-emerald-300">
+                        Current Plan
+                      </p>
+                    )}
 
-                <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-700 dark:bg-slate-800/80">
-                  {plan.limits.map((limit) => (
-                    <div
-                      key={limit.label}
-                      className="flex items-center justify-between gap-3"
+                    <h2 className="text-2xl font-extrabold">{plan.name}</h2>
+                    <p className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
+                      {plan.price}
+                    </p>
+                    <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+                      {plan.summary}
+                    </p>
+
+                    <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-700 dark:bg-slate-800/80">
+                      {plan.limits.map((limit) => (
+                        <div
+                          key={limit.label}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <dt className="text-slate-600 dark:text-slate-300">
+                            {limit.label}
+                          </dt>
+                          <dd className="font-semibold text-slate-900 dark:text-slate-100">
+                            {limit.value}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+
+                    <ul
+                      aria-label={`${plan.name} features`}
+                      className="mt-4 space-y-2 text-sm text-slate-800 dark:text-slate-200"
                     >
-                      <dt className="text-slate-600 dark:text-slate-300">
-                        {limit.label}
-                      </dt>
-                      <dd className="font-semibold text-slate-900 dark:text-slate-100">
-                        {limit.value}
-                      </dd>
+                      {plan.features.map((feature) => (
+                        <li key={feature} className="flex gap-2">
+                          <span
+                            aria-hidden="true"
+                            className="mt-[2px] h-2 w-2 shrink-0 rounded-full bg-sky-500"
+                          />
+                          <span>{feature}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    <div className="mt-auto pt-5">
+                      {isCurrentPlan ? (
+                        <span className="inline-flex w-full items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                          Current Plan
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handlePlanAction(plan.code)}
+                          disabled={checkoutPlanCode !== null}
+                          className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition duration-300 hover:bg-slate-50 group-hover:scale-[1.05] group-focus-within:scale-[1.05] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
+                        >
+                          {plan.code.toLowerCase() === "enterprise"
+                            ? "Contact Sales"
+                            : checkoutPlanCode === plan.code
+                              ? "Redirecting..."
+                              : isAuthenticated
+                                ? `Choose ${plan.name}`
+                                : "Log in to continue"}
+                        </button>
+                      )}
                     </div>
-                  ))}
-                </dl>
-
-                <ul
-                  aria-label={`${plan.name} features`}
-                  className="mt-4 space-y-2 text-sm text-slate-800 dark:text-slate-200"
-                >
-                  {plan.features.map((feature) => (
-                    <li key={feature} className="flex gap-2">
-                      <span
-                        aria-hidden="true"
-                        className="mt-[2px] h-2 w-2 shrink-0 rounded-full bg-sky-500"
-                      />
-                      <span>{feature}</span>
-                    </li>
-                  ))}
-                </ul>
-
-                <div className="mt-auto pt-5">
-                  {plan.code === "enterprise" ? (
-                    <Link
-                      href="/contact/"
-                      className="inline-flex w-full items-center justify-center rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition duration-300 hover:bg-slate-800 group-hover:scale-[1.05] group-focus-within:scale-[1.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
-                    >
-                      Contact Sales
-                    </Link>
-                  ) : (
-                    <Link
-                      href="/signup/"
-                      className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition duration-300 hover:bg-slate-50 group-hover:scale-[1.05] group-focus-within:scale-[1.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
-                    >
-                      Choose {plan.name}
-                    </Link>
-                  )}
-                </div>
-              </article>
-            ))}
+                  </article>
+                );
+              })(),
+            )}
         </section>
 
         <section
