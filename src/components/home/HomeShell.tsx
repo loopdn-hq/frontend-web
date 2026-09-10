@@ -48,6 +48,7 @@ import { AddMembersModal } from "./AddMembersModal";
 import { LoopAdminPanel, type AdminTab } from "./LoopAdminPanel";
 import { NotificationBadge } from "./NotificationBadge";
 import { VerifyPhoneModal } from "./VerifyPhoneModal";
+import { Button, Modal } from "@/components/ui";
 import {
   composePreview,
   conversationTimeLabel,
@@ -414,6 +415,10 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [billingLimitError, setBillingLimitError] = useState<string | null>(
     null,
   );
+  const [billingLimitModal, setBillingLimitModal] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   // The provider fetches the list; select the first Loop of this mode once it
   // arrives. Keyed on the filtered list so /broadcast/ never opens a chat Loop.
@@ -470,6 +475,7 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   const maxGroups = activePlan?.maxGroups ?? null;
   const maxMembersPerGroup = activePlan?.maxMembersPerGroup ?? null;
+  const maxAdminsPerGroup = activePlan?.maxAdminsPerGroup ?? null;
   const selectedConversationForLimits = selectedConversationId
     ? conversations.find(
         (conversation) => conversation.id === selectedConversationId,
@@ -484,21 +490,42 @@ export function HomeShell({ mode }: HomeShellProps) {
     typeof maxMembersPerGroup === "number" &&
     selectedConversationForLimits.participants.length >= maxMembersPerGroup;
 
+  const selectedConversationAdminCount =
+    selectedConversationForLimits?.participants.filter(
+      (participant) => participant.role === "admin",
+    ).length ?? 0;
+
+  const showUpgradeLimitPrompt = useCallback(
+    (title: string, message: string) => {
+      setBillingLimitError(message);
+      setBillingLimitModal({ title, message });
+    },
+    [],
+  );
+
   const handleOpenCreateLoop = useCallback(() => {
     if (isCreateLoopBlocked) {
-      setBillingLimitError(
+      showUpgradeLimitPrompt(
+        "Group limit reached",
         `You have reached your ${activePlan?.name ?? "current"} plan limit of ${maxGroups} groups. Upgrade your plan to create more groups.`,
       );
       return;
     }
     setBillingLimitError(null);
     requirePhoneVerified(() => setIsCreateLoopOpen(true));
-  }, [isCreateLoopBlocked, activePlan?.name, maxGroups, requirePhoneVerified]);
+  }, [
+    isCreateLoopBlocked,
+    activePlan?.name,
+    maxGroups,
+    requirePhoneVerified,
+    showUpgradeLimitPrompt,
+  ]);
 
   const handleOpenAddMembers = useCallback(() => {
     if (!selectedConversationForLimits) return;
     if (isAddMembersBlocked) {
-      setBillingLimitError(
+      showUpgradeLimitPrompt(
+        "Member limit reached",
         `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to add more members.`,
       );
       return;
@@ -510,6 +537,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     isAddMembersBlocked,
     activePlan?.name,
     maxMembersPerGroup,
+    showUpgradeLimitPrompt,
   ]);
 
   // "Create group" in the nav rail routes here and bumps this counter.
@@ -1414,6 +1442,20 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   async function handleAddMembers(members: string[]) {
     if (!selectedConversationId) return;
+    if (typeof maxMembersPerGroup === "number" && selectedConversation) {
+      const projectedMembers =
+        selectedConversation.participants.length + members.length;
+      if (projectedMembers > maxMembersPerGroup) {
+        showUpgradeLimitPrompt(
+          "Member limit reached",
+          `Adding ${members.length} member${members.length === 1 ? "" : "s"} exceeds your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to continue.`,
+        );
+        throw new Error(
+          `This group is limited to ${maxMembersPerGroup} members on your current plan.`,
+        );
+      }
+    }
+
     const result = await addConversationMembers(
       selectedConversationId,
       members,
@@ -1427,6 +1469,19 @@ export function HomeShell({ mode }: HomeShellProps) {
     display_name?: string;
   }) {
     if (!selectedConversationId) return;
+    if (typeof maxMembersPerGroup === "number" && selectedConversation) {
+      const projectedMembers = selectedConversation.participants.length + 1;
+      if (projectedMembers > maxMembersPerGroup) {
+        showUpgradeLimitPrompt(
+          "Member limit reached",
+          `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to add more members.`,
+        );
+        throw new Error(
+          `This group is limited to ${maxMembersPerGroup} members on your current plan.`,
+        );
+      }
+    }
+
     const result = await inviteConversationMemberByPhone(
       selectedConversationId,
       invite,
@@ -2309,8 +2364,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                         onClick={handleOpenAddMembers}
                         title="Add members"
                         aria-label="Add members"
-                        disabled={isAddMembersBlocked}
-                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                       >
                         <svg
                           className="h-5 w-5"
@@ -2797,6 +2851,42 @@ export function HomeShell({ mode }: HomeShellProps) {
         />
       )}
 
+      {billingLimitModal && (
+        <Modal
+          isOpen={Boolean(billingLimitModal)}
+          onClose={() => setBillingLimitModal(null)}
+          title={billingLimitModal.title}
+          description="Your current plan limit has been reached."
+          closeLabel="Close upgrade prompt"
+          footer={
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setBillingLimitModal(null)}
+                fullWidth
+              >
+                Not now
+              </Button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setBillingLimitModal(null);
+                  window.location.assign("/pricing/");
+                }}
+                fullWidth
+              >
+                Upgrade plan
+              </Button>
+            </div>
+          }
+        >
+          <p className="text-sm text-slate-700 dark:text-slate-300">
+            {billingLimitModal.message}
+          </p>
+        </Modal>
+      )}
+
       {isAdminPanelOpen && selectedConversationId && (
         <div className="fixed inset-0 z-50 overflow-y-auto">
           <div className="flex min-h-screen items-start justify-center bg-black/50 p-4">
@@ -2910,6 +3000,29 @@ export function HomeShell({ mode }: HomeShellProps) {
                   }}
                   onUpdateMemberRole={async (memberId, role) => {
                     if (!selectedConversationId) return;
+                    if (
+                      role === "admin" &&
+                      typeof maxAdminsPerGroup === "number" &&
+                      selectedConversation
+                    ) {
+                      const targetMember = selectedConversation.participants.find(
+                        (participant) => participant.id === memberId,
+                      );
+                      const isAlreadyAdmin = targetMember?.role === "admin";
+                      if (
+                        !isAlreadyAdmin &&
+                        selectedConversationAdminCount >= maxAdminsPerGroup
+                      ) {
+                        showUpgradeLimitPrompt(
+                          "Admin limit reached",
+                          `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"}. Upgrade your plan to assign more admins.`,
+                        );
+                        throw new Error(
+                          `This group is limited to ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"} on your current plan.`,
+                        );
+                      }
+                    }
+
                     const result = await updateMemberRole(
                       selectedConversationId,
                       memberId,

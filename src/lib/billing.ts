@@ -41,6 +41,57 @@ export type BillingSummary = {
 
 type EnvelopeResult<T> = { ok: true; data: T } | { ok: false; message: string };
 
+const DEFAULT_BILLING_PLANS: BillingPlan[] = [
+  {
+    id: "free",
+    code: "free",
+    name: "Free",
+    monthlyPriceCents: 0,
+    priceDisplay: "$0.00/mo",
+    maxGroups: 3,
+    maxMembersPerGroup: 20,
+    maxAdminsPerGroup: 1,
+    storageGb: 1,
+    hasWhatsApp: false,
+    hasTelegram: false,
+    features: [
+      "Web messaging",
+      "Basic message history",
+      "Reactions",
+      "Reply, edit and delete",
+      "Join links/codes",
+      "Basic notifications",
+      "SMS requires PAYG credits or sponsored campaign funding",
+    ],
+    isCustomPricing: false,
+  },
+  {
+    id: "enterprise",
+    code: "enterprise",
+    name: "Enterprise",
+    monthlyPriceCents: null,
+    priceDisplay: "Custom",
+    maxGroups: null,
+    maxMembersPerGroup: null,
+    maxAdminsPerGroup: null,
+    storageGb: null,
+    hasWhatsApp: true,
+    hasTelegram: true,
+    features: [
+      "Workspaces",
+      "SSO",
+      "API access",
+      "Audit logs",
+      "Custom retention policies",
+      "Dedicated account manager",
+      "SLA",
+      "Custom volume pricing",
+      "Postpaid communication billing option",
+    ],
+    isCustomPricing: true,
+  },
+];
+
 function isObject(value: unknown): value is ApiObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -143,6 +194,22 @@ function normalizeCreditPackage(item: unknown): CreditPackage | null {
   };
 }
 
+function withDefaultPlanLimits(plan: BillingPlan): BillingPlan {
+  const defaults = DEFAULT_BILLING_PLANS.find(
+    (item) => item.code === plan.code.toLowerCase(),
+  );
+  if (!defaults) return plan;
+
+  return {
+    ...plan,
+    maxGroups: plan.maxGroups ?? defaults.maxGroups,
+    maxMembersPerGroup:
+      plan.maxMembersPerGroup ?? defaults.maxMembersPerGroup,
+    maxAdminsPerGroup: plan.maxAdminsPerGroup ?? defaults.maxAdminsPerGroup,
+    storageGb: plan.storageGb ?? defaults.storageGb,
+  };
+}
+
 function normalizeSummary(data: unknown): BillingSummary | null {
   if (!isObject(data)) return null;
   const subscription = isObject(data.subscription) ? data.subscription : null;
@@ -173,7 +240,7 @@ function normalizeSummary(data: unknown): BillingSummary | null {
 
   return {
     subscription: {
-      plan: normalizedSummaryPlan ?? fallbackPlan,
+      plan: withDefaultPlanLimits(normalizedSummaryPlan ?? fallbackPlan),
       status: asText(subscription.status, "active"),
       currentPeriodEnd:
         asText(subscription.current_period_end) ||
@@ -191,6 +258,15 @@ function normalizeSummary(data: unknown): BillingSummary | null {
   };
 }
 
+function prependDefaultPlans(plans: BillingPlan[]): BillingPlan[] {
+  const codes = new Set(plans.map((plan) => plan.code.toLowerCase()));
+  const defaultsToPrepend = DEFAULT_BILLING_PLANS.filter(
+    (plan) => !codes.has(plan.code),
+  );
+
+  return [...defaultsToPrepend, ...plans];
+}
+
 export async function fetchBillingPlans(): Promise<
   EnvelopeResult<BillingPlan[]>
 > {
@@ -200,9 +276,11 @@ export async function fetchBillingPlans(): Promise<
   const rows = Array.isArray(result.data) ? result.data : [];
   return {
     ok: true,
-    data: rows
-      .map(normalizePlan)
-      .filter((plan): plan is BillingPlan => plan !== null),
+    data: prependDefaultPlans(
+      rows
+        .map(normalizePlan)
+        .filter((plan): plan is BillingPlan => plan !== null),
+    ),
   };
 }
 

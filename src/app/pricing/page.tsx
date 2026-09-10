@@ -34,77 +34,126 @@ type PlansApiResponse = {
   data?: ApiPlan[];
 };
 
-const fallbackPlans: Plan[] = [
+const DEFAULT_API_PLANS: ApiPlan[] = [
   {
     code: "free",
     name: "Free",
-    price: "$0.00/mo",
-    summary: "For small groups getting started with Loopdn.",
-    limits: [
-      { label: "Max groups", value: "3" },
-      { label: "Members per group", value: "20" },
-      { label: "Admins per group", value: "1" },
-      { label: "Storage", value: "1 GB" },
-    ],
+    monthly_price_cents: 0,
+    price_display: "$0.00/mo",
+    max_groups: 3,
+    max_members_per_group: 20,
+    max_admins_per_group: 1,
+    storage_gb: 1,
+    has_whatsapp: false,
+    has_telegram: false,
     features: [
-      "Web + SMS group messaging",
-      "Join by open link, invite, or approval",
-      "Core moderation controls",
+      "Web messaging",
+      "Basic message history",
+      "Reactions",
+      "Reply, edit and delete",
+      "Join links/codes",
+      "Basic notifications",
+      "SMS requires PAYG credits or sponsored campaign funding",
     ],
-  },
-  {
-    code: "premium",
-    name: "Premium",
-    price: "$9.99/mo",
-    summary: "For active teams and communities with growth needs.",
-    highlighted: true,
-    limits: [
-      { label: "Max groups", value: "25" },
-      { label: "Members per group", value: "250" },
-      { label: "Admins per group", value: "5" },
-      { label: "Storage", value: "10 GB" },
-    ],
-    features: [
-      "Everything in Free",
-      "WhatsApp and Telegram connectors",
-      "Priority support",
-    ],
-  },
-  {
-    code: "business",
-    name: "Business",
-    price: "$29.99/mo",
-    summary: "For operations-heavy organizations running many groups.",
-    limits: [
-      { label: "Max groups", value: "100" },
-      { label: "Members per group", value: "1000" },
-      { label: "Admins per group", value: "10+" },
-      { label: "Storage", value: "50 GB" },
-    ],
-    features: [
-      "Everything in Premium",
-      "Stronger admin delegation",
-      "Faster support response",
-    ],
+    is_custom_pricing: false,
   },
   {
     code: "enterprise",
     name: "Enterprise",
-    price: "Custom",
-    summary: "For large organizations requiring custom contracts and limits.",
-    limits: [
-      { label: "Max groups", value: "Custom" },
-      { label: "Members per group", value: "Custom" },
-      { label: "Admins per group", value: "Custom" },
-      { label: "Storage", value: "Custom" },
-    ],
+    monthly_price_cents: null,
+    price_display: "Custom",
+    max_groups: null,
+    max_members_per_group: null,
+    max_admins_per_group: null,
+    storage_gb: null,
+    has_whatsapp: true,
+    has_telegram: true,
     features: [
-      "Custom rollout and support model",
-      "Custom security and compliance terms",
-      "Dedicated success channel",
+      "Workspaces",
+      "SSO",
+      "API access",
+      "Audit logs",
+      "Custom retention policies",
+      "Dedicated account manager",
+      "SLA",
+      "Custom volume pricing",
+      "Postpaid communication billing option",
     ],
+    is_custom_pricing: true,
   },
 ];
+
+// const fallbackPlans: Plan[] = [
+//   {
+//     code: "free",
+//     name: "Free",
+//     price: "$0.00/mo",
+//     summary: "For small groups getting started with Loopdn.",
+//     limits: [
+//       { label: "Max groups", value: "3" },
+//       { label: "Members per group", value: "20" },
+//       { label: "Admins per group", value: "1" },
+//       { label: "Storage", value: "1 GB" },
+//     ],
+//     features: [
+//       "Web + SMS group messaging",
+//       "Join by open link, invite, or approval",
+//       "Core moderation controls",
+//     ],
+//   },
+//   {
+//     code: "premium",
+//     name: "Premium",
+//     price: "$9.99/mo",
+//     summary: "For active teams and communities with growth needs.",
+//     highlighted: true,
+//     limits: [
+//       { label: "Max groups", value: "25" },
+//       { label: "Members per group", value: "250" },
+//       { label: "Admins per group", value: "5" },
+//       { label: "Storage", value: "10 GB" },
+//     ],
+//     features: [
+//       "Everything in Free",
+//       "WhatsApp and Telegram connectors",
+//       "Priority support",
+//     ],
+//   },
+//   {
+//     code: "business",
+//     name: "Business",
+//     price: "$29.99/mo",
+//     summary: "For operations-heavy organizations running many groups.",
+//     limits: [
+//       { label: "Max groups", value: "100" },
+//       { label: "Members per group", value: "1000" },
+//       { label: "Admins per group", value: "10+" },
+//       { label: "Storage", value: "50 GB" },
+//     ],
+//     features: [
+//       "Everything in Premium",
+//       "Stronger admin delegation",
+//       "Faster support response",
+//     ],
+//   },
+//   {
+//     code: "enterprise",
+//     name: "Enterprise",
+//     price: "Custom",
+//     summary: "For large organizations requiring custom contracts and limits.",
+//     limits: [
+//       { label: "Max groups", value: "Custom" },
+//       { label: "Members per group", value: "Custom" },
+//       { label: "Admins per group", value: "Custom" },
+//       { label: "Storage", value: "Custom" },
+//     ],
+//     features: [
+//       "Custom rollout and support model",
+//       "Custom security and compliance terms",
+//       "Dedicated success channel",
+//     ],
+//   },
+// ];
 
 function planSummaryFromCode(code: string): string {
   if (code === "free") {
@@ -172,6 +221,15 @@ function sortPlans(plans: Plan[]): Plan[] {
   return [...plans].sort((a, b) => rank[a.code] - rank[b.code]);
 }
 
+function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
+  const codes = new Set(plans.map((plan) => plan.code.toLowerCase()));
+  const defaultsToPrepend = DEFAULT_API_PLANS.filter(
+    (plan) => !codes.has(plan.code),
+  );
+
+  return [...defaultsToPrepend, ...plans];
+}
+
 export default function PricingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
@@ -183,7 +241,7 @@ export default function PricingPage() {
 
     const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
     if (!baseUrl) {
-      setPlans(fallbackPlans);
+      setPlans([]);
       setPlansError("Pricing API URL is not configured.");
       setIsLoadingPlans(false);
       return;
@@ -199,16 +257,16 @@ export default function PricingPage() {
         const message =
           payload && typeof payload.message === "string"
             ? payload.message
-            : "Unable to load live plans right now.";
+            : "Unable to load plans right now.";
         throw new Error(message);
       }
 
-      const mapped = payload.data
+      const mapped = prependDefaultPlans(payload.data)
         .map(mapApiPlanToUi)
         .filter((item): item is Plan => item !== null);
 
       if (mapped.length === 0) {
-        setPlans(fallbackPlans);
+        setPlans([]);
         setPlansError(
           "No pricing list is available yet. Showing fallback plans.",
         );
@@ -218,11 +276,11 @@ export default function PricingPage() {
       setPlans(sortPlans(mapped));
       setPlansError(null);
     } catch (error: unknown) {
-      setPlans(fallbackPlans);
+      setPlans([]);
       setPlansError(
         error instanceof Error
           ? error.message
-          : "Unable to load live plans right now.",
+          : "Unable to load plans right now.",
       );
     } finally {
       setIsLoadingPlans(false);
@@ -315,9 +373,7 @@ export default function PricingPage() {
 
           {!isLoadingPlans && plansError && (
             <div className="lg:col-span-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
-              <p className="text-sm font-semibold">
-                Unable to load live pricing
-              </p>
+              <p className="text-sm font-semibold">Unable to load pricing</p>
               <p className="mt-1 text-xs">
                 {plansError} You can still review our standard plans below.
               </p>
