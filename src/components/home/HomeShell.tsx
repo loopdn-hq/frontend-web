@@ -526,41 +526,44 @@ export function HomeShell({ mode }: HomeShellProps) {
     setUpgradeCheckoutPlanCode(null);
   }, []);
 
-  const handleUpgradePlanSelection = useCallback(async (planCode: string) => {
-    const normalizedCode = planCode.toLowerCase();
-    if (normalizedCode === "enterprise") {
-      closeUpgradePrompt();
-      window.location.assign("/contact/");
-      return;
-    }
-
-    if (normalizedCode === "free") {
-      closeUpgradePrompt();
-      return;
-    }
-
-    setUpgradeCheckoutError(null);
-    setUpgradeCheckoutPlanCode(planCode);
-    try {
-      const origin = window.location.origin;
-      const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
-      const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
-      const result = await createPlanCheckoutSession(
-        planCode,
-        successUrl,
-        cancelUrl,
-      );
-
-      if (!result.ok) {
-        setUpgradeCheckoutError(result.message);
+  const handleUpgradePlanSelection = useCallback(
+    async (planCode: string) => {
+      const normalizedCode = planCode.toLowerCase();
+      if (normalizedCode === "enterprise") {
+        closeUpgradePrompt();
+        window.location.assign("/contact/");
         return;
       }
 
-      window.location.assign(result.data.checkoutUrl);
-    } finally {
-      setUpgradeCheckoutPlanCode(null);
-    }
-  }, [closeUpgradePrompt]);
+      if (normalizedCode === "free") {
+        closeUpgradePrompt();
+        return;
+      }
+
+      setUpgradeCheckoutError(null);
+      setUpgradeCheckoutPlanCode(planCode);
+      try {
+        const origin = window.location.origin;
+        const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+        const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
+        const result = await createPlanCheckoutSession(
+          planCode,
+          successUrl,
+          cancelUrl,
+        );
+
+        if (!result.ok) {
+          setUpgradeCheckoutError(result.message);
+          return;
+        }
+
+        window.location.assign(result.data.checkoutUrl);
+      } finally {
+        setUpgradeCheckoutPlanCode(null);
+      }
+    },
+    [closeUpgradePrompt],
+  );
 
   const ownedGroupCount = useMemo(
     () =>
@@ -2989,70 +2992,77 @@ export function HomeShell({ mode }: HomeShellProps) {
                 page.
               </p>
             )}
-            {modalPlans.map((plan) => (
+            {modalPlans.map((plan) =>
               (() => {
                 const code = plan.code.toLowerCase();
                 const isCurrentPlan = code === currentPlanCode;
                 const isFreePlan = code === "free";
                 const isEnterprisePlan = code === "enterprise";
-                const canChoose = !isCurrentPlan && !isFreePlan && !isEnterprisePlan;
+                const canChoose =
+                  !isCurrentPlan && !isFreePlan && !isEnterprisePlan;
                 const isRedirectingToCheckout =
                   upgradeCheckoutPlanCode === plan.code;
 
                 return (
-              <article
-                key={`upgrade-plan-${plan.code}`}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                      {plan.name}
-                    </p>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">
-                      {plan.price}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                      {plan.summary}
-                    </p>
-                  </div>
-                  {isCurrentPlan ? (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                      Current plan
-                    </span>
-                  ) : isEnterprisePlan ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void handleUpgradePlanSelection(plan.code)}
-                      disabled={upgradeCheckoutPlanCode !== null}
-                    >
-                      Contact sales
-                    </Button>
-                  ) : canChoose ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      onClick={() => void handleUpgradePlanSelection(plan.code)}
-                      disabled={upgradeCheckoutPlanCode !== null}
-                    >
-                      {isRedirectingToCheckout ? "Redirecting..." : "Choose"}
-                    </Button>
-                  ) : (
-                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
-                      Included
-                    </span>
-                  )}
-                </div>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
-                  {plan.features.map((feature) => (
-                    <li key={`${plan.code}-${feature}`}>{feature}</li>
-                  ))}
-                </ul>
-              </article>
+                  <article
+                    key={`upgrade-plan-${plan.code}`}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                          {plan.name}
+                        </p>
+                        <p className="text-xs text-slate-600 dark:text-slate-400">
+                          {plan.price}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                          {plan.summary}
+                        </p>
+                      </div>
+                      {isCurrentPlan ? (
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                          Current plan
+                        </span>
+                      ) : isEnterprisePlan ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            void handleUpgradePlanSelection(plan.code)
+                          }
+                          disabled={upgradeCheckoutPlanCode !== null}
+                        >
+                          Contact sales
+                        </Button>
+                      ) : canChoose ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() =>
+                            void handleUpgradePlanSelection(plan.code)
+                          }
+                          disabled={upgradeCheckoutPlanCode !== null}
+                        >
+                          {isRedirectingToCheckout
+                            ? "Redirecting..."
+                            : "Choose"}
+                        </Button>
+                      ) : (
+                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                          Included
+                        </span>
+                      )}
+                    </div>
+                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
+                      {plan.features.map((feature) => (
+                        <li key={`${plan.code}-${feature}`}>{feature}</li>
+                      ))}
+                    </ul>
+                  </article>
                 );
-              })()
-            ))}
+              })(),
+            )}
           </div>
         </Modal>
       )}
@@ -3175,9 +3185,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                       typeof maxAdminsPerGroup === "number" &&
                       selectedConversation
                     ) {
-                      const targetMember = selectedConversation.participants.find(
-                        (participant) => participant.id === memberId,
-                      );
+                      const targetMember =
+                        selectedConversation.participants.find(
+                          (participant) => participant.id === memberId,
+                        );
                       const isAlreadyAdmin = targetMember?.role === "admin";
                       if (
                         !isAlreadyAdmin &&

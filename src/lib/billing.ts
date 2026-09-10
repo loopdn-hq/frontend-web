@@ -203,8 +203,7 @@ function withDefaultPlanLimits(plan: BillingPlan): BillingPlan {
   return {
     ...plan,
     maxGroups: plan.maxGroups ?? defaults.maxGroups,
-    maxMembersPerGroup:
-      plan.maxMembersPerGroup ?? defaults.maxMembersPerGroup,
+    maxMembersPerGroup: plan.maxMembersPerGroup ?? defaults.maxMembersPerGroup,
     maxAdminsPerGroup: plan.maxAdminsPerGroup ?? defaults.maxAdminsPerGroup,
     storageGb: plan.storageGb ?? defaults.storageGb,
   };
