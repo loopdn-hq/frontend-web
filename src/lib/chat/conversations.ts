@@ -5,6 +5,7 @@ import {
   refreshTokens,
 } from "@/lib/auth/client";
 import { composePreview, describeMessageBody } from "@/lib/chat/preview";
+import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -93,6 +94,14 @@ export type Conversation = {
   createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
+  /**
+   * The one message held above the thread, or null.
+   *
+   * On the conversation rather than on a message because there is exactly one,
+   * which is also what lets a pin ride the `conversation.updated` broadcast
+   * instead of needing a socket event of its own.
+   */
+  pinnedMessage: ConversationMessage | null;
 };
 
 export type ConversationParticipant = {
@@ -130,6 +139,37 @@ export type ConversationAttachment = {
   kind?: "image" | "file";
 };
 
+/** Which channel a message arrived on. Mirrors Message.Source on the server. */
+export type MessageSource = "app" | "sms" | "email" | "system";
+
+/**
+ * The message a reply answers, as much of it as a quote needs.
+ *
+ * An EXCERPT, not a message: the server truncates it and sends no attachments,
+ * because nesting the real object recurses through a chain of replies.
+ *
+ * Null once the parent is deleted - the FK is SET_NULL, so a reply outlives its
+ * parent and simply stops quoting it.
+ */
+export type MessageReplyTo = {
+  id: string | number;
+  sender: string;
+  text: string;
+};
+
+/**
+ * One emoji on one message, and who put it there.
+ *
+ * USERNAMES rather than a `reacted` flag, because the same payload arrives over
+ * the websocket, where the server has no request and so no "me" to compute one
+ * against. `hasReacted` below is how a component asks the question.
+ */
+export type MessageReaction = {
+  emoji: string;
+  count: number;
+  usernames: string[];
+};
+
 export type ConversationMessage = {
   id: string | number;
   conversationId: string | number;
@@ -140,6 +180,25 @@ export type ConversationMessage = {
   createdAt: string;
   attachments: ConversationAttachment[];
   mine: boolean;
+  /** One entry per emoji used, in the order they were first used. */
+  reactions: MessageReaction[];
+  /** Passed along from another conversation. Never says who from. */
+  forwarded: boolean;
+  /** When the text was last changed, or null if it never was. */
+  editedAt: string | null;
+  /**
+   * When it was deleted, or null. The message stays in the thread as a
+   * tombstone - the server withholds the text and the attachments - so replies
+   * quoting it keep a parent to point at.
+   */
+  deletedAt: string | null;
+  /**
+   * The channel it came in on. Serialized by the API all along and dropped on
+   * the floor here until message info needed to say "arrived via SMS".
+   */
+  source: MessageSource;
+  /** The message this one answers, when it answers one. */
+  replyTo?: MessageReplyTo;
 };
 
 type ApiObject = Record<string, unknown>;
@@ -191,6 +250,34 @@ export function normalizeConversationPayload(
   raw: unknown,
 ): Conversation | null {
   return isApiObject(raw) ? normalizeConversation(raw) : null;
+}
+
+/**
+ * One message straight off the wire, whatever brought it.
+ *
+ * Exported so the websocket path runs the SAME conversion as the REST path
+ * instead of hand-deriving a handful of fields and casting the rest. That cast
+ * is how `reply_to` arrived unconverted once already: every field the
+ * serializer grows is silently absent until somebody remembers to add it in
+ * two places.
+ *
+ * `fallbackConversationId` covers the frames whose `conversation` the caller
+ * has already resolved - some carry a nested object rather than a bare id.
+ */
+export function normalizeMessagePayload(
+  raw: unknown,
+  fallbackConversationId?: string | number | null,
+): ConversationMessage | null {
+  if (!isApiObject(raw)) return null;
+
+  const conversation = raw.conversation;
+  const resolved =
+    typeof conversation === "string" || typeof conversation === "number"
+      ? conversation
+      : fallbackConversationId;
+  if (resolved === null || resolved === undefined) return null;
+
+  return normalizeMessage({ ...raw, conversation: resolved });
 }
 
 export function normalizeParticipant(
@@ -301,6 +388,9 @@ function normalizeConversation(item: ApiObject): Conversation | null {
   const lastMessageNormalized = lastMessage
     ? normalizeMessage(lastMessage)
     : null;
+  const pinnedMessage = isApiObject(item.pinned_message)
+    ? normalizeMessage(item.pinned_message)
+    : null;
   // "yul: Photo" rather than "hey" - in a group the who matters as much as
   // the what, and what was sent matters when it was not words. Composed here
   // rather than read off the server's `preview` string, so the live socket
@@ -313,10 +403,16 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     (lastMessageNormalized &&
       composePreview(
         lastMessageNormalized.sender,
-        describeMessageBody(
-          lastMessageNormalized.text,
-          lastMessageNormalized.attachments,
-        ),
+        // A deleted message has no text and no files, so describing it yields
+        // an empty line and the row silently falls back to the Loop's
+        // description - which reads as "this group has gone quiet" rather than
+        // "the last thing said was taken back".
+        lastMessageNormalized.deletedAt !== null
+          ? DELETED_MESSAGE_TEXT
+          : describeMessageBody(
+              lastMessageNormalized.text,
+              lastMessageNormalized.attachments,
+            ),
       )) ||
     // asText's fallback only fires for a non-string, so an empty description
     // came through as an empty line rather than as this.
@@ -357,6 +453,7 @@ function normalizeConversation(item: ApiObject): Conversation | null {
               participant !== null,
           )
       : [],
+    pinnedMessage,
   };
 }
 
@@ -374,6 +471,56 @@ function normalizeAttachment(item: ApiObject): ConversationAttachment | null {
     contentType: asText(item.content_type) || undefined,
     kind: item.kind === "image" ? "image" : "file",
   };
+}
+
+/**
+ * The reply excerpt from a raw payload, or undefined.
+ *
+ * Exported because the websocket branch hand-derives its fields from the raw
+ * snake_case frame rather than calling normalizeMessage - without this it would
+ * grow a second, drifting copy of the same conversion.
+ */
+export function normalizeReplyTo(raw: unknown): MessageReplyTo | undefined {
+  if (!isApiObject(raw)) return undefined;
+  const id = raw.id;
+  if (typeof id !== "string" && typeof id !== "number") return undefined;
+
+  return {
+    id,
+    sender: asText(raw.sender, "Unknown"),
+    text: asText(raw.text),
+  };
+}
+
+function normalizeReactions(raw: unknown): MessageReaction[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw.filter(isApiObject).flatMap((entry) => {
+    const emoji = asText(entry.emoji);
+    if (!emoji) return [];
+    const usernames = Array.isArray(entry.usernames)
+      ? entry.usernames.filter(
+          (name): name is string => typeof name === "string",
+        )
+      : [];
+    return [
+      {
+        emoji,
+        // The server's count, not the list length: they agree today, and
+        // trusting the count keeps the pill right if it ever caps the names.
+        count: typeof entry.count === "number" ? entry.count : usernames.length,
+        usernames,
+      },
+    ];
+  });
+}
+
+/** Whether this viewer is among the people who left this reaction. */
+export function hasReacted(
+  reaction: MessageReaction,
+  username: string | null,
+): boolean {
+  return username !== null && reaction.usernames.includes(username);
 }
 
 function normalizeMessage(item: ApiObject): ConversationMessage | null {
@@ -400,9 +547,20 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
       ? senderObject.profile
       : null;
 
+  const replyTo = normalizeReplyTo(item.reply_to);
+  const reactions = normalizeReactions(item.reactions);
+
+  const rawSource = item.source;
+  const source: MessageSource =
+    rawSource === "sms" || rawSource === "email" || rawSource === "system"
+      ? rawSource
+      : "app";
+
   return {
     id,
     conversationId,
+    source,
+    ...(replyTo ? { replyTo } : {}),
     sender: senderName,
     senderUsername,
     // Null for anybody who texted in without an account - the serializer keeps
@@ -413,6 +571,10 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     text: asText(item.text),
     createdAt: asText(item.created_at),
     mine: item.mine === true,
+    reactions,
+    forwarded: item.forwarded === true,
+    editedAt: asText(item.edited_at) || null,
+    deletedAt: asText(item.deleted_at) || null,
     attachments: Array.isArray(item.attachments)
       ? item.attachments
           .filter(isApiObject)
@@ -1382,10 +1544,199 @@ export async function fetchMessageHistory(
   }
 }
 
+// -- acting on one message -------------------------------------------------
+//
+// Every route hangs off the conversation, never a bare /messages/<id>/: the
+// conversation id is what proves membership before the message is looked up.
+// See ConversationViewSet, where the same rule is enforced.
+
+const MESSAGE_ROUTE = (
+  conversationId: string | number,
+  messageId: string | number,
+  suffix = "",
+) => `/chat/conversations/${conversationId}/messages/${messageId}/${suffix}`;
+
+type MessageResult =
+  { ok: true; message: ConversationMessage } | { ok: false; message: string };
+
+type ConversationResult =
+  { ok: true; conversation: Conversation } | { ok: false; message: string };
+
+/**
+ * Every per-message route answers with the message in its new state, so one
+ * reader serves all of them and the caller always gets back something it can
+ * swap straight into the thread.
+ */
+async function requestMessage(
+  path: string,
+  init: RequestInit,
+  fallback: string,
+): Promise<MessageResult> {
+  try {
+    const response = await authorizedRequest(path, init);
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const message = payload ? normalizeMessage(payload) : null;
+    if (!response.ok || !message) {
+      return { ok: false, message: getErrorMessage(data) ?? fallback };
+    }
+    return { ok: true, message };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Add or remove your own reaction.
+ *
+ * Both directions are idempotent on the server, so a retry after a dropped
+ * response cannot flip the state back - which a single toggle endpoint could
+ * not have promised.
+ */
+export async function setMessageReaction(
+  conversationId: string | number,
+  messageId: string | number,
+  emoji: string,
+  reacted: boolean,
+): Promise<MessageResult> {
+  const path = MESSAGE_ROUTE(conversationId, messageId, "reactions/");
+
+  return reacted
+    ? requestMessage(
+        // The emoji rides in the query string: a DELETE with a body is
+        // unevenly supported by proxies, and one value fits in a parameter.
+        `${path}?emoji=${encodeURIComponent(emoji)}`,
+        { method: "DELETE" },
+        "Unable to remove that reaction.",
+      )
+    : requestMessage(
+        path,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emoji }),
+        },
+        "Unable to add that reaction.",
+      );
+}
+
+/**
+ * Change the words of a message you sent.
+ *
+ * In-app only. A copy already delivered by SMS or email cannot be recalled, so
+ * the UI must not imply this reaches the phone that already has the original.
+ */
+export async function editConversationMessage(
+  conversationId: string | number,
+  messageId: string | number,
+  text: string,
+): Promise<MessageResult> {
+  return requestMessage(
+    MESSAGE_ROUTE(conversationId, messageId),
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: text.trim() }),
+    },
+    "Unable to edit this message.",
+  );
+}
+
+/**
+ * Delete a message for everyone.
+ *
+ * Answers with the message rather than nothing: it stays in the thread as a
+ * tombstone, so the caller has something to render in its place.
+ */
+export async function deleteConversationMessage(
+  conversationId: string | number,
+  messageId: string | number,
+): Promise<MessageResult> {
+  return requestMessage(
+    MESSAGE_ROUTE(conversationId, messageId),
+    { method: "DELETE" },
+    "Unable to delete this message.",
+  );
+}
+
+/**
+ * Pass a message along to another conversation.
+ *
+ * Posted to the DESTINATION, so the same membership and posting rules that
+ * guard an ordinary send guard this too. The words come from the original on
+ * the server - anything sent here would be ignored.
+ */
+export async function forwardConversationMessage(
+  targetConversationId: string | number,
+  messageId: string | number,
+): Promise<MessageResult> {
+  return requestMessage(
+    `/chat/conversations/${targetConversationId}/messages/`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ forward_from: messageId }),
+    },
+    "Unable to forward this message.",
+  );
+}
+
+/**
+ * Hold one message above the thread, or let it go.
+ *
+ * Answers with the CONVERSATION, not the message: the pin lives on the
+ * conversation, and everyone else learns about it through the
+ * `conversation.updated` broadcast.
+ */
+export async function setPinnedMessage(
+  conversationId: string | number,
+  messageId: string | number,
+  pinned: boolean,
+): Promise<ConversationResult> {
+  try {
+    const response = await authorizedRequest(
+      MESSAGE_ROUTE(conversationId, messageId, "pin/"),
+      { method: pinned ? "POST" : "DELETE" },
+    );
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const conversation = payload ? normalizeConversation(payload) : null;
+    if (!response.ok || !conversation) {
+      return {
+        ok: false,
+        message:
+          getErrorMessage(data) ??
+          (pinned ? "Unable to pin this message." : "Unable to unpin this."),
+      };
+    }
+    return { ok: true, conversation };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function sendConversationMessage(
   conversationId: string | number,
   text: string,
   attachments: File[] = [],
+  /**
+   * The message being answered. The server checks it belongs to this
+   * conversation - see MessageCreateSerializer.validate_reply_to - so a wrong
+   * id is refused rather than quoted.
+   */
+  replyToId?: string | number | null,
 ): Promise<
   { ok: true; message: ConversationMessage } | { ok: false; message: string }
 > {
@@ -1398,9 +1749,16 @@ export async function sendConversationMessage(
             const formData = new FormData();
             if (text.trim()) formData.append("text", text.trim());
             attachments.forEach((file) => formData.append("attachments", file));
+            // FormData carries strings; DRF's IntegerField parses it back.
+            if (replyToId != null) {
+              formData.append("reply_to", String(replyToId));
+            }
             return formData;
           })()
-        : JSON.stringify({ text: text.trim() }),
+        : JSON.stringify({
+            text: text.trim(),
+            ...(replyToId != null ? { reply_to: replyToId } : {}),
+          }),
     };
     if (!hasAttachments) {
       request.headers = { "Content-Type": "application/json" };
