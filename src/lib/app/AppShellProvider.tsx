@@ -179,6 +179,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
         phone: result.phone ?? prev.phone,
         emailVerified: result.emailVerified ?? prev.emailVerified,
         phoneVerified: result.phoneVerified ?? prev.phoneVerified,
+        emailEnabled: result.emailEnabled ?? prev.emailEnabled,
         bio: result.bio ?? prev.bio,
         avatarUrl: result.avatarUrl ?? prev.avatarUrl,
       }));
