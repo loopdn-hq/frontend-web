@@ -193,12 +193,15 @@ function BillingSettings() {
     return summary?.subscription.plan ?? null;
   }, [summary]);
 
+  const activePlanCode = activePlan?.code.toLowerCase() ?? "";
+
   const upgradablePlans = useMemo(
     () =>
       plans
-        .filter((plan) =>
-          ["premium", "business"].includes(plan.code.toLowerCase()),
-        )
+        .filter((plan) => {
+          const code = plan.code.toLowerCase();
+          return code !== "free" && code !== "enterprise";
+        })
         .sort(
           (a, b) => (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0),
         ),
@@ -400,7 +403,7 @@ function BillingSettings() {
           Upgrade plan
         </p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Move to Premium or Business to unlock higher limits.
+          Choose from available paid plans to unlock higher limits.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {upgradablePlans.map((plan) => (
@@ -412,10 +415,10 @@ function BillingSettings() {
               onClick={() => handleUpgrade(plan.code)}
               disabled={
                 busyAction !== null ||
-                summary?.subscription.plan.code === plan.code
+                activePlanCode === plan.code.toLowerCase()
               }
             >
-              {summary?.subscription.plan.code === plan.code
+              {activePlanCode === plan.code.toLowerCase()
                 ? `${plan.name} (Current)`
                 : `${plan.name} ${
                     plan.monthlyPriceCents !== null

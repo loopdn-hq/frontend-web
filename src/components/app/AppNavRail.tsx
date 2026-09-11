@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
+  BarChart3,
   Bell,
   CirclePlus,
   Contact,
@@ -20,6 +21,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useAppShell } from "@/lib/app/AppShellProvider";
+import { fetchBillingSummary } from "@/lib/billing";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
 
 type NavItem = {
@@ -70,9 +72,22 @@ const NAV_SECTIONS: NavSection[] = [
   },
   {
     heading: "Discover",
-    items: [{ href: "/find-groups/", label: "Find groups", icon: Search }],
+    items: [
+      { href: "/find-groups/", label: "Find groups", icon: Search },
+      { href: "/analytics/", label: "Analytics", icon: BarChart3 },
+    ],
   },
 ];
+
+function hasAnalyticsFeature(features: string[]): boolean {
+  return features.some((feature) => {
+    const normalized = feature.trim().toLowerCase();
+    return (
+      normalized.includes("basic analytics") ||
+      normalized.includes("advanced analytics")
+    );
+  });
+}
 
 export function AppNavRail() {
   const pathname = usePathname();
@@ -87,6 +102,22 @@ export function AppNavRail() {
     closeNavDrawer,
   } = useAppShell();
   const [collapsed, setCollapsed] = useState(readNavCollapsed);
+  const [hasAnalyticsAccess, setHasAnalyticsAccess] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchBillingSummary().then((result) => {
+      if (cancelled || !result.ok) return;
+      setHasAnalyticsAccess(
+        hasAnalyticsFeature(result.data.subscription.plan.features),
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((current) => {
@@ -177,7 +208,11 @@ export function AppNavRail() {
               )}
 
               {section.items
-                .filter((item) => !HIDDEN_DESTINATIONS.has(item.href))
+                .filter(
+                  (item) =>
+                    !HIDDEN_DESTINATIONS.has(item.href) &&
+                    (item.href !== "/analytics/" || hasAnalyticsAccess),
+                )
                 .map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href);

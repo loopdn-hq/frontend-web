@@ -39,7 +39,126 @@ export type BillingSummary = {
   };
 };
 
+export type BillingAnalyticsPlanInfo = {
+  code: string;
+  name: string;
+  monthlyPriceCents: number | null;
+  isCustomPricing: boolean;
+  features: string[];
+};
+
+export type BillingAnalyticsWalletUsage = {
+  purchasedCents: number;
+  usedCents: number;
+  netChangeCents: number;
+  purchaseTransactions: number;
+  usageTransactions: number;
+};
+
+export type BillingAnalyticsWallet = {
+  balanceCents: number;
+  usageLast30Days: BillingAnalyticsWalletUsage;
+};
+
+export type BillingAnalyticsBasic = {
+  windowDays: number;
+  planInfo: BillingAnalyticsPlanInfo;
+  wallet: BillingAnalyticsWallet;
+  conversationCounts: {
+    total: number;
+    group: number;
+    direct: number;
+  };
+  messageActivity: {
+    sentLast30Days: number;
+    receivedLast30Days: number;
+  };
+};
+
+export type BillingAnalyticsAdvanced = {
+  planInfo: BillingAnalyticsPlanInfo;
+  wallet: BillingAnalyticsWallet;
+  groupAdminStats: {
+    adminGroups: number;
+    memberGroups: number;
+    broadcastGroups: number;
+  };
+  groupSize: {
+    averageActiveMembers: number;
+    largestGroupActiveMembers: number;
+  };
+};
+
+export type BillingAnalyticsSuggestion = {
+  code: string;
+  title: string;
+  detail: string;
+};
+
+export type BillingAnalytics = {
+  access: {
+    hasBasicAnalytics: boolean;
+    hasAdvancedAnalytics: boolean;
+    currentPlanCode: string;
+    matchedFeature: "basic" | "advanced" | "none";
+  };
+  basic: BillingAnalyticsBasic | null;
+  advanced: BillingAnalyticsAdvanced | null;
+  suggestions: BillingAnalyticsSuggestion[];
+};
+
 type EnvelopeResult<T> = { ok: true; data: T } | { ok: false; message: string };
+
+const DEFAULT_BILLING_PLANS: BillingPlan[] = [
+  {
+    id: "free",
+    code: "free",
+    name: "Free",
+    monthlyPriceCents: 0,
+    priceDisplay: "$0.00/mo",
+    maxGroups: 3,
+    maxMembersPerGroup: 20,
+    maxAdminsPerGroup: 1,
+    storageGb: 1,
+    hasWhatsApp: false,
+    hasTelegram: false,
+    features: [
+      "Web messaging",
+      "Basic message history",
+      "Reactions",
+      "Reply, edit and delete",
+      "Join links/codes",
+      "Basic notifications",
+      "SMS requires PAYG credits or sponsored campaign funding",
+    ],
+    isCustomPricing: false,
+  },
+  {
+    id: "enterprise",
+    code: "enterprise",
+    name: "Enterprise",
+    monthlyPriceCents: null,
+    priceDisplay: "Custom",
+    maxGroups: null,
+    maxMembersPerGroup: null,
+    maxAdminsPerGroup: null,
+    storageGb: null,
+    hasWhatsApp: true,
+    hasTelegram: true,
+    features: [
+      "Workspaces",
+      "SSO",
+      "API access",
+      "Audit logs",
+      "Custom retention policies",
+      "Dedicated account manager",
+      "SLA",
+      "Custom volume pricing",
+      "Postpaid communication billing option",
+    ],
+    isCustomPricing: true,
+  },
+];
 
 function isObject(value: unknown): value is ApiObject {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -55,6 +174,12 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === "boolean" ? value : fallback;
+}
+
+function asCount(value: unknown, fallback = 0): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.trunc(value))
+    : fallback;
 }
 
 function getErrorMessage(payload: unknown): string | null {
@@ -143,6 +268,187 @@ function normalizeCreditPackage(item: unknown): CreditPackage | null {
   };
 }
 
+function normalizeAnalyticsPlanInfo(item: unknown): BillingAnalyticsPlanInfo {
+  if (!isObject(item)) {
+    return {
+      code: "",
+      name: "",
+      monthlyPriceCents: null,
+      isCustomPricing: false,
+      features: [],
+    };
+  }
+
+  const features = Array.isArray(item.features)
+    ? item.features.filter(
+        (value): value is string => typeof value === "string",
+      )
+    : [];
+
+  return {
+    code: asText(item.code),
+    name: asText(item.name, "Plan"),
+    monthlyPriceCents: asNumber(item.monthly_price_cents),
+    isCustomPricing: asBoolean(item.is_custom_pricing),
+    features,
+  };
+}
+
+function normalizeAnalyticsWallet(item: unknown): BillingAnalyticsWallet {
+  const usage =
+    isObject(item) && isObject(item.usage_last_30_days)
+      ? item.usage_last_30_days
+      : null;
+
+  return {
+    balanceCents: isObject(item) ? asCount(item.balance_cents) : 0,
+    usageLast30Days: {
+      purchasedCents: usage ? asCount(usage.purchased_cents) : 0,
+      usedCents: usage ? asCount(usage.used_cents) : 0,
+      netChangeCents: usage ? asCount(usage.net_change_cents) : 0,
+      purchaseTransactions: usage ? asCount(usage.purchase_transactions) : 0,
+      usageTransactions: usage ? asCount(usage.usage_transactions) : 0,
+    },
+  };
+}
+
+function normalizeBillingAnalytics(data: unknown): BillingAnalytics | null {
+  if (!isObject(data)) return null;
+
+  const access = isObject(data.access) ? data.access : null;
+  const matchedFeatureRaw = access ? asText(access.matched_feature) : "";
+  const matchedFeature: BillingAnalytics["access"]["matchedFeature"] =
+    matchedFeatureRaw === "advanced"
+      ? "advanced"
+      : matchedFeatureRaw === "basic"
+        ? "basic"
+        : "none";
+
+  const basicRaw = isObject(data.basic) ? data.basic : null;
+  const advancedRaw = isObject(data.advanced) ? data.advanced : null;
+
+  const basic: BillingAnalyticsBasic | null = basicRaw
+    ? {
+        windowDays: asCount(basicRaw.window_days, 30),
+        planInfo: normalizeAnalyticsPlanInfo(basicRaw.plan_info),
+        wallet: normalizeAnalyticsWallet(basicRaw.wallet),
+        conversationCounts: {
+          total: isObject(basicRaw.conversation_counts)
+            ? asCount(basicRaw.conversation_counts.total)
+            : 0,
+          group: isObject(basicRaw.conversation_counts)
+            ? asCount(basicRaw.conversation_counts.group)
+            : 0,
+          direct: isObject(basicRaw.conversation_counts)
+            ? asCount(basicRaw.conversation_counts.direct)
+            : 0,
+        },
+        messageActivity: {
+          sentLast30Days: isObject(basicRaw.message_activity)
+            ? asCount(basicRaw.message_activity.sent_last_30_days)
+            : 0,
+          receivedLast30Days: isObject(basicRaw.message_activity)
+            ? asCount(basicRaw.message_activity.received_last_30_days)
+            : 0,
+        },
+      }
+    : null;
+
+  const advanced: BillingAnalyticsAdvanced | null = advancedRaw
+    ? {
+        planInfo: normalizeAnalyticsPlanInfo(advancedRaw.plan_info),
+        wallet: normalizeAnalyticsWallet(advancedRaw.wallet),
+        groupAdminStats: {
+          adminGroups: isObject(advancedRaw.group_admin_stats)
+            ? asCount(advancedRaw.group_admin_stats.admin_groups)
+            : 0,
+          memberGroups: isObject(advancedRaw.group_admin_stats)
+            ? asCount(advancedRaw.group_admin_stats.member_groups)
+            : 0,
+          broadcastGroups: isObject(advancedRaw.group_admin_stats)
+            ? asCount(advancedRaw.group_admin_stats.broadcast_groups)
+            : 0,
+        },
+        groupSize: {
+          averageActiveMembers: isObject(advancedRaw.group_size)
+            ? (asNumber(advancedRaw.group_size.average_active_members) ?? 0)
+            : 0,
+          largestGroupActiveMembers: isObject(advancedRaw.group_size)
+            ? asCount(advancedRaw.group_size.largest_group_active_members)
+            : 0,
+        },
+      }
+    : null;
+
+  const suggestions = Array.isArray(data.suggestions)
+    ? data.suggestions.filter(isObject).map((item) => ({
+        code: asText(item.code),
+        title: asText(item.title, "Suggestion"),
+        detail: asText(item.detail),
+      }))
+    : [];
+
+  return {
+    access: {
+      hasBasicAnalytics: access ? asBoolean(access.has_basic_analytics) : false,
+      hasAdvancedAnalytics: access
+        ? asBoolean(access.has_advanced_analytics)
+        : false,
+      currentPlanCode: access ? asText(access.current_plan_code) : "",
+      matchedFeature,
+    },
+    basic,
+    advanced,
+    suggestions,
+  };
+}
+
+async function getAnalyticsData(): Promise<EnvelopeResult<unknown>> {
+  const endpoints = ["/api/v1/billing/analytics/", "/billing/analytics/"];
+  let lastError = "Unable to load billing analytics.";
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await authorizedRequest(endpoint);
+      const payload = await response.json().catch(() => null);
+      if (response.ok) {
+        if (!isObject(payload)) {
+          return { ok: false, message: "Invalid billing analytics response." };
+        }
+        return { ok: true, data: payload.data };
+      }
+
+      lastError =
+        getErrorMessage(payload) ?? "Billing analytics request failed.";
+      if (response.status !== 404) {
+        return { ok: false, message: lastError };
+      }
+    } catch (error) {
+      lastError =
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.";
+    }
+  }
+
+  return { ok: false, message: lastError };
+}
+
+function withDefaultPlanLimits(plan: BillingPlan): BillingPlan {
+  const defaults = DEFAULT_BILLING_PLANS.find(
+    (item) => item.code === plan.code.toLowerCase(),
+  );
+  if (!defaults) return plan;
+
+  return {
+    ...plan,
+    maxGroups: plan.maxGroups ?? defaults.maxGroups,
+    maxMembersPerGroup: plan.maxMembersPerGroup ?? defaults.maxMembersPerGroup,
+    maxAdminsPerGroup: plan.maxAdminsPerGroup ?? defaults.maxAdminsPerGroup,
+    storageGb: plan.storageGb ?? defaults.storageGb,
+  };
+}
+
 function normalizeSummary(data: unknown): BillingSummary | null {
   if (!isObject(data)) return null;
   const subscription = isObject(data.subscription) ? data.subscription : null;
@@ -173,7 +479,7 @@ function normalizeSummary(data: unknown): BillingSummary | null {
 
   return {
     subscription: {
-      plan: normalizedSummaryPlan ?? fallbackPlan,
+      plan: withDefaultPlanLimits(normalizedSummaryPlan ?? fallbackPlan),
       status: asText(subscription.status, "active"),
       currentPeriodEnd:
         asText(subscription.current_period_end) ||
@@ -191,6 +497,15 @@ function normalizeSummary(data: unknown): BillingSummary | null {
   };
 }
 
+function prependDefaultPlans(plans: BillingPlan[]): BillingPlan[] {
+  const codes = new Set(plans.map((plan) => plan.code.toLowerCase()));
+  const defaultsToPrepend = DEFAULT_BILLING_PLANS.filter(
+    (plan) => !codes.has(plan.code),
+  );
+
+  return [...defaultsToPrepend, ...plans];
+}
+
 export async function fetchBillingPlans(): Promise<
   EnvelopeResult<BillingPlan[]>
 > {
@@ -200,9 +515,11 @@ export async function fetchBillingPlans(): Promise<
   const rows = Array.isArray(result.data) ? result.data : [];
   return {
     ok: true,
-    data: rows
-      .map(normalizePlan)
-      .filter((plan): plan is BillingPlan => plan !== null),
+    data: prependDefaultPlans(
+      rows
+        .map(normalizePlan)
+        .filter((plan): plan is BillingPlan => plan !== null),
+    ),
   };
 }
 
@@ -230,6 +547,20 @@ export async function fetchBillingSummary(): Promise<
   const summary = normalizeSummary(result.data);
   if (!summary) return { ok: false, message: "Invalid billing summary shape." };
   return { ok: true, data: summary };
+}
+
+export async function fetchBillingAnalytics(): Promise<
+  EnvelopeResult<BillingAnalytics>
+> {
+  const result = await getAnalyticsData();
+  if (!result.ok) return result;
+
+  const analytics = normalizeBillingAnalytics(result.data);
+  if (!analytics) {
+    return { ok: false, message: "Invalid billing analytics shape." };
+  }
+
+  return { ok: true, data: analytics };
 }
 
 export async function createPlanCheckoutSession(
