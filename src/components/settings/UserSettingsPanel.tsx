@@ -40,22 +40,28 @@ export type UserProfile = {
   phone?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  // Account-wide group email; mirrors Profile.email_enabled on the backend.
+  emailEnabled?: boolean;
   bio?: string;
   avatarUrl?: string;
 };
 
+/**
+ * What the Notifications tab can change. One switch, because the backend has
+ * one: group email across every Loop. Per-Loop email is stopped from the
+ * footer of any message from that Loop, and SMS is controlled by texting STOP
+ * or START from the phone - neither is a setting here.
+ *
+ * The four toggles this replaced (message alerts, digest, sound, desktop) were
+ * saved nowhere and read by nothing.
+ */
 export type NotificationPreferences = {
-  messageAlerts: boolean;
-  emailDigest: boolean;
-  soundEnabled: boolean;
-  desktopNotifications: boolean;
+  emailEnabled: boolean;
 };
 
+// The backend default: every account starts opted in.
 export const defaultNotificationPreferences: NotificationPreferences = {
-  messageAlerts: true,
-  emailDigest: false,
-  soundEnabled: true,
-  desktopNotifications: true,
+  emailEnabled: true,
 };
 
 export type UserSettingsPanelProps = {
@@ -118,6 +124,10 @@ export function UserSettingsPanel({
         {activeTab === "appearance" && <AppearanceSettings />}
         {activeTab === "notifications" && (
           <NotificationSettings
+            // The profile can arrive after this tab is open. Re-keying resets
+            // the tab's local copy to the new preferences instead of freezing
+            // whatever the first render was handed.
+            key={JSON.stringify(notificationPreferences)}
             preferences={notificationPreferences}
             onSave={onSaveNotifications}
           />
@@ -732,16 +742,27 @@ function NotificationSettings({
 }) {
   const [prefs, setPrefs] = useState(preferences);
   const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function handleToggle(
     key: keyof NotificationPreferences,
     value: boolean,
   ) {
+    const previous = prefs;
     const next = { ...prefs, [key]: value };
     setPrefs(next);
+    setError(null);
     setIsSaving(true);
     try {
       await onSave?.(next);
+    } catch (err) {
+      // Show what is true, not what was asked for.
+      setPrefs(previous);
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't save that. Try again.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -750,30 +771,21 @@ function NotificationSettings({
   return (
     <div className="space-y-3">
       <ToggleRow
-        label="Message Alerts"
-        description="Get notified when new messages arrive"
-        checked={prefs.messageAlerts}
-        onChange={(v) => handleToggle("messageAlerts", v)}
+        label="Group email"
+        description="Get messages from your Loops by email. Turning this off stops email from every Loop; to stop just one, use the link at the bottom of any message from it."
+        checked={prefs.emailEnabled}
+        onChange={(v) => handleToggle("emailEnabled", v)}
       />
-      <ToggleRow
-        label="Email Digest"
-        description="Receive a daily summary of Loop activity by email"
-        checked={prefs.emailDigest}
-        onChange={(v) => handleToggle("emailDigest", v)}
-      />
-      <ToggleRow
-        label="Sound"
-        description="Play a sound for incoming messages"
-        checked={prefs.soundEnabled}
-        onChange={(v) => handleToggle("soundEnabled", v)}
-      />
-      <ToggleRow
-        label="Desktop Notifications"
-        description="Show browser notifications when the tab isn't focused"
-        checked={prefs.desktopNotifications}
-        onChange={(v) => handleToggle("desktopNotifications", v)}
-      />
+      <p className="text-xs text-slate-500 dark:text-slate-400">
+        Text messages are controlled from your phone: reply STOP to a Loop to
+        stop it, or START to resume.
+      </p>
       {isSaving && <p className="text-xs text-slate-400">Saving...</p>}
+      {error && (
+        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

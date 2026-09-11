@@ -24,9 +24,23 @@ export default function SettingsPage() {
 
             setUserProfile(res as UserProfile);
           }}
+          notificationPreferences={{
+            emailEnabled: userProfile.emailEnabled ?? true,
+          }}
           onSaveNotifications={async (prefs) => {
-            console.log("Saving notification preferences:", prefs);
-            // Will connect to Django backend
+            // Same PATCH as the profile form; only the switch is sent. Throwing
+            // is how the panel learns to put the toggle back.
+            const res = await updateUserProfile({
+              emailEnabled: prefs.emailEnabled,
+            });
+            if (!res.ok) {
+              throw new Error(res.message);
+            }
+
+            setUserProfile((prev) => ({
+              ...prev,
+              emailEnabled: res.emailEnabled ?? prefs.emailEnabled,
+            }));
           }}
           onLogout={() => void logOut()}
         />

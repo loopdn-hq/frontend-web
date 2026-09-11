@@ -671,10 +671,26 @@ export type ProfileResult =
       phone?: string;
       emailVerified?: boolean;
       phoneVerified?: boolean;
+      // The account-wide switch for group email (Profile.email_enabled). Per-group
+      // opt-outs live on each conversation's delivery settings, not here.
+      emailEnabled?: boolean;
       bio?: string;
       avatarUrl?: string;
     }
   | { ok: false; message: string };
+
+// The profile fields as the API spells them, shared by the GET (nested under
+// /users/me/) and the PATCH response (/users/me/profile/) so the two cannot
+// read the same field two different ways.
+type ApiProfile = {
+  display_name?: string;
+  email_verified?: boolean;
+  phone_no_verified?: boolean;
+  phone_number?: string;
+  email_enabled?: boolean;
+  bio?: string;
+  avatar_url?: string;
+};
 
 // GET /api/v1/users/me/profile/ — the messaging profile (display name,
 // phone, bio, avatar), separate from the base account. Requires the access
@@ -710,14 +726,7 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
         last_name?: string;
         email?: string;
         phone_number?: string;
-        profile: {
-          display_name?: string;
-          email_verified?: boolean;
-          phone_no_verified?: boolean;
-          phone_number?: string;
-          bio?: string;
-          avatar_url?: string;
-        };
+        profile: ApiProfile;
       };
     };
 
@@ -730,6 +739,7 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
       phone: envelope.data?.profile?.phone_number,
       emailVerified: envelope.data?.profile?.email_verified,
       phoneVerified: envelope.data?.profile?.phone_no_verified,
+      emailEnabled: envelope.data?.profile?.email_enabled,
       bio: envelope.data?.profile?.bio,
       avatarUrl: envelope.data?.profile?.avatar_url,
     };
@@ -738,6 +748,8 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
   }
 }
 
+// PATCH /api/v1/users/me/profile/. Only the fields given are sent - JSON drops
+// undefined keys - so a caller flipping one switch changes nothing else.
 export async function updateUserProfile(profile: {
   displayName?: string;
   email?: string;
@@ -746,6 +758,7 @@ export async function updateUserProfile(profile: {
   avatarUrl?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
+  emailEnabled?: boolean;
 }): Promise<ProfileResult> {
   const accessToken = getAccessToken();
 
@@ -767,6 +780,7 @@ export async function updateUserProfile(profile: {
         display_name: profile.displayName,
         bio: profile.bio,
         avatar_url: profile.avatarUrl,
+        email_enabled: profile.emailEnabled,
       }),
     });
 
@@ -780,15 +794,20 @@ export async function updateUserProfile(profile: {
       };
     }
 
+    // What the server now holds, falling back to what was sent for the fields
+    // the profile response does not carry (the account email).
+    const saved = (data as { data?: ApiProfile } | null)?.data ?? {};
+
     return {
       ok: true,
-      displayName: profile.displayName,
+      displayName: saved.display_name ?? profile.displayName,
       email: profile.email,
-      phone: profile.phone,
-      bio: profile.bio,
-      avatarUrl: profile.avatarUrl,
-      emailVerified: profile.emailVerified,
-      phoneVerified: profile.phoneVerified,
+      phone: saved.phone_number ?? profile.phone,
+      bio: saved.bio ?? profile.bio,
+      avatarUrl: saved.avatar_url ?? profile.avatarUrl,
+      emailVerified: saved.email_verified ?? profile.emailVerified,
+      phoneVerified: saved.phone_no_verified ?? profile.phoneVerified,
+      emailEnabled: saved.email_enabled ?? profile.emailEnabled,
     };
   } catch {
     return { ok: false, message: "Network error. Please try again." };

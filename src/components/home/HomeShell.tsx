@@ -8,7 +8,6 @@ import {
   useMemo,
   useRef,
 } from "react";
-import Image from "next/image";
 import { getSession } from "@/lib/auth/client";
 import {
   addConversationMembers,
@@ -27,15 +26,21 @@ import {
   setConversationArchived,
   setConversationMuted,
   conversationMode,
+  hasReacted,
   normalizeConversationPayload,
+  normalizeMessagePayload,
   normalizeParticipant,
   removeConversationMember,
   respondToJoinRequest,
   sendConversationMessage,
+  setMessageReaction,
+  setPinnedMessage,
+  editConversationMessage,
+  deleteConversationMessage,
+  forwardConversationMessage,
   updateGroupSettings,
   updateMemberRole,
   type Conversation,
-  type ConversationAttachment,
   type ConversationMode,
   type ConversationMessage,
   type ConversationParticipant,
@@ -48,6 +53,29 @@ import {
   type BillingPlan,
   type BillingSummary,
 } from "@/lib/billing";
+import {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuOrigin,
+} from "@/components/ui/context-menu";
+import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
+import {
+  ComposerContextBar,
+  DeleteMessageDialog,
+  ForwardMessageModal,
+  MessageBubble,
+  MessageInfoModal,
+  PinnedMessageBar,
+  ReactionBar,
+  type ComposerContext,
+  type ThreadMessage,
+} from "./message";
+import {
+  canDeleteMessage,
+  canEditMessage,
+  canPinMessage,
+  DELETED_MESSAGE_TEXT,
+} from "@/lib/chat/messageActions";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
@@ -67,13 +95,19 @@ import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
 import {
   Archive,
+  CheckCheck,
+  Copy,
+  CornerUpLeft,
+  CornerUpRight,
+  Pencil,
+  Pin,
+  PinOff,
+  Info,
   ArchiveRestore,
   Bell,
   BellOff,
   LogOut,
   Trash2,
-  Check,
-  CheckCheck,
   ChevronLeft,
   EllipsisVertical,
   ListChecks,
@@ -81,19 +115,9 @@ import {
   Search,
 } from "lucide-react";
 
-type Message = {
-  id: string | number;
-  sender: string;
-  senderUsername?: string;
-  senderAvatarUrl?: string;
-  text: string;
-  mine: boolean;
-  time: string;
-  // Kept alongside the formatted `time` because the day separators and the
-  // run-grouping both need to compare real instants, not display strings.
-  createdAt: string;
-  attachments?: ConversationMessage["attachments"];
-};
+// One definition, owned by the component that renders it. The alias keeps the
+// ~40 existing references in this file reading as they did.
+type Message = ThreadMessage;
 
 type WebSocketMessage = {
   type: string;
@@ -701,6 +725,16 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
+  /**
+   * What the next send will do, when it is not simply "post this".
+   *
+   * ONE piece of state for reply and edit rather than two, because they are
+   * mutually exclusive by nature - a draft cannot both answer a message and
+   * rewrite a different one - and two booleans would allow that state to be
+   * represented at all. Cleared with the rest of the draft.
+   */
+  const [composerContext, setComposerContext] =
+    useState<ComposerContext | null>(null);
   const [messageAttachments, setMessageAttachments] = useState<File[]>([]);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
@@ -783,6 +817,12 @@ export function HomeShell({ mode }: HomeShellProps) {
         senderUsername: message.senderUsername,
         senderAvatarUrl: message.senderAvatarUrl,
         createdAt: message.createdAt,
+        source: message.source,
+        replyTo: message.replyTo,
+        reactions: message.reactions,
+        forwarded: message.forwarded,
+        editedAt: message.editedAt,
+        deletedAt: message.deletedAt,
         text: message.text,
         mine:
           message.mine ||
@@ -1194,24 +1234,128 @@ export function HomeShell({ mode }: HomeShellProps) {
    * A merge rather than a replacement: the detail payload carries no
    * participants (they live on their own paginated endpoint), so overwriting
    * wholesale would empty the member list and the count that reads it.
+   *
+   * `source` matters more than it looks. A `conversation.updated` frame is
+   * serialized ONCE for the whole group, with nobody asking - so every field
+   * whose answer depends on who is looking comes back as its empty value:
+   * `is_admin` false for the admin who just made the change, `muted` and
+   * `archived` false for everybody who set them, `unread` zero, and a direct
+   * conversation's title blank. Taken at face value those wipe real state on
+   * every settings change and every pin.
+   *
+   * So a broadcast contributes only what is the same for everyone, and the
+   * viewer's own answers are kept. A REST response was serialized FOR this
+   * viewer and is trusted in full.
    */
   const applyConversationUpdate = useCallback(
-    (updated: Conversation) => {
+    (updated: Conversation, source: "response" | "broadcast" = "response") => {
       setConversations((prev) =>
-        prev.map((existing) =>
-          String(existing.id) === String(updated.id)
-            ? {
-                ...existing,
-                ...updated,
-                participants: updated.participants.length
-                  ? updated.participants
-                  : existing.participants,
-              }
-            : existing,
-        ),
+        prev.map((existing) => {
+          if (String(existing.id) !== String(updated.id)) return existing;
+
+          const merged =
+            source === "broadcast"
+              ? {
+                  ...existing,
+                  // An allow-list, not a list of exceptions: a field added to
+                  // the serializer later is viewer-independent only if
+                  // somebody says so here, which is the safe default.
+                  name:
+                    updated.kind === "direct" ? existing.name : updated.name,
+                  description: updated.description,
+                  mode: updated.mode,
+                  joinMode: updated.joinMode,
+                  settings: updated.settings,
+                  logoImage: updated.logoImage,
+                  pinnedMessage: updated.pinnedMessage,
+                }
+              : { ...existing, ...updated };
+
+          return {
+            ...merged,
+            participants: updated.participants.length
+              ? updated.participants
+              : existing.participants,
+          };
+        }),
       );
     },
     [setConversations],
+  );
+
+  /**
+   * Swap a changed message into the thread it belongs to.
+   *
+   * By id, in place - an edit, a delete and a reaction all change a message
+   * that is already on screen, so appending would show it twice and re-sorting
+   * would move it away from the conversation it is part of.
+   *
+   * Keyed on the message's OWN conversation rather than the selected one, so a
+   * `message.updated` frame for a Loop in the background is applied where it
+   * belongs instead of being dropped or, worse, landing in the open thread.
+   */
+  const applyMessageUpdate = useCallback(
+    (updated: ConversationMessage) => {
+      setLoopMessages((previous) => {
+        const key = updated.conversationId;
+        const messages = previous.get(key);
+        if (!messages?.some((message) => message.id === updated.id)) {
+          return previous;
+        }
+        const next = new Map(previous);
+        next.set(
+          key,
+          messages.map((message) =>
+            message.id === updated.id ? toUiMessage(updated) : message,
+          ),
+        );
+        return next;
+      });
+
+      // The sidebar quotes the newest message and the header holds the pinned
+      // one, so a change has to reach both or the list keeps showing words the
+      // thread no longer does.
+      setConversations((prev) =>
+        prev.map((conversation) => {
+          if (String(conversation.id) !== String(updated.conversationId)) {
+            return conversation;
+          }
+
+          // ONLY when this is the newest message. Editing something from last
+          // week must not drag it into the sidebar as if it had just been
+          // said - `lastMessageAt` is exactly the newest message's timestamp,
+          // so comparing against it is the whole test.
+          const isNewest =
+            conversation.lastMessageAt !== null &&
+            conversation.lastMessageAt === updated.createdAt;
+
+          const stillPinned =
+            conversation.pinnedMessage &&
+            String(conversation.pinnedMessage.id) === String(updated.id)
+              ? updated.deletedAt !== null
+                ? // A deleted message stops being pinned - the server clears
+                  // it too, and this keeps the bar honest if that frame is
+                  // slower than this response.
+                  null
+                : updated
+              : conversation.pinnedMessage;
+
+          return {
+            ...conversation,
+            pinnedMessage: stillPinned,
+            preview: isNewest
+              ? composePreview(
+                  updated.sender,
+                  updated.deletedAt !== null
+                    ? DELETED_MESSAGE_TEXT
+                    : describeMessageBody(updated.text, updated.attachments),
+                )
+              : conversation.preview,
+          };
+        }),
+      );
+    },
+    [toUiMessage, setConversations],
   );
 
   const handleWebSocketMessage = useCallback(
@@ -1235,63 +1379,17 @@ export function HomeShell({ mode }: HomeShellProps) {
           return;
         const isForSelectedConversation =
           targetConversationId === selectedConversationId;
-        const rawSender = rawMessage.sender;
-        const sender =
-          rawSender && typeof rawSender === "object"
-            ? String(
-                (rawSender as Record<string, unknown>).display_label ??
-                  (rawSender as Record<string, unknown>).username ??
-                  "Unknown",
-              )
-            : String(rawSender ?? "Unknown");
-        const attachments = Array.isArray(rawMessage.attachments)
-          ? rawMessage.attachments.flatMap((attachment) => {
-              if (
-                !attachment ||
-                typeof attachment !== "object" ||
-                typeof (attachment as Record<string, unknown>).url !== "string"
-              ) {
-                return [];
-              }
-              const rawAttachment = attachment as Record<string, unknown>;
-              const url = rawAttachment.url as string;
-              return [
-                {
-                  id:
-                    typeof rawAttachment.id === "string" ||
-                    typeof rawAttachment.id === "number"
-                      ? rawAttachment.id
-                      : undefined,
-                  url,
-                  originalName: String(
-                    rawAttachment.original_name ?? "Attachment",
-                  ),
-                  contentType: String(rawAttachment.content_type ?? ""),
-                } satisfies ConversationAttachment,
-              ];
-            })
-          : [];
-        const newMessage = toUiMessage({
-          ...(eventMessage as ConversationMessage),
-          conversationId: targetConversationId,
-          id: rawMessage.id as string | number,
-          sender,
-          senderUsername:
-            rawSender && typeof rawSender === "object"
-              ? String((rawSender as Record<string, unknown>).username ?? "")
-              : String(rawSender ?? ""),
-          text: String(rawMessage.text ?? ""),
-          createdAt: String(rawMessage.created_at ?? new Date().toISOString()),
-          attachments,
-          mine:
-            rawMessage.mine === true ||
-            (currentUsername !== null &&
-              String(
-                rawSender && typeof rawSender === "object"
-                  ? ((rawSender as Record<string, unknown>).username ?? "")
-                  : (rawSender ?? ""),
-              ) === currentUsername),
-        });
+        // The SAME conversion the REST path runs. This used to hand-derive a
+        // handful of fields and cast the rest of the raw snake_case frame,
+        // which meant every field the serializer grew was silently absent over
+        // the socket - present after a reload, missing live. `toUiMessage`
+        // still settles `mine`, which no payload carries.
+        const normalized = normalizeMessagePayload(
+          rawMessage,
+          targetConversationId,
+        );
+        if (!normalized) return;
+        const newMessage = toUiMessage(normalized);
 
         if (isForSelectedConversation) {
           setLoopMessages((prev) => {
@@ -1341,6 +1439,12 @@ export function HomeShell({ mode }: HomeShellProps) {
         ) {
           void markConversationRead(targetConversationId, newMessage.id);
         }
+      } else if (message.type === "message.updated") {
+        // A message ALREADY in the thread changed - edited, deleted, or reacted
+        // to. It must replace the one on screen, never be appended: treating
+        // this like `message.new` shows the same message twice.
+        const updated = normalizeMessagePayload(message.message);
+        if (updated) applyMessageUpdate(updated);
       } else if (message.type === "conversation.read.by") {
         // Somebody else read up to a message. Their pointer lives on the
         // membership row, which is what the receipts below are computed from.
@@ -1406,7 +1510,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         // belongs under Chat or Broadcast. Applied from the payload rather than
         // refetched so the group moves the moment the admin saves.
         const updated = normalizeConversationPayload(message.conversation);
-        if (updated) applyConversationUpdate(updated);
+        if (updated) applyConversationUpdate(updated, "broadcast");
       } else if (message.type === "conversation.request") {
         const rawConversationId = message.conversation_id;
         const conversationId =
@@ -1429,7 +1533,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     },
     [
       applyConversationUpdate,
-      currentUsername,
+      applyMessageUpdate,
       selectedConversationId,
       toUiMessage,
       setConversations,
@@ -1482,12 +1586,33 @@ export function HomeShell({ mode }: HomeShellProps) {
   }, [selectedConversationId, socketStatus, sendSocketMessage]);
 
   const handleSendMessage = useCallback(async () => {
-    if (
-      (!messageInput.trim() && messageAttachments.length === 0) ||
-      !selectedConversationId ||
-      isSendingMessage
-    )
+    if (!selectedConversationId || isSendingMessage) return;
+
+    // An edit replaces words rather than adding a message, so it has its own
+    // route, its own emptiness rule - blank is a delete, not an edit - and it
+    // never carries attachments.
+    if (composerContext?.kind === "edit") {
+      const text = messageInput.trim();
+      if (!text) return;
+      setIsSendingMessage(true);
+      setMessageError(null);
+      const result = await editConversationMessage(
+        selectedConversationId,
+        composerContext.message.id,
+        text,
+      );
+      if (!result.ok) {
+        setMessageError(result.message);
+      } else {
+        applyMessageUpdate(result.message);
+        setMessageInput("");
+        setComposerContext(null);
+      }
+      setIsSendingMessage(false);
       return;
+    }
+
+    if (!messageInput.trim() && messageAttachments.length === 0) return;
     // Sending is an explicit "I am at the end of this thread" gesture, so
     // follow the message down even if the reader had scrolled up.
     stickToBottomRef.current = true;
@@ -1497,6 +1622,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       selectedConversationId,
       messageInput,
       messageAttachments,
+      composerContext?.kind === "reply" ? composerContext.message.id : null,
     );
     if (!result.ok) {
       setMessageError(result.message);
@@ -1514,6 +1640,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       });
       setMessageInput("");
       setMessageAttachments([]);
+      setComposerContext(null);
     }
     setIsSendingMessage(false);
   }, [
@@ -1522,6 +1649,8 @@ export function HomeShell({ mode }: HomeShellProps) {
     selectedConversationId,
     isSendingMessage,
     toUiMessage,
+    applyMessageUpdate,
+    composerContext,
   ]);
 
   async function handleCreateLoopSuccess() {
@@ -2091,6 +2220,224 @@ export function HomeShell({ mode }: HomeShellProps) {
     });
   }
 
+  // One menu at a time, owned here rather than per bubble - two open menus is
+  // the bug the design explicitly rules out.
+  const [messageMenu, setMessageMenu] = useState<{
+    id: string | number;
+    origin: ContextMenuOrigin;
+  } | null>(null);
+  const [infoMessage, setInfoMessage] = useState<Message | null>(null);
+  // The message a modal is about, kept separately from the menu: the menu closes
+  // the moment an item is picked, so a modal reading `menuMessage` would open
+  // with nothing in it.
+  const [forwardMessage, setForwardMessage] = useState<Message | null>(null);
+  const [deleteMessage, setDeleteMessage] = useState<Message | null>(null);
+  // One at a time, and named, so a failure can be shown next to the thing that
+  // failed rather than as a general "something went wrong".
+  const [actionBusy, setActionBusy] = useState<
+    "forward" | "delete" | "pin" | "reaction" | null
+  >(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Reset both when the conversation changes, using React's documented
+  // "adjusting state when a prop changes" pattern rather than an effect: this
+  // re-renders once immediately, where an effect would paint a stale menu
+  // first and then undo itself. Deriving alone is not enough - the state would
+  // survive and the menu would reappear at dead coordinates on returning to
+  // the conversation, since the thread is scrolled back to the bottom by then.
+  const [menuConversationId, setMenuConversationId] = useState(
+    selectedConversationId,
+  );
+  if (menuConversationId !== selectedConversationId) {
+    setMenuConversationId(selectedConversationId);
+    setMessageMenu(null);
+    setInfoMessage(null);
+    setForwardMessage(null);
+    setDeleteMessage(null);
+    setActionError(null);
+    // A draft reply, or a half-finished edit, belongs to the conversation it
+    // was started in.
+    setComposerContext(null);
+  }
+  const {
+    copy: copyText,
+    copied: messageCopied,
+    error: copyError,
+  } = useCopyToClipboard();
+
+  const openMessageMenu = useCallback(
+    (id: string | number, origin: ContextMenuOrigin) => {
+      // Toggling, so pressing the same message's trigger twice puts the menu
+      // away. Right-clicking a DIFFERENT message while one is open moves the
+      // menu there rather than closing it, which is what a menu should do.
+      setMessageMenu((current) =>
+        current && current.id === id ? null : { id, origin },
+      );
+    },
+    [],
+  );
+
+  // Both resolve against the thread that is on screen NOW, so changing
+  // conversation closes the menu and the panel on its own - no effect that
+  // writes state on the way in and needs a second render to undo itself.
+  const menuMessage = useMemo(
+    () =>
+      messageMenu
+        ? (currentMessages.find((row) => row.id === messageMenu.id) ?? null)
+        : null,
+    [messageMenu, currentMessages],
+  );
+
+  // Resolved back out of the thread rather than shown as the snapshot taken
+  // when the menu item was picked: an edit, a delete or a reaction arriving
+  // while the panel is open would otherwise leave it describing a message that
+  // no longer exists in that form.
+  const visibleInfoMessage = useMemo(
+    () =>
+      infoMessage
+        ? (currentMessages.find((row) => row.id === infoMessage.id) ?? null)
+        : null,
+    [infoMessage, currentMessages],
+  );
+
+  /**
+   * Add or take back one emoji on one message.
+   *
+   * Sends the state we want rather than a flip, so a retry after a dropped
+   * response cannot undo itself - the endpoints are idempotent in both
+   * directions precisely so this can be true.
+   */
+  const handleToggleReaction = useCallback(
+    async (messageId: string | number, emoji: string, reacted: boolean) => {
+      if (!selectedConversationId || actionBusy) return;
+      setActionBusy("reaction");
+      setActionError(null);
+      const result = await setMessageReaction(
+        selectedConversationId,
+        messageId,
+        emoji,
+        reacted,
+      );
+      if (result.ok) {
+        applyMessageUpdate(result.message);
+      } else {
+        setActionError(result.message);
+      }
+      setActionBusy(null);
+    },
+    [selectedConversationId, actionBusy, applyMessageUpdate],
+  );
+
+  /**
+   * Pin a message above the thread, or let it go.
+   *
+   * The answer is the CONVERSATION, not the message - the pin lives there - so
+   * it is folded back through the same merge the socket uses.
+   */
+  const handleSetPinned = useCallback(
+    async (messageId: string | number, pinned: boolean) => {
+      if (!selectedConversationId || actionBusy) return;
+      setActionBusy("pin");
+      setActionError(null);
+      const result = await setPinnedMessage(
+        selectedConversationId,
+        messageId,
+        pinned,
+      );
+      if (result.ok) {
+        applyConversationUpdate(result.conversation);
+      } else {
+        setActionError(result.message);
+      }
+      setActionBusy(null);
+    },
+    [selectedConversationId, actionBusy, applyConversationUpdate],
+  );
+
+  const handleDeleteMessage = useCallback(async () => {
+    if (!selectedConversationId || !deleteMessage || actionBusy) return;
+    setActionBusy("delete");
+    setActionError(null);
+    const result = await deleteConversationMessage(
+      selectedConversationId,
+      deleteMessage.id,
+    );
+    if (result.ok) {
+      applyMessageUpdate(result.message);
+      setDeleteMessage(null);
+      // Editing or answering something that no longer exists.
+      setComposerContext((current) =>
+        current && current.message.id === result.message.id ? null : current,
+      );
+    } else {
+      setActionError(result.message);
+    }
+    setActionBusy(null);
+  }, [selectedConversationId, deleteMessage, actionBusy, applyMessageUpdate]);
+
+  /**
+   * Send a message on to another Loop.
+   *
+   * The forward lands in the DESTINATION, which may not be the Loop on screen,
+   * so there is nothing to insert here - the socket delivers it to whoever is
+   * looking at that thread. Only the modal closes.
+   */
+  const handleForwardMessage = useCallback(
+    async (targetConversationId: string | number) => {
+      if (!forwardMessage || actionBusy) return;
+      setActionBusy("forward");
+      setActionError(null);
+      const result = await forwardConversationMessage(
+        targetConversationId,
+        forwardMessage.id,
+      );
+      if (result.ok) {
+        setForwardMessage(null);
+      } else {
+        setActionError(result.message);
+      }
+      setActionBusy(null);
+    },
+    [forwardMessage, actionBusy],
+  );
+
+  /** Put the message's words in the composer, ready to be rewritten. */
+  const startEditing = useCallback((message: Message) => {
+    setComposerContext({ kind: "edit", message });
+    setMessageInput(message.text);
+  }, []);
+
+  const cancelComposerContext = useCallback(() => {
+    setComposerContext((current) => {
+      // An abandoned edit leaves the original's words in the box, which reads
+      // as a draft nobody wrote. A cancelled reply keeps whatever was typed.
+      if (current?.kind === "edit") setMessageInput("");
+      return null;
+    });
+  }, []);
+
+  const pinnedMessage = selectedConversation?.pinnedMessage ?? null;
+  const isPinned = useCallback(
+    (messageId: string | number) =>
+      pinnedMessage !== null && String(pinnedMessage.id) === String(messageId),
+    [pinnedMessage],
+  );
+
+  // A failure from an action with no dialog of its own - a reaction or a pin.
+  // The modals show their own copy of `actionError`, so theirs is excluded
+  // rather than announced twice.
+  const bareActionError = forwardMessage || deleteMessage ? null : actionError;
+  const isEditing = composerContext?.kind === "edit";
+
+  /** Scroll a pinned message back into view. */
+  const jumpToMessage = useCallback((messageId: string | number) => {
+    const element = document.querySelector(
+      `[data-message-id="${CSS.escape(String(messageId))}"]`,
+    );
+    if (!element) return;
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   // Broadcast groups take posts from admins only. Read through the helper:
   // the list endpoint leaves the top-level `mode` at its "chat" default, so
   // `selectedConversation.mode` alone would let anyone post anywhere.
@@ -2523,6 +2870,17 @@ export function HomeShell({ mode }: HomeShellProps) {
             </div>
           </header>
 
+          {/* BETWEEN the header and the scroll container, so it stays put while
+              the thread moves under it - which is the whole point of a pin. */}
+          {pinnedMessage && selectedConversation && (
+            <PinnedMessageBar
+              message={pinnedMessage}
+              canUnpin={canPinMessage(selectedConversation, pinnedMessage)}
+              onJump={jumpToMessage}
+              onUnpin={() => void handleSetPinned(pinnedMessage.id, false)}
+            />
+          )}
+
           <div
             ref={messageListRef}
             onScroll={handleMessageListScroll}
@@ -2601,138 +2959,19 @@ export function HomeShell({ mode }: HomeShellProps) {
                     </span>
                   </div>
                 ) : (
-                  <div
+                  <MessageBubble
                     key={row.key}
-                    className={`relative flex items-start gap-2 ${
-                      row.message.mine ? "justify-end" : "justify-start"
-                    } ${row.startsRun ? "mt-3" : "mt-0.5"} ${
-                      row.message.mine && row.message.id === lastOwnMessageId
-                        ? "mb-4"
-                        : ""
-                    }`}
-                  >
-                    {/* One avatar per run, and only for other people - your
-                        own messages are already identified by their side. A
-                        spacer keeps continuations aligned under the first. */}
-                    {!row.message.mine &&
-                      (row.startsRun ? (
-                        <ChatAvatar
-                          name={row.message.sender}
-                          imageUrl={row.message.senderAvatarUrl}
-                          size={32}
-                        />
-                      ) : (
-                        <span aria-hidden className="w-8 shrink-0" />
-                      ))}
-
-                    <article
-                      className={`max-w-xl rounded-2xl px-3 py-2 ${
-                        row.message.mine
-                          ? "bg-[#dff1ff] text-slate-900"
-                          : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
-                      }`}
-                    >
-                      {row.startsRun && !row.message.mine && (
-                        <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
-                          {row.message.sender}
-                        </p>
-                      )}
-                      <div
-                        className={`flex items-end gap-2 ${
-                          row.startsRun && !row.message.mine ? "mt-0.5" : ""
-                        }`}
-                      >
-                        {row.message.text && (
-                          <p className="min-w-0 text-sm leading-snug break-words">
-                            {row.message.text}
-                          </p>
-                        )}
-                        <span
-                          className={`ml-auto flex shrink-0 items-center gap-1 text-[10px] leading-none ${
-                            row.message.mine
-                              ? "text-sky-700/70"
-                              : "text-slate-400"
-                          }`}
-                        >
-                          {row.message.time}
-                          {row.message.mine &&
-                            (() => {
-                              // Ticks only on your own messages, and only
-                              // where somebody could report reading them.
-                              if (readableBy.length === 0) return null;
-                              const seen = readersOf(row.message.id);
-                              if (seen === 0) {
-                                return (
-                                  <Check
-                                    className="h-3 w-3"
-                                    aria-label="Sent"
-                                  />
-                                );
-                              }
-                              return (
-                                <CheckCheck
-                                  className={`h-3 w-3 ${
-                                    seen >= readableBy.length
-                                      ? "text-emerald-600"
-                                      : ""
-                                  }`}
-                                  aria-label={`Read by ${seen}`}
-                                />
-                              );
-                            })()}
-                        </span>
-                      </div>
-                      {row.message.attachments &&
-                        row.message.attachments.length > 0 && (
-                          <div className="mt-2 space-y-1">
-                            {row.message.attachments.map((attachment) => (
-                              <div key={attachment.id ?? attachment.url}>
-                                {attachment.contentType?.startsWith(
-                                  "audio/",
-                                ) && (
-                                  <audio
-                                    controls
-                                    src={attachment.url}
-                                    className="mb-1 max-w-full"
-                                  />
-                                )}
-                                {attachment.contentType?.startsWith(
-                                  "image/",
-                                ) && (
-                                  <Image
-                                    src={attachment.url}
-                                    alt={attachment.originalName}
-                                    width={400}
-                                    height={224}
-                                    unoptimized
-                                    className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
-                                  />
-                                )}
-                                <a
-                                  href={attachment.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="block truncate text-xs text-sky-700 underline"
-                                >
-                                  {attachment.originalName}
-                                </a>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                    </article>
-
-                    {/* Spelled out once, under the newest message you sent -
-                        under every one it is noise, and the ticks already say
-                        it per message. */}
-                    {row.message.mine &&
-                      row.message.id === lastOwnMessageId &&
-                      readersOf(row.message.id) > 0 && (
-                        <span className="absolute -bottom-4 right-0 text-[10px] whitespace-nowrap text-slate-400 dark:text-slate-500">
-                          {readersOf(row.message.id)} read {row.message.time}
-                        </span>
-                      )}
-                  </div>
+                    message={row.message}
+                    startsRun={row.startsRun}
+                    isLastOwn={row.message.id === lastOwnMessageId}
+                    readers={readersOf(row.message.id)}
+                    readableCount={readableBy.length}
+                    isMenuOpen={messageMenu?.id === row.message.id}
+                    onOpenMenu={openMessageMenu}
+                    currentUsername={currentUsername}
+                    onToggleReaction={handleToggleReaction}
+                    reactionBusy={actionBusy === "reaction"}
+                  />
                 ),
               )
             )}
@@ -2775,6 +3014,12 @@ export function HomeShell({ mode }: HomeShellProps) {
                     Recording voice message...
                   </p>
                 )}
+                {composerContext && (
+                  <ComposerContextBar
+                    context={composerContext}
+                    onCancel={cancelComposerContext}
+                  />
+                )}
                 {isMessagesLoading && (
                   <p className="px-2 pb-2 text-xs text-slate-500">
                     Loading messages...
@@ -2803,9 +3048,21 @@ export function HomeShell({ mode }: HomeShellProps) {
                 )}
                 {canPostMessage ? (
                   <div className="flex gap-2">
+                    {/* An edit changes words and nothing else - the endpoint
+                        takes only text - so the two controls that produce
+                        files are out while one is in progress rather than
+                        accepting input that would be dropped. */}
                     <label
-                      className="flex cursor-pointer items-center px-2 text-slate-500"
-                      title="Attach files"
+                      className={`flex items-center px-2 text-slate-500 ${
+                        isEditing
+                          ? "cursor-not-allowed opacity-40"
+                          : "cursor-pointer"
+                      }`}
+                      title={
+                        isEditing
+                          ? "Not available while editing"
+                          : "Attach files"
+                      }
                     >
                       <span aria-hidden="true">📎</span>
                       <input
@@ -2816,7 +3073,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                             Array.from(event.target.files ?? []),
                           )
                         }
-                        disabled={isSendingMessage}
+                        disabled={isSendingMessage || isEditing}
                         className="hidden"
                       />
                     </label>
@@ -2837,8 +3094,8 @@ export function HomeShell({ mode }: HomeShellProps) {
                           ? handleStopRecording
                           : handleStartRecording
                       }
-                      disabled={isSendingMessage}
-                      className={`px-1 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
+                      disabled={isSendingMessage || isEditing}
+                      className={`px-1 disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
                       title={
                         isRecordingVoice
                           ? "Stop recording"
@@ -2854,7 +3111,9 @@ export function HomeShell({ mode }: HomeShellProps) {
                     </button>
                     <input
                       type="text"
-                      placeholder="Type a message..."
+                      placeholder={
+                        isEditing ? "Edit your message..." : "Type a message..."
+                      }
                       value={messageInput}
                       onChange={(e) => {
                         setMessageInput(e.target.value);
@@ -2865,6 +3124,13 @@ export function HomeShell({ mode }: HomeShellProps) {
                           e.preventDefault();
                           handleSendMessage();
                         }
+                        // Escape backs out of a reply or an edit, which is
+                        // where a hand already is - the strip's X needs the
+                        // mouse.
+                        if (e.key === "Escape" && composerContext) {
+                          e.preventDefault();
+                          cancelComposerContext();
+                        }
                       }}
                       disabled={isSendingMessage}
                       className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
@@ -2874,12 +3140,22 @@ export function HomeShell({ mode }: HomeShellProps) {
                       onClick={handleSendMessage}
                       disabled={
                         isSendingMessage ||
-                        (!messageInput.trim() &&
-                          messageAttachments.length === 0)
+                        // Blank is a delete, not an edit, so an edit needs
+                        // words where a send would settle for a file.
+                        (isEditing
+                          ? !messageInput.trim()
+                          : !messageInput.trim() &&
+                            messageAttachments.length === 0)
                       }
                       className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
                     >
-                      {isSendingMessage ? "Sending..." : "Send"}
+                      {isSendingMessage
+                        ? isEditing
+                          ? "Saving..."
+                          : "Sending..."
+                        : isEditing
+                          ? "Save"
+                          : "Send"}
                     </button>
                   </div>
                 ) : (
@@ -2923,6 +3199,167 @@ export function HomeShell({ mode }: HomeShellProps) {
           </footer>
         </section>
       </div>
+
+      {/* Actions the viewer cannot take are LEFT OUT rather than greyed: a
+          disabled Delete on somebody else's message still says "you might be
+          able to delete this", which is the opposite of what it means. The two
+          exceptions are Copy and Pin, which are disabled with a visible reason
+          - nothing to copy, and already pinned. */}
+      <ContextMenu
+        origin={menuMessage ? (messageMenu?.origin ?? null) : null}
+        onClose={() => setMessageMenu(null)}
+        // The emoji row lives inside the menu rather than in a popover of its
+        // own: one floating surface per message, and the menu already knows how
+        // to anchor, dismiss and take focus.
+        header={
+          menuMessage ? (
+            <ReactionBar
+              mine={menuMessage.reactions
+                .filter((reaction) => hasReacted(reaction, currentUsername))
+                .map((reaction) => reaction.emoji)}
+              onSelect={(emoji, reacted) => {
+                void handleToggleReaction(menuMessage.id, emoji, reacted);
+                setMessageMenu(null);
+              }}
+            />
+          ) : null
+        }
+        items={
+          menuMessage
+            ? [
+                {
+                  id: "reply",
+                  label: "Reply",
+                  icon: <CornerUpLeft className="h-4 w-4" />,
+                  onSelect: () =>
+                    setComposerContext({
+                      kind: "reply",
+                      message: menuMessage,
+                    }),
+                },
+                {
+                  id: "forward",
+                  label: "Forward",
+                  icon: <CornerUpRight className="h-4 w-4" />,
+                  onSelect: () => setForwardMessage(menuMessage),
+                },
+                {
+                  id: "copy",
+                  label: "Copy",
+                  icon: <Copy className="h-4 w-4" />,
+                  disabled: !menuMessage.text,
+                  onSelect: () => {
+                    if (menuMessage.text) void copyText(menuMessage.text);
+                  },
+                },
+                ...(selectedConversation &&
+                canPinMessage(selectedConversation, menuMessage)
+                  ? [
+                      {
+                        id: "pin",
+                        label: isPinned(menuMessage.id) ? "Unpin" : "Pin",
+                        icon: isPinned(menuMessage.id) ? (
+                          <PinOff className="h-4 w-4" />
+                        ) : (
+                          <Pin className="h-4 w-4" />
+                        ),
+                        onSelect: () =>
+                          void handleSetPinned(
+                            menuMessage.id,
+                            !isPinned(menuMessage.id),
+                          ),
+                      } satisfies ContextMenuItem,
+                    ]
+                  : []),
+                ...(canEditMessage(menuMessage)
+                  ? [
+                      {
+                        id: "edit",
+                        label: "Edit",
+                        icon: <Pencil className="h-4 w-4" />,
+                        onSelect: () => startEditing(menuMessage),
+                      } satisfies ContextMenuItem,
+                    ]
+                  : []),
+                { kind: "separator", id: "sep" },
+                {
+                  id: "info",
+                  label: "Message info",
+                  icon: <Info className="h-4 w-4" />,
+                  onSelect: () => setInfoMessage(menuMessage),
+                },
+                ...(canDeleteMessage(
+                  menuMessage,
+                  selectedConversation?.isAdmin ?? false,
+                )
+                  ? [
+                      {
+                        id: "delete",
+                        label: "Delete",
+                        icon: <Trash2 className="h-4 w-4" />,
+                        tone: "danger",
+                        onSelect: () => setDeleteMessage(menuMessage),
+                      } satisfies ContextMenuItem,
+                    ]
+                  : []),
+              ]
+            : []
+        }
+      />
+
+      {forwardMessage && (
+        <ForwardMessageModal
+          message={forwardMessage}
+          conversations={conversations}
+          sourceConversationId={selectedConversationId}
+          busy={actionBusy === "forward"}
+          error={actionBusy === null ? actionError : null}
+          onForward={(target) => void handleForwardMessage(target)}
+          onClose={() => {
+            setForwardMessage(null);
+            setActionError(null);
+          }}
+        />
+      )}
+
+      {deleteMessage && (
+        <DeleteMessageDialog
+          message={deleteMessage}
+          asAdmin={!deleteMessage.mine}
+          busy={actionBusy === "delete"}
+          error={actionBusy === null ? actionError : null}
+          onConfirm={() => void handleDeleteMessage()}
+          onClose={() => {
+            setDeleteMessage(null);
+            setActionError(null);
+          }}
+        />
+      )}
+
+      {/* No toast system exists, and ActivityToasts is hardwired to
+          notification frames - so the acknowledgement is its own small thing.
+
+          A reaction and a pin have nowhere else to report a failure: neither
+          opens a dialog, so without this a refused pin looks exactly like one
+          that worked. Errors belonging to a modal are shown inside it, and are
+          skipped here so they are not said twice. */}
+      {(messageCopied || copyError || bareActionError) && (
+        <div
+          role="status"
+          className={`fixed bottom-6 left-1/2 z-[80] -translate-x-1/2 rounded-full px-4 py-2 text-sm text-white shadow-lg ${
+            copyError || bareActionError ? "bg-rose-600" : "bg-slate-900"
+          }`}
+        >
+          {copyError || bareActionError || "Message copied"}
+        </div>
+      )}
+
+      <MessageInfoModal
+        message={visibleInfoMessage}
+        participants={selectedConversation?.participants ?? []}
+        currentUsername={currentUsername}
+        onClose={() => setInfoMessage(null)}
+      />
 
       <CreateLoopModal
         isOpen={isCreateLoopOpen}
