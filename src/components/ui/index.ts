@@ -1,6 +1,11 @@
 export { Alert } from "./alert";
 export { Button } from "./button";
 export { Checkbox } from "./checkbox";
+export {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuOrigin,
+} from "./context-menu";
 export { Field } from "./field";
 export { Input } from "./input";
 export { InternationalPhoneInput } from "./InternationalPhoneInput";

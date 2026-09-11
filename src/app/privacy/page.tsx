@@ -86,6 +86,18 @@ export default function PrivacyPage() {
           rather than a raw file, so the link itself does not expose the
           underlying storage location.
         </p>
+        <p>
+          Loops can also deliver messages by email to members with a verified
+          address. Every such email carries a one-click unsubscribe link and the
+          words to reply with (<code>STOP EMAILS</code>) to stop email from that
+          Loop only; other Loops are unaffected. Email from every Loop can be
+          switched off at once under Settings &rarr; Notifications, and a
+          message you mark as spam has the same effect. None of these stop the
+          emails needed to run your account, such as a verification code or a
+          password reset. Replies you send to a Loop by email are accepted only
+          from your own verified address, after your mail provider has
+          authenticated the message.
+        </p>
       </section>
 
       <section>
@@ -152,6 +164,11 @@ export default function PrivacyPage() {
           <li>
             Opt out of SMS from a specific Loop at any time via{" "}
             <code>STOP</code>;
+          </li>
+          <li>
+            Opt out of email from a specific Loop via the unsubscribe link or by
+            replying <code>STOP EMAILS</code>, or from every Loop under Settings
+            &rarr; Notifications;
           </li>
           <li>Leave any Loop you have joined; and</li>
           <li>

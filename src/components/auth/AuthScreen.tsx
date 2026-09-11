@@ -482,8 +482,8 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   <Checkbox
                     {...registerSignup("smsConsent")}
                     disabled={isSubmitting}
-                    className="mt-0.5"
-                    containerClassName="bg-white"
+                    className="mt-0.5 border-slate-400 bg-white [color-scheme:light] dark:border-slate-400 dark:bg-white"
+                    containerClassName="border-slate-300 bg-white ring-1 ring-slate-200 hover:bg-white dark:border-slate-300 dark:hover:bg-white"
                     labelClassName="text-xs font-normal text-slate-600 dark:text-slate-600"
                     label={
                       <>

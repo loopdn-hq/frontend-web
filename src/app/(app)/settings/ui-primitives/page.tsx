@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Copy, Info } from "lucide-react";
 import {
   Alert,
   Button,
   Checkbox,
+  ContextMenu,
+  type ContextMenuOrigin,
   Field,
   Input,
   Modal,
@@ -18,6 +21,7 @@ import {
 type DemoTab = "forms" | "actions" | "feedback";
 
 export default function UiPrimitivesPage() {
+  const [menuOrigin, setMenuOrigin] = useState<ContextMenuOrigin | null>(null);
   const [tab, setTab] = useState<DemoTab>("forms");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChecked, setIsChecked] = useState(true);
@@ -180,6 +184,54 @@ export default function UiPrimitivesPage() {
             <Alert variant="info">Informational update for the user</Alert>
             <Alert variant="success">Success state after saving changes</Alert>
             <Alert variant="error">Error state when a request fails</Alert>
+          </section>
+        )}
+
+        {tab === "actions" && (
+          <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              Context menu
+            </h2>
+            <p className="text-sm text-slate-600 dark:text-slate-400">
+              Anchored to the pointer rather than to a trigger, portalled so a
+              scroll container cannot clip it, and clamped inside the viewport.
+              Closes on Escape, on a click outside, on scroll and on resize.
+            </p>
+            <div
+              onContextMenu={(event) => {
+                event.preventDefault();
+                setMenuOrigin({ x: event.clientX, y: event.clientY });
+              }}
+              className="flex h-28 cursor-context-menu items-center justify-center rounded-xl border border-dashed border-slate-300 text-sm text-slate-500 dark:border-slate-600 dark:text-slate-400"
+            >
+              Right-click anywhere in this box
+            </div>
+            <ContextMenu
+              origin={menuOrigin}
+              onClose={() => setMenuOrigin(null)}
+              label="Demo actions"
+              items={[
+                {
+                  id: "copy",
+                  label: "Copy",
+                  icon: <Copy className="h-4 w-4" />,
+                  onSelect: () => {},
+                },
+                {
+                  id: "info",
+                  label: "Details",
+                  icon: <Info className="h-4 w-4" />,
+                  onSelect: () => {},
+                },
+                { kind: "separator", id: "sep" },
+                {
+                  id: "danger",
+                  label: "Destructive action",
+                  tone: "danger",
+                  onSelect: () => {},
+                },
+              ]}
+            />
           </section>
         )}
       </div>
