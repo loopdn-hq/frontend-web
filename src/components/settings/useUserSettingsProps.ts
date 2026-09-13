@@ -28,11 +28,10 @@ export type ConnectedSettingsProps = Pick<
   | "onSaveProfile"
   | "notificationPreferences"
   | "onSaveNotifications"
-  | "onLogout"
 >;
 
 export function useUserSettingsProps(): ConnectedSettingsProps {
-  const { userProfile, setUserProfile, logOut } = useAppShell();
+  const { userProfile, setUserProfile } = useAppShell();
 
   return {
     profile: userProfile,
@@ -65,7 +64,5 @@ export function useUserSettingsProps(): ConnectedSettingsProps {
         emailEnabled: result.emailEnabled ?? prefs.emailEnabled,
       }));
     },
-
-    onLogout: () => void logOut(),
   };
 }

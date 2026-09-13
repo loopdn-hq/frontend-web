@@ -136,7 +136,6 @@ export type UserSettingsPanelProps = {
   onSaveNotifications?: (
     prefs: NotificationPreferences,
   ) => Promise<void> | void;
-  onLogout?: () => void;
   /**
    * The tab the user just picked.
    *
@@ -182,7 +181,6 @@ export function UserSettingsPanel({
   onSaveProfile,
   notificationPreferences = defaultNotificationPreferences,
   onSaveNotifications,
-  onLogout,
   onTabChange,
   showHeading = true,
   tabs = SETTINGS_TABS,
@@ -282,11 +280,7 @@ export function UserSettingsPanel({
           {activeTab === "privacy" && <BlockedUsersSection />}
           {activeTab === "billing" && <BillingSettings />}
           {activeTab === "account" && (
-            <AccountSection
-              profile={profile}
-              onSaveProfile={onSaveProfile}
-              onLogout={onLogout}
-            />
+            <AccountSection profile={profile} onSaveProfile={onSaveProfile} />
           )}
         </div>
       </div>
