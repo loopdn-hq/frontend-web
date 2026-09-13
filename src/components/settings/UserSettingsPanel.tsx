@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
+import { AccountSection } from "./AccountSection";
 import { BlockedUsersSection } from "./BlockedUsersSection";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
@@ -280,7 +281,13 @@ export function UserSettingsPanel({
           )}
           {activeTab === "privacy" && <BlockedUsersSection />}
           {activeTab === "billing" && <BillingSettings />}
-          {activeTab === "account" && <AccountSettings onLogout={onLogout} />}
+          {activeTab === "account" && (
+            <AccountSection
+              profile={profile}
+              onSaveProfile={onSaveProfile}
+              onLogout={onLogout}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -959,75 +966,6 @@ function NotificationSettings({
           {error}
         </p>
       )}
-    </div>
-  );
-}
-
-/**
- * Signing out, exporting, deleting.
- *
- * These lived under Privacy, which was the wrong shelf: none of them is about
- * who can reach you, and Privacy now holds the thing that is. Nothing about
- * them changed in the move.
- */
-function AccountSettings({ onLogout }: { onLogout?: () => void }) {
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">
-          Log Out
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Sign out of Loopdn on this device.
-        </p>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={onLogout}
-          className="mt-3"
-        >
-          Log Out
-        </Button>
-      </div>
-
-      <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-        <p className="font-medium text-slate-900 dark:text-slate-100">
-          Data Export
-        </p>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Request a copy of your account data. This will be available once the
-          backend is connected.
-        </p>
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled
-          className="mt-3"
-        >
-          Request Export (coming soon)
-        </Button>
-      </div>
-
-      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/30">
-        <p className="font-medium text-rose-700 dark:text-rose-400">
-          Delete Account
-        </p>
-        <p className="mt-1 text-xs text-rose-600/80 dark:text-rose-400/70">
-          Permanently delete your account and all associated data. This action
-          cannot be undone.
-        </p>
-        <Button
-          type="button"
-          variant="danger"
-          size="sm"
-          disabled
-          className="mt-3"
-        >
-          Delete Account (coming soon)
-        </Button>
-      </div>
     </div>
   );
 }
