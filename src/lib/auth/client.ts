@@ -667,6 +667,7 @@ export type ProfileResult =
   | {
       ok: true;
       displayName?: string;
+      username?: string;
       email?: string;
       phone?: string;
       emailVerified?: boolean;
@@ -722,6 +723,7 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
 
     const envelope = data as {
       data?: {
+        username?: string;
         first_name?: string;
         last_name?: string;
         email?: string;
@@ -735,6 +737,9 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
       displayName:
         envelope.data?.profile?.display_name ??
         envelope.data?.first_name + " " + envelope.data?.last_name,
+      // Read-only: the API refuses username changes, because it is how every
+      // message this account has already sent is attributed.
+      username: envelope.data?.username,
       email: envelope.data?.email,
       phone: envelope.data?.profile?.phone_number,
       emailVerified: envelope.data?.profile?.email_verified,
@@ -748,8 +753,13 @@ export async function fetchUserProfile(): Promise<ProfileResult> {
   }
 }
 
-// PATCH /api/v1/users/me/profile/. Only the fields given are sent - JSON drops
-// undefined keys - so a caller flipping one switch changes nothing else.
+// PATCH /api/v1/users/me/profile/. Only the fields given are sent, so a caller
+// flipping one switch changes nothing else.
+//
+// Two encodings, chosen by whether there is a file. JSON for everything else,
+// because it is the shape the rest of this module speaks; multipart when an
+// avatar is being uploaded, because a file cannot travel in JSON. The endpoint
+// declares MultiPartParser, FormParser and JSONParser, so it accepts either.
 export async function updateUserProfile(profile: {
   displayName?: string;
   email?: string;
@@ -759,6 +769,9 @@ export async function updateUserProfile(profile: {
   emailVerified?: boolean;
   phoneVerified?: boolean;
   emailEnabled?: boolean;
+  username?: string;
+  /** A newly chosen image. Absent leaves the stored avatar untouched. */
+  avatarFile?: File | null;
 }): Promise<ProfileResult> {
   const accessToken = getAccessToken();
 
@@ -772,16 +785,22 @@ export async function updateUserProfile(profile: {
   try {
     const response = await fetch(`${API_BASE_URL}/users/me/profile/`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-      },
-      body: JSON.stringify({
-        display_name: profile.displayName,
-        bio: profile.bio,
-        avatar_url: profile.avatarUrl,
-        email_enabled: profile.emailEnabled,
-      }),
+      // No Content-Type for multipart: the browser has to set it itself so it
+      // can append the boundary, and naming it here produces a body the server
+      // cannot split back apart.
+      headers: profile.avatarFile
+        ? { Authorization: `Bearer ${accessToken}` }
+        : {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+      body: profile.avatarFile
+        ? multipartProfile(profile)
+        : JSON.stringify({
+            display_name: profile.displayName,
+            bio: profile.bio,
+            email_enabled: profile.emailEnabled,
+          }),
     });
 
     const data: unknown = await response.json().catch(() => null);
@@ -804,14 +823,42 @@ export async function updateUserProfile(profile: {
       email: profile.email,
       phone: saved.phone_number ?? profile.phone,
       bio: saved.bio ?? profile.bio,
+      // The freshly stored URL, so a new avatar appears without a reload.
       avatarUrl: saved.avatar_url ?? profile.avatarUrl,
       emailVerified: saved.email_verified ?? profile.emailVerified,
       phoneVerified: saved.phone_no_verified ?? profile.phoneVerified,
       emailEnabled: saved.email_enabled ?? profile.emailEnabled,
+      // Echoed back untouched; it is not part of the PATCH body.
+      username: profile.username,
     };
   } catch {
     return { ok: false, message: "Network error. Please try again." };
   }
+}
+
+/**
+ * The same fields as the JSON body, plus the file.
+ *
+ * Undefined is skipped rather than sent: FormData has no undefined, so
+ * appending one would post the string "undefined" and blank the field. JSON
+ * drops those keys for free, which is why only this half needs the guard.
+ */
+function multipartProfile(profile: {
+  displayName?: string;
+  bio?: string;
+  emailEnabled?: boolean;
+  avatarFile?: File | null;
+}): FormData {
+  const form = new FormData();
+  if (profile.displayName !== undefined) {
+    form.append("display_name", profile.displayName);
+  }
+  if (profile.bio !== undefined) form.append("bio", profile.bio);
+  if (profile.emailEnabled !== undefined) {
+    form.append("email_enabled", String(profile.emailEnabled));
+  }
+  if (profile.avatarFile) form.append("avatar", profile.avatarFile);
+  return form;
 }
 
 // POST /api/v1/users/me/phone/request-code/ — sends a verification SMS to the

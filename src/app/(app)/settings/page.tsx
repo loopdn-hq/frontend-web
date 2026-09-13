@@ -1,15 +1,13 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import {
   isSettingsTab,
   UserSettingsPanel,
   type SettingsTab,
 } from "@/components/settings/UserSettingsPanel";
-import { updateUserProfile, type ProfileResult } from "@/lib/auth/client";
-import type { UserProfile } from "@/components/settings/UserSettingsPanel";
+import { useUserSettingsProps } from "@/components/settings/useUserSettingsProps";
 
 function subscribeToHash(onChange: () => void) {
   window.addEventListener("hashchange", onChange);
@@ -27,15 +25,23 @@ function tabFromHash(): SettingsTab | undefined {
  * `useSyncExternalStore` rather than reading the hash into state on mount:
  * this page is prerendered at build time, where there is no hash at all, and
  * this is the hook whose whole purpose is to serve the server snapshot during
- * hydration and swap to the real one immediately after - so the tab is right
- * on the first paint the user sees, with no mismatch and no flash of Profile.
+ * hydration and swap to the real one straight after - so the tab is right on
+ * the first paint the user sees, with no mismatch and no flash of Profile.
  */
 function useTabFromHash(): SettingsTab | undefined {
   return useSyncExternalStore(subscribeToHash, tabFromHash, () => undefined);
 }
 
+/**
+ * Settings as a page.
+ *
+ * The nav rail opens the same panel as a dialog, which is how most people will
+ * reach it. This route stays for the links that already point at it and for
+ * `/settings/#billing`-style deep links, and it shares its wiring with the
+ * dialog rather than keeping a second copy.
+ */
 export default function SettingsPage() {
-  const { userProfile, setUserProfile, logOut } = useAppShell();
+  const settingsProps = useUserSettingsProps();
   const tab = useTabFromHash();
 
   return (
@@ -43,40 +49,11 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-5xl">
         <NavDrawerButton className="mt-4 ml-4 bg-slate-900 text-white" />
         <UserSettingsPanel
-          // Remounted when the URL names a different tab, which is what makes
-          // arriving from the nav rail's menu land where it said it would -
-          // including when Settings is already the open page.
+          // Remounted when the URL names a different tab, so a deep link lands
+          // where it says even when Settings is already the open page.
           key={tab ?? "profile"}
           initialTab={tab}
-          profile={userProfile}
-          onSaveProfile={async (profile) => {
-            const res: ProfileResult = await updateUserProfile(profile);
-            if (!res.ok) {
-              console.error("Failed to update profile:", res.message);
-              return;
-            }
-
-            setUserProfile(res as UserProfile);
-          }}
-          notificationPreferences={{
-            emailEnabled: userProfile.emailEnabled ?? true,
-          }}
-          onSaveNotifications={async (prefs) => {
-            // Same PATCH as the profile form; only the switch is sent. Throwing
-            // is how the panel learns to put the toggle back.
-            const res = await updateUserProfile({
-              emailEnabled: prefs.emailEnabled,
-            });
-            if (!res.ok) {
-              throw new Error(res.message);
-            }
-
-            setUserProfile((prev) => ({
-              ...prev,
-              emailEnabled: res.emailEnabled ?? prefs.emailEnabled,
-            }));
-          }}
-          onLogout={() => void logOut()}
+          {...settingsProps}
         />
       </div>
     </div>

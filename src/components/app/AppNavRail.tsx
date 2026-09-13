@@ -34,7 +34,10 @@ import {
   type ContextMenuItem,
   type ContextMenuOrigin,
 } from "@/components/ui";
-import { settingsHref } from "@/components/settings/UserSettingsPanel";
+import { ChatAvatar } from "@/components/home/ChatAvatar";
+import { EditProfileModal } from "@/components/settings/EditProfileModal";
+import { UserSettingsModal } from "@/components/settings/UserSettingsModal";
+import { useUserSettingsProps } from "@/components/settings/useUserSettingsProps";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
@@ -124,6 +127,15 @@ export function AppNavRail() {
   const [accountMenu, setAccountMenu] = useState<ContextMenuOrigin | null>(
     null,
   );
+  // Both dialogs open over whatever is on screen rather than navigating away
+  // from it, so a glance at a setting does not cost the reader their place in
+  // a conversation. `null` is closed; the tab is which one to land on.
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<SettingsTab | null>(null);
+
+  // The panel and its save handlers, shared with the /settings/ page so there
+  // is one description of what saving means.
+  const settingsProps = useUserSettingsProps();
 
   useEffect(() => {
     let cancelled = false;
@@ -165,11 +177,11 @@ export function AppNavRail() {
   );
 
   const openSettings = useCallback(
-    (tab?: SettingsTab) => {
+    (tab: SettingsTab) => {
       closeNavDrawer();
-      router.push(settingsHref(tab));
+      setSettingsTab(tab);
     },
-    [closeNavDrawer, router],
+    [closeNavDrawer],
   );
 
   const accountItems: ContextMenuItem[] = [
@@ -178,14 +190,17 @@ export function AppNavRail() {
       label: "Profile",
       description: "View your profile",
       icon: <User className="h-4 w-4" />,
-      onSelect: () => openSettings("profile"),
+      onSelect: () => {
+        closeNavDrawer();
+        setIsEditingProfile(true);
+      },
     },
     {
       id: "settings",
       label: "Settings",
       description: "App preferences",
       icon: <Settings className="h-4 w-4" />,
-      onSelect: () => openSettings(),
+      onSelect: () => openSettings("profile"),
     },
     {
       id: "upgrade",
@@ -225,9 +240,6 @@ export function AppNavRail() {
     requestCreateLoop();
     router.push("/chats/");
   }, [closeNavDrawer, requestCreateLoop, router]);
-
-  const profileInitial =
-    userProfile.displayName.trim().charAt(0).toUpperCase() || "U";
 
   function isActive(href: string) {
     return pathname === href || pathname === href.replace(/\/$/, "");
@@ -403,9 +415,15 @@ export function AppNavRail() {
               collapsed ? "md:justify-center md:px-0" : ""
             }`}
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
-              {profileInitial}
-            </span>
+            {/* ChatAvatar rather than a hand-rolled initial: it already
+                knows to show the picture when there is one, and uses the same
+                name-derived tint as this person's avatar everywhere else, so
+                one account is one colour across the app. */}
+            <ChatAvatar
+              name={userProfile.displayName || "?"}
+              imageUrl={userProfile.avatarUrl}
+              size={36}
+            />
             {!collapsed && (
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-white">
@@ -425,6 +443,23 @@ export function AppNavRail() {
         items={accountItems}
         onClose={closeAccountMenu}
         label="Account"
+      />
+
+      <EditProfileModal
+        isOpen={isEditingProfile}
+        onClose={() => setIsEditingProfile(false)}
+        profile={settingsProps.profile}
+        onSave={settingsProps.onSaveProfile}
+      />
+
+      {/* Remounted per open - UserSettingsModal renders nothing while closed -
+          so `initialTab` is read afresh each time and "Upgrade plan" always
+          arrives at Billing, even after a previous visit left another tab up. */}
+      <UserSettingsModal
+        {...settingsProps}
+        isOpen={settingsTab !== null}
+        initialTab={settingsTab ?? "profile"}
+        onClose={() => setSettingsTab(null)}
       />
     </>
   );

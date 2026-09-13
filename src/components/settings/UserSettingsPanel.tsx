@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AvatarPicker } from "./AvatarPicker";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
 import { changePasswordSchema } from "@/lib/validation/auth";
@@ -65,6 +66,8 @@ export function settingsHref(tab?: SettingsTab): string {
 
 export type UserProfile = {
   displayName: string;
+  /** Read-only: the API refuses changes, see EditProfileModal. */
+  username?: string;
   email?: string;
   phone?: string;
   emailVerified?: boolean;
@@ -93,11 +96,19 @@ export const defaultNotificationPreferences: NotificationPreferences = {
   emailEnabled: true,
 };
 
+/**
+ * A profile as edited, which is the stored profile plus a file that is not
+ * part of it. The avatar is only ever in flight - once saved it comes back as
+ * `avatarUrl` - so it rides along here rather than living on UserProfile,
+ * where every reader would have to know to ignore it.
+ */
+export type ProfileEdit = UserProfile & { avatarFile?: File | null };
+
 export type UserSettingsPanelProps = {
   profile: UserProfile;
   /** Which tab to open on. Defaults to Profile. */
   initialTab?: SettingsTab;
-  onSaveProfile?: (profile: UserProfile) => Promise<void> | void;
+  onSaveProfile?: (profile: ProfileEdit) => Promise<void> | void;
   notificationPreferences?: NotificationPreferences;
   onSaveNotifications?: (
     prefs: NotificationPreferences,
@@ -516,26 +527,34 @@ function ProfileSettings({
   onSave,
 }: {
   profile: UserProfile;
-  onSave?: (profile: UserProfile) => Promise<void> | void;
+  onSave?: (profile: ProfileEdit) => Promise<void> | void;
 }) {
   const [displayName, setDisplayName] = useState(profile.displayName);
   const [bio, setBio] = useState(profile.bio ?? "");
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-
-  const initial = displayName.trim().charAt(0).toUpperCase() || "?";
+  const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
     setIsSaving(true);
     setSaved(false);
+    setError(null);
     try {
-      await onSave?.({
-        ...profile,
-        displayName,
-        bio,
-      });
+      await onSave?.({ ...profile, displayName, bio, avatarFile });
+      // Cleared so the picker stops offering to upload what is already
+      // uploaded, and falls back to the URL the server just returned.
+      setAvatarFile(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      // onSaveProfile throws now. Without this the rejection went unhandled
+      // and the form said nothing at all about a save that did not happen.
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Couldn't save that. Try again.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -544,13 +563,22 @@ function ProfileSettings({
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] text-2xl font-bold text-white">
-          {initial}
-        </div>
+        <AvatarPicker
+          name={displayName || profile.username || "?"}
+          currentUrl={profile.avatarUrl}
+          file={avatarFile}
+          onPick={(picked) => {
+            setError(null);
+            setAvatarFile(picked);
+          }}
+          onReject={setError}
+          size={64}
+          disabled={isSaving}
+        />
         <div>
           <p className="font-semibold">{displayName || "Your name"}</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Avatar upload coming soon
+            JPG or PNG, up to 5MB
           </p>
         </div>
       </div>
@@ -614,6 +642,14 @@ function ProfileSettings({
         </Button>
         {saved && (
           <p className="text-xs font-medium text-emerald-600">Saved ✓</p>
+        )}
+        {error && (
+          <p
+            className="text-xs font-medium text-red-600 dark:text-red-400"
+            role="alert"
+          >
+            {error}
+          </p>
         )}
       </div>
     </div>

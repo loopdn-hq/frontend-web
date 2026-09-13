@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import {
   UserSettingsPanel,
   type UserSettingsPanelProps,
@@ -23,12 +24,41 @@ export function UserSettingsModal({
   onClose,
   ...panelProps
 }: UserSettingsModalProps) {
+  const panel = useRef<HTMLDivElement>(null);
+
+  // Focus moves into the dialog when it opens. The menu that opens it puts
+  // focus back on its own trigger as it closes - which is behind this overlay,
+  // so without this a keyboard user would be tabbing through the nav rail they
+  // cannot see. Effect cleanups run before effect bodies, so this lands last.
+  useEffect(() => {
+    if (!isOpen) return;
+    panel.current?.focus();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onEscape);
+    return () => window.removeEventListener("keydown", onEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    // z-60 rather than z-50: the nav rail that opens this is itself z-50, and
+    // the two overlapping meant the rail sat on top of its own dialog.
+    <div className="fixed inset-0 z-[60]">
       <div className="flex min-h-screen items-start justify-center bg-black/50 p-4">
-        <div className="relative max-h-[90vh] w-full max-w-3xl rounded-2xl bg-[var(--panel)] text-[var(--foreground)]">
+        <div
+          ref={panel}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Settings"
+          tabIndex={-1}
+          className="relative max-h-[90vh] w-full max-w-3xl rounded-2xl bg-[var(--panel)] text-[var(--foreground)] focus:outline-none"
+        >
           <button
             type="button"
             onClick={onClose}
