@@ -175,6 +175,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
 
       setUserProfile((prev) => ({
         displayName: result.displayName || prev.displayName,
+        username: result.username ?? prev.username,
         email: result.email ?? prev.email,
         phone: result.phone ?? prev.phone,
         emailVerified: result.emailVerified ?? prev.emailVerified,

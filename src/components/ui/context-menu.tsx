@@ -38,6 +38,15 @@ export type ContextMenuItem =
       kind?: "item";
       id: string;
       label: string;
+      /**
+       * A second, quieter line under the label - "Sign out of your account".
+       *
+       * Optional, and absent on the message menu, where every item is a verb
+       * the label already says in full. It earns its place on a menu whose
+       * items are destinations rather than actions, because "Profile" and
+       * "Settings" do not say on their own which one holds what.
+       */
+      description?: string;
       icon?: ReactNode;
       tone?: "default" | "danger";
       disabled?: boolean;
@@ -233,7 +242,21 @@ export function ContextMenu({
                 {item.icon}
               </span>
             )}
-            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate">{item.label}</span>
+              {item.description && (
+                <span
+                  className={cn(
+                    "block truncate text-xs",
+                    item.tone === "danger"
+                      ? "text-rose-500/80 dark:text-rose-400/70"
+                      : "text-slate-500 dark:text-slate-400",
+                  )}
+                >
+                  {item.description}
+                </span>
+              )}
+            </span>
           </button>
         ),
       )}

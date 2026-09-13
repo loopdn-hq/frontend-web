@@ -1,8 +1,9 @@
 "use client";
 
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
+import { useReturnFocus } from "@/lib/hooks/useReturnFocus";
 import { Button } from "./button";
 
 type ModalProps = {
@@ -17,6 +18,15 @@ type ModalProps = {
   children: ReactNode;
 };
 
+/**
+ * Every open Modal, innermost last.
+ *
+ * Escape is listened for on the window, so with a confirmation opened over a
+ * settings dialog BOTH would hear it and both would close - one keypress
+ * cancelling a question and the screen behind it. Only the last entry acts.
+ */
+const openModals: object[] = [];
+
 export function Modal({
   isOpen,
   onClose,
@@ -28,11 +38,35 @@ export function Modal({
   closeLabel = "Close modal",
   children,
 }: ModalProps) {
+  const dialog = useRef<HTMLDivElement>(null);
+
+  // Focus goes in when the dialog opens and comes back out when it closes -
+  // the second half via useReturnFocus, whose own docstring asks for exactly
+  // this rather than a second copy per dialog. Without the first half, a
+  // dialog opened from a button leaves focus on that button BEHIND the
+  // overlay, and Tab walks a page the reader cannot see.
+  useReturnFocus(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const node = dialog.current;
+    // Only if nothing inside has claimed it already: a form that autofocuses
+    // its first field, or a caller that focuses a particular input, has made a
+    // better choice than "the dialog itself" and must not be overridden.
+    if (node && !node.contains(document.activeElement)) node.focus();
+  }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
 
+    const token = {};
+    openModals.push(token);
+
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      // Only the innermost dialog answers. See openModals above.
+      if (openModals[openModals.length - 1] !== token) return;
+      onClose();
     };
 
     const originalOverflow = document.body.style.overflow;
@@ -41,6 +75,9 @@ export function Modal({
 
     return () => {
       window.removeEventListener("keydown", handleEscape);
+      openModals.splice(openModals.indexOf(token), 1);
+      // Restores what was there before THIS dialog, which for a nested one is
+      // the outer dialog's own "hidden" rather than the page's scroll.
       document.body.style.overflow = originalOverflow;
     };
   }, [isOpen, onClose]);
@@ -54,10 +91,12 @@ export function Modal({
       role="presentation"
     >
       <div
+        ref={dialog}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         className={cn(
-          "w-full rounded-3xl border border-sky-100 bg-white shadow-[0_20px_70px_rgba(14,88,148,0.25)] dark:border-slate-700 dark:bg-slate-900",
+          "w-full rounded-3xl border border-sky-100 bg-white shadow-[0_20px_70px_rgba(14,88,148,0.25)] focus:outline-none dark:border-slate-700 dark:bg-slate-900",
           maxWidthClassName ?? "max-w-md",
         )}
         onClick={(event) => event.stopPropagation()}
