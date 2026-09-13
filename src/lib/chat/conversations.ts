@@ -786,6 +786,70 @@ function normalizeDiscoverableGroup(item: ApiObject): DiscoverableGroup | null {
  * Search public groups. Returns [] for a term the server will not act on, so
  * the caller does not have to know the two-character rule.
  */
+/**
+ * Open the one-to-one conversation with somebody, creating it once.
+ *
+ * `identifier` is a username, a VERIFIED email address, or a phone number in
+ * +E.164 form - the three things `user/lookups.py:find_user` resolves. The
+ * verified part is not incidental: an unverified address or number is a string
+ * somebody typed into their own profile, and matching on it would open a
+ * private thread with whoever typed it rather than whoever owns it.
+ *
+ * Safe to call for a pair that already has one; the server returns the same
+ * conversation rather than a second.
+ *
+ * The refusal text is passed through untouched. The API deliberately says two
+ * different things - "You blocked this user. Unblock to message them." to the
+ * person who made the block, and a plain "no user found" to everybody else,
+ * including the person who was blocked - and rewording either here would undo
+ * that.
+ */
+export async function startDirectConversation(
+  identifier: string,
+): Promise<
+  { ok: true; conversationId: string | number } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest("/chat/conversations/direct/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: identifier.trim() }),
+    });
+
+    const body = (await response.json().catch(() => null)) as {
+      data?: { id?: string | number; identifier?: string[] };
+      message?: string;
+    } | null;
+
+    if (!response.ok) {
+      // The field error, not the envelope's `message`: on a 400 the envelope
+      // prefixes it with the field name ("identifier: No user found ..."),
+      // and the sentence underneath is the one written to be read.
+      return {
+        ok: false,
+        message:
+          body?.data?.identifier?.[0] ??
+          body?.message ??
+          "Could not start that conversation.",
+      };
+    }
+
+    const conversationId = body?.data?.id;
+    if (conversationId === undefined) {
+      return { ok: false, message: "Could not start that conversation." };
+    }
+    return { ok: true, conversationId };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error && error.message
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function searchGroups(
   query: string,
 ): Promise<
