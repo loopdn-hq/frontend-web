@@ -13,6 +13,8 @@ import {
   Bell,
   CirclePlus,
   Contact,
+  CreditCard,
+  HelpCircle,
   Image as ImageIcon,
   LogOut,
   MessageCircle,
@@ -32,9 +34,13 @@ import {
   type ContextMenuItem,
   type ContextMenuOrigin,
 } from "@/components/ui";
+import { settingsHref } from "@/components/settings/UserSettingsPanel";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
+import type { SettingsTab } from "@/components/settings/UserSettingsPanel";
+
+const SUPPORT_MAILTO = "mailto:support@loopdn.com?subject=Loopd%27n%20support";
 
 type NavItem = {
   href: string;
@@ -158,25 +164,49 @@ export function AppNavRail() {
     [],
   );
 
+  const openSettings = useCallback(
+    (tab?: SettingsTab) => {
+      closeNavDrawer();
+      router.push(settingsHref(tab));
+    },
+    [closeNavDrawer, router],
+  );
+
   const accountItems: ContextMenuItem[] = [
     {
       id: "profile",
       label: "Profile",
       description: "View your profile",
       icon: <User className="h-4 w-4" />,
-      onSelect: () => {
-        closeNavDrawer();
-        router.push("/settings/");
-      },
+      onSelect: () => openSettings("profile"),
     },
     {
       id: "settings",
       label: "Settings",
       description: "App preferences",
       icon: <Settings className="h-4 w-4" />,
+      onSelect: () => openSettings(),
+    },
+    {
+      id: "upgrade",
+      label: "Upgrade plan",
+      description: "More groups and members",
+      icon: <CreditCard className="h-4 w-4" />,
+      // Billing is where a plan is actually bought - the pricing page only
+      // describes them, and sends a signed-in person back here anyway.
+      onSelect: () => openSettings("billing"),
+    },
+    {
+      id: "help",
+      label: "Help",
+      description: "Get in touch with support",
+      icon: <HelpCircle className="h-4 w-4" />,
+      // A mailto, following the same convention as the legal, privacy and
+      // sales addresses elsewhere in the app. There is no help centre to
+      // link to yet, and pointing this at /contact/ would be worse than
+      // nothing: that page is an enterprise SALES form.
       onSelect: () => {
-        closeNavDrawer();
-        router.push("/settings/");
+        window.location.href = SUPPORT_MAILTO;
       },
     },
     { kind: "separator", id: "account-separator" },

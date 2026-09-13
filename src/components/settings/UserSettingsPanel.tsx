@@ -26,13 +26,42 @@ import {
   Textarea,
 } from "@/components/ui";
 
-type SettingsTab =
+export type SettingsTab =
   | "profile"
   | "security"
   | "appearance"
   | "notifications"
   | "privacy"
   | "billing";
+
+const SETTINGS_TABS: SettingsTab[] = [
+  "profile",
+  "security",
+  "appearance",
+  "notifications",
+  "privacy",
+  "billing",
+];
+
+export function isSettingsTab(value: string): value is SettingsTab {
+  return (SETTINGS_TABS as string[]).includes(value);
+}
+
+/**
+ * A link that opens Settings on one particular tab - `/settings/#billing`.
+ *
+ * The hash rather than a query string: this is a static export, so
+ * `useSearchParams` would force the page behind a Suspense boundary for a
+ * value that is only ever read in the browser. The hash needs neither.
+ *
+ * Exported so nothing else has to spell the fragment itself. "Upgrade plan"
+ * in the nav rail has to arrive at Billing, and a caller writing the string
+ * by hand is a caller that keeps working after a tab is renamed while quietly
+ * landing on Profile.
+ */
+export function settingsHref(tab?: SettingsTab): string {
+  return tab ? `/settings/#${tab}` : "/settings/";
+}
 
 export type UserProfile = {
   displayName: string;
@@ -66,6 +95,8 @@ export const defaultNotificationPreferences: NotificationPreferences = {
 
 export type UserSettingsPanelProps = {
   profile: UserProfile;
+  /** Which tab to open on. Defaults to Profile. */
+  initialTab?: SettingsTab;
   onSaveProfile?: (profile: UserProfile) => Promise<void> | void;
   notificationPreferences?: NotificationPreferences;
   onSaveNotifications?: (
@@ -85,13 +116,25 @@ export type UserSettingsPanelProps = {
  */
 export function UserSettingsPanel({
   profile,
+  initialTab = "profile",
   onSaveProfile,
   notificationPreferences = defaultNotificationPreferences,
   onSaveNotifications,
   onLogout,
   bodyClassName = "",
 }: UserSettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+
+  // The visible tab is mirrored into the URL, so the address bar is always
+  // shareable and "Upgrade plan" is never a no-op because the hash already
+  // said `#billing` while a different tab was on screen. `replaceState`
+  // rather than a push: flipping tabs is not six entries of back-button.
+  function showTab(tab: SettingsTab) {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", settingsHref(tab));
+    }
+  }
 
   return (
     <div className="p-6">
@@ -104,7 +147,7 @@ export function UserSettingsPanel({
 
       <Tabs<SettingsTab>
         value={activeTab}
-        onChange={setActiveTab}
+        onChange={showTab}
         className="mb-6"
         items={[
           { value: "profile", label: "Profile" },
