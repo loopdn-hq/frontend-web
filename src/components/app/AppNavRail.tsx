@@ -1,6 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -15,11 +20,18 @@ import {
   Phone,
   RadioTower,
   Search,
+  Settings,
   Sparkles,
+  User,
   Users,
   X,
   type LucideIcon,
 } from "lucide-react";
+import {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuOrigin,
+} from "@/components/ui";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
@@ -103,6 +115,9 @@ export function AppNavRail() {
   } = useAppShell();
   const [collapsed, setCollapsed] = useState(readNavCollapsed);
   const [hasAnalyticsAccess, setHasAnalyticsAccess] = useState(false);
+  const [accountMenu, setAccountMenu] = useState<ContextMenuOrigin | null>(
+    null,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -126,6 +141,54 @@ export function AppNavRail() {
       return next;
     });
   }, []);
+
+  const closeAccountMenu = useCallback(() => setAccountMenu(null), []);
+
+  const openAccountMenu = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      // Anchored to the row, never to the pointer. ContextMenu was written for
+      // a right-click, where the cursor IS the anchor; here the trigger is a
+      // fixed control at the foot of the rail, and a menu that opened wherever
+      // the cursor happened to be would drift away from the button that owns
+      // it. Passing the row's own top means the menu's flip-when-it-overflows
+      // rule lands it just above the row, which is where it belongs.
+      const box = event.currentTarget.getBoundingClientRect();
+      setAccountMenu({ x: box.left, y: box.top - 8 });
+    },
+    [],
+  );
+
+  const accountItems: ContextMenuItem[] = [
+    {
+      id: "profile",
+      label: "Profile",
+      description: "View your profile",
+      icon: <User className="h-4 w-4" />,
+      onSelect: () => {
+        closeNavDrawer();
+        router.push("/settings/");
+      },
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      description: "App preferences",
+      icon: <Settings className="h-4 w-4" />,
+      onSelect: () => {
+        closeNavDrawer();
+        router.push("/settings/");
+      },
+    },
+    { kind: "separator", id: "account-separator" },
+    {
+      id: "logout",
+      label: "Log out",
+      description: "Sign out of your account",
+      icon: <LogOut className="h-4 w-4" />,
+      tone: "danger",
+      onSelect: () => void logOut(),
+    },
+  ];
 
   const handleCreateGroup = useCallback(() => {
     closeNavDrawer();
@@ -293,46 +356,46 @@ export function AppNavRail() {
         </div>
 
         <div className="border-t border-slate-800 p-2">
-          <div
-            className={`flex items-center gap-3 rounded-xl px-2 py-2 ${
+          {/* The whole row is the trigger, and there is no separate log-out
+              icon beside it. One press used to sign you out with no warning
+              and no way back - a destructive action given the largest, most
+              easily mis-hit target in the rail. It is now one item in this
+              menu, where it reads as a choice among three. */}
+          <button
+            type="button"
+            data-ignore-click-outside
+            aria-haspopup="menu"
+            aria-expanded={accountMenu !== null}
+            aria-label="Account menu"
+            onClick={openAccountMenu}
+            title={userProfile.displayName}
+            className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-800 ${
               collapsed ? "md:justify-center md:px-0" : ""
             }`}
           >
-            <Link
-              href="/settings/"
-              onClick={closeNavDrawer}
-              title={userProfile.displayName}
-              className="flex min-w-0 flex-1 items-center gap-3"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
-                {profileInitial}
-              </span>
-              {!collapsed && (
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-white">
-                    {userProfile.displayName}
-                  </span>
-                  <span className="block truncate text-xs text-slate-400">
-                    {userProfile.phone || userProfile.email || "Open settings"}
-                  </span>
-                </span>
-              )}
-            </Link>
-
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-600 text-sm font-bold text-white">
+              {profileInitial}
+            </span>
             {!collapsed && (
-              <button
-                type="button"
-                onClick={() => void logOut()}
-                aria-label="Log out"
-                title="Log out"
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-800 hover:text-rose-400"
-              >
-                <LogOut className="h-4 w-4" />
-              </button>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-white">
+                  {userProfile.displayName}
+                </span>
+                <span className="block truncate text-xs text-slate-400">
+                  {userProfile.phone || userProfile.email || "Open settings"}
+                </span>
+              </span>
             )}
-          </div>
+          </button>
         </div>
       </nav>
+
+      <ContextMenu
+        origin={accountMenu}
+        items={accountItems}
+        onClose={closeAccountMenu}
+        label="Account"
+      />
     </>
   );
 }
