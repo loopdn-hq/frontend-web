@@ -445,22 +445,30 @@ export function AppNavRail() {
         label="Account"
       />
 
-      <EditProfileModal
-        isOpen={isEditingProfile}
-        onClose={() => setIsEditingProfile(false)}
-        profile={settingsProps.profile}
-        onSave={settingsProps.onSaveProfile}
-      />
+      {/* Mounted per open, NOT once with the rail. The editors seed their
+          fields from `profile` with useState, and the rail outlives every
+          dialog it opens - so left mounted they would still be holding the
+          placeholder the shell starts with (the login name, no bio) long
+          after the real profile had loaded, and Save would write that over
+          the top of it. Modal returning null while closed unmounts the
+          inputs, not the state above them. */}
+      {isEditingProfile && (
+        <EditProfileModal
+          isOpen
+          onClose={() => setIsEditingProfile(false)}
+          profile={settingsProps.profile}
+          onSave={settingsProps.onSaveProfile}
+        />
+      )}
 
-      {/* Remounted per open - UserSettingsModal renders nothing while closed -
-          so `initialTab` is read afresh each time and "Upgrade plan" always
-          arrives at Billing, even after a previous visit left another tab up. */}
-      <UserSettingsModal
-        {...settingsProps}
-        isOpen={settingsTab !== null}
-        initialTab={settingsTab ?? "profile"}
-        onClose={() => setSettingsTab(null)}
-      />
+      {settingsTab !== null && (
+        <UserSettingsModal
+          {...settingsProps}
+          isOpen
+          initialTab={settingsTab}
+          onClose={() => setSettingsTab(null)}
+        />
+      )}
     </>
   );
 }

@@ -114,6 +114,21 @@ export type UserSettingsPanelProps = {
     prefs: NotificationPreferences,
   ) => Promise<void> | void;
   onLogout?: () => void;
+  /**
+   * The tab the user just picked.
+   *
+   * The panel does NOT touch the URL itself. It used to, and that was wrong
+   * the moment it gained a second host: rendered as a dialog over /chats/,
+   * switching to Appearance rewrote the address bar to /settings/, so Back
+   * left the conversation and a reload landed somewhere else entirely. Only
+   * the host knows whether it IS the page - see the /settings/ route.
+   */
+  onTabChange?: (tab: SettingsTab) => void;
+  /**
+   * The panel's own "Settings" heading. Off for a host that already has one,
+   * so a dialog does not show its title twice.
+   */
+  showHeading?: boolean;
   // The modal caps the tab body and scrolls it inside the dialog; the /settings
   // page lets the page itself scroll instead.
   bodyClassName?: string;
@@ -132,29 +147,27 @@ export function UserSettingsPanel({
   notificationPreferences = defaultNotificationPreferences,
   onSaveNotifications,
   onLogout,
+  onTabChange,
+  showHeading = true,
   bodyClassName = "",
 }: UserSettingsPanelProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
 
-  // The visible tab is mirrored into the URL, so the address bar is always
-  // shareable and "Upgrade plan" is never a no-op because the hash already
-  // said `#billing` while a different tab was on screen. `replaceState`
-  // rather than a push: flipping tabs is not six entries of back-button.
   function showTab(tab: SettingsTab) {
     setActiveTab(tab);
-    if (typeof window !== "undefined") {
-      window.history.replaceState(null, "", settingsHref(tab));
-    }
+    onTabChange?.(tab);
   }
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold">Settings</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Manage your profile, appearance, and preferences
-        </p>
-      </div>
+      {showHeading && (
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Settings</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            Manage your profile, appearance, and preferences
+          </p>
+        </div>
+      )}
 
       <Tabs<SettingsTab>
         value={activeTab}

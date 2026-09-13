@@ -4,6 +4,7 @@ import { useSyncExternalStore } from "react";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import {
   isSettingsTab,
+  settingsHref,
   UserSettingsPanel,
   type SettingsTab,
 } from "@/components/settings/UserSettingsPanel";
@@ -53,6 +54,13 @@ export default function SettingsPage() {
           // where it says even when Settings is already the open page.
           key={tab ?? "profile"}
           initialTab={tab}
+          // Only the PAGE mirrors the tab into the address bar - it is the
+          // thing the address names. The same panel rendered as a dialog over
+          // another route must not touch the URL at all. `replaceState`
+          // rather than a push: flipping tabs is not six entries of Back.
+          onTabChange={(next) =>
+            window.history.replaceState(null, "", settingsHref(next))
+          }
           {...settingsProps}
         />
       </div>

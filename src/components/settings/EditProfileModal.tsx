@@ -50,6 +50,10 @@ export function EditProfileModal({
     avatarFile === null &&
     displayName.trim() === profile.displayName.trim() &&
     bio.trim() === (profile.bio ?? "").trim();
+  // The same rule the Profile tab enforces. A blank display name is not a
+  // change worth saving - it leaves the account labelled by whatever the
+  // serializer falls back to, which is not what the person meant to do.
+  const cannotSave = isSaving || unchanged || !displayName.trim();
 
   async function handleSave() {
     setError(null);
@@ -86,7 +90,7 @@ export function EditProfileModal({
           <Button variant="secondary" onClick={onClose} disabled={isSaving}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={isSaving || unchanged}>
+          <Button onClick={handleSave} disabled={cannotSave}>
             {isSaving ? "Saving..." : "Save"}
           </Button>
         </div>
