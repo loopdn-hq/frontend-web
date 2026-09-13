@@ -8,9 +8,11 @@ import {
   Lock,
   Palette,
   User,
+  UserCog,
   type LucideIcon,
 } from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
+import { BlockedUsersSection } from "./BlockedUsersSection";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
 import { changePasswordSchema } from "@/lib/validation/auth";
@@ -42,7 +44,8 @@ export type SettingsTab =
   | "appearance"
   | "notifications"
   | "privacy"
-  | "billing";
+  | "billing"
+  | "account";
 
 /**
  * Every section, in order, with the label and glyph it is shown by.
@@ -58,6 +61,7 @@ const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "privacy", label: "Privacy", icon: Lock },
   { value: "billing", label: "Billing", icon: CreditCard },
+  { value: "account", label: "Account", icon: UserCog },
 ];
 
 const SETTINGS_TABS: SettingsTab[] = TAB_META.map((tab) => tab.value);
@@ -274,8 +278,9 @@ export function UserSettingsPanel({
               onSave={onSaveNotifications}
             />
           )}
-          {activeTab === "privacy" && <PrivacySettings onLogout={onLogout} />}
+          {activeTab === "privacy" && <BlockedUsersSection />}
           {activeTab === "billing" && <BillingSettings />}
+          {activeTab === "account" && <AccountSettings onLogout={onLogout} />}
         </div>
       </div>
     </div>
@@ -958,7 +963,14 @@ function NotificationSettings({
   );
 }
 
-function PrivacySettings({ onLogout }: { onLogout?: () => void }) {
+/**
+ * Signing out, exporting, deleting.
+ *
+ * These lived under Privacy, which was the wrong shelf: none of them is about
+ * who can reach you, and Privacy now holds the thing that is. Nothing about
+ * them changed in the move.
+ */
+function AccountSettings({ onLogout }: { onLogout?: () => void }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">

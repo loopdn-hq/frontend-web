@@ -18,6 +18,15 @@ type ModalProps = {
   children: ReactNode;
 };
 
+/**
+ * Every open Modal, innermost last.
+ *
+ * Escape is listened for on the window, so with a confirmation opened over a
+ * settings dialog BOTH would hear it and both would close - one keypress
+ * cancelling a question and the screen behind it. Only the last entry acts.
+ */
+const openModals: object[] = [];
+
 export function Modal({
   isOpen,
   onClose,
@@ -50,8 +59,14 @@ export function Modal({
   useEffect(() => {
     if (!isOpen) return;
 
+    const token = {};
+    openModals.push(token);
+
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key !== "Escape") return;
+      // Only the innermost dialog answers. See openModals above.
+      if (openModals[openModals.length - 1] !== token) return;
+      onClose();
     };
 
     const originalOverflow = document.body.style.overflow;
@@ -60,6 +75,9 @@ export function Modal({
 
     return () => {
       window.removeEventListener("keydown", handleEscape);
+      openModals.splice(openModals.indexOf(token), 1);
+      // Restores what was there before THIS dialog, which for a nested one is
+      // the outer dialog's own "hidden" rather than the page's scroll.
       document.body.style.overflow = originalOverflow;
     };
   }, [isOpen, onClose]);

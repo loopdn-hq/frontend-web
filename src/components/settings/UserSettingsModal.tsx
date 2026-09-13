@@ -21,6 +21,7 @@ export const SETTINGS_MODAL_TABS: SettingsTab[] = [
   "notifications",
   "privacy",
   "billing",
+  "account",
 ];
 
 // Re-exported so existing importers of this module keep working; the types now
