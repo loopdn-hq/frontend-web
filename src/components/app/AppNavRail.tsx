@@ -36,7 +36,10 @@ import {
 } from "@/components/ui";
 import { ChatAvatar } from "@/components/home/ChatAvatar";
 import { EditProfileModal } from "@/components/settings/EditProfileModal";
-import { UserSettingsModal } from "@/components/settings/UserSettingsModal";
+import {
+  SETTINGS_MODAL_TABS,
+  UserSettingsModal,
+} from "@/components/settings/UserSettingsModal";
 import { useUserSettingsProps } from "@/components/settings/useUserSettingsProps";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
@@ -200,7 +203,8 @@ export function AppNavRail() {
       label: "Settings",
       description: "App preferences",
       icon: <Settings className="h-4 w-4" />,
-      onSelect: () => openSettings("profile"),
+      // The dialog's first section, not Profile - that has its own dialog.
+      onSelect: () => openSettings(SETTINGS_MODAL_TABS[0]),
     },
     {
       id: "upgrade",

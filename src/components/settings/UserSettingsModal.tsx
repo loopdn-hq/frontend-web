@@ -3,8 +3,25 @@
 import { Modal } from "@/components/ui";
 import {
   UserSettingsPanel,
+  type SettingsTab,
   type UserSettingsPanelProps,
 } from "./UserSettingsPanel";
+
+/**
+ * What the dialog offers, in order.
+ *
+ * Profile is deliberately absent: editing a profile is its own dialog now,
+ * opened from the same menu, and a second door onto the same form is how the
+ * two come to disagree about what saving means. The /settings/ page keeps it,
+ * so `/settings/#profile` still resolves.
+ */
+export const SETTINGS_MODAL_TABS: SettingsTab[] = [
+  "security",
+  "appearance",
+  "notifications",
+  "privacy",
+  "billing",
+];
 
 // Re-exported so existing importers of this module keep working; the types now
 // live beside the panel that owns them.
@@ -12,7 +29,7 @@ export type { UserProfile, NotificationPreferences } from "./UserSettingsPanel";
 
 type UserSettingsModalProps = Omit<
   UserSettingsPanelProps,
-  "bodyClassName" | "showHeading"
+  "bodyClassName" | "showHeading" | "layout" | "tabs"
 > & {
   isOpen: boolean;
   onClose: () => void;
@@ -49,7 +66,11 @@ export function UserSettingsModal({
       <UserSettingsPanel
         {...panelProps}
         showHeading={false}
-        bodyClassName="max-h-[55vh] overflow-y-auto"
+        layout="sidebar"
+        tabs={SETTINGS_MODAL_TABS}
+        // Only the content pane scrolls, so the section list stays put while a
+        // long one - Billing - is read.
+        bodyClassName="max-h-[60vh] overflow-y-auto pr-1"
       />
     </Modal>
   );

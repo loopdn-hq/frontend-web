@@ -1,6 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import {
+  Bell,
+  CreditCard,
+  KeyRound,
+  Lock,
+  Palette,
+  User,
+  type LucideIcon,
+} from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
 import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
 import { changePassword, type FieldErrors } from "@/lib/auth/client";
@@ -35,14 +44,23 @@ export type SettingsTab =
   | "privacy"
   | "billing";
 
-const SETTINGS_TABS: SettingsTab[] = [
-  "profile",
-  "security",
-  "appearance",
-  "notifications",
-  "privacy",
-  "billing",
+/**
+ * Every section, in order, with the label and glyph it is shown by.
+ *
+ * One list, because there are now two navigations onto the same sections - the
+ * page's row of tabs and the dialog's sidebar - and a second list is a second
+ * chance for them to disagree about what a section is called.
+ */
+const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
+  { value: "profile", label: "Profile", icon: User },
+  { value: "security", label: "Security", icon: KeyRound },
+  { value: "appearance", label: "Appearance", icon: Palette },
+  { value: "notifications", label: "Notifications", icon: Bell },
+  { value: "privacy", label: "Privacy", icon: Lock },
+  { value: "billing", label: "Billing", icon: CreditCard },
 ];
+
+const SETTINGS_TABS: SettingsTab[] = TAB_META.map((tab) => tab.value);
 
 export function isSettingsTab(value: string): value is SettingsTab {
   return (SETTINGS_TABS as string[]).includes(value);
@@ -129,6 +147,19 @@ export type UserSettingsPanelProps = {
    * so a dialog does not show its title twice.
    */
   showHeading?: boolean;
+  /**
+   * Which sections to offer, in this order. Defaults to all of them.
+   *
+   * The dialog leaves Profile out, because editing a profile has a dialog of
+   * its own now and two doors onto one form is how they come to disagree.
+   */
+  tabs?: SettingsTab[];
+  /**
+   * How to navigate between sections. A row of tabs suits a full page; a
+   * sidebar suits a dialog, where the sections are the width the content is
+   * not using anyway.
+   */
+  layout?: "tabs" | "sidebar";
   // The modal caps the tab body and scrolls it inside the dialog; the /settings
   // page lets the page itself scroll instead.
   bodyClassName?: string;
@@ -149,9 +180,24 @@ export function UserSettingsPanel({
   onLogout,
   onTabChange,
   showHeading = true,
+  tabs = SETTINGS_TABS,
+  layout = "tabs",
   bodyClassName = "",
 }: UserSettingsPanelProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const items = useMemo(
+    () => TAB_META.filter((tab) => tabs.includes(tab.value)),
+    [tabs],
+  );
+
+  // Clamped to what is actually on offer. A host can ask for a section it did
+  // not include - a stale `/settings/#profile` link, or "Upgrade plan" against
+  // a tab list without Billing - and landing on a section with no way back to
+  // it is worse than landing on the first one.
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() =>
+    items.some((tab) => tab.value === initialTab)
+      ? initialTab
+      : (items[0]?.value ?? "profile"),
+  );
 
   function showTab(tab: SettingsTab) {
     setActiveTab(tab);
@@ -169,38 +215,68 @@ export function UserSettingsPanel({
         </div>
       )}
 
-      <Tabs<SettingsTab>
-        value={activeTab}
-        onChange={showTab}
-        className="mb-6"
-        items={[
-          { value: "profile", label: "Profile" },
-          { value: "security", label: "Security" },
-          { value: "appearance", label: "Appearance" },
-          { value: "notifications", label: "Notifications" },
-          { value: "privacy", label: "Privacy" },
-          { value: "billing", label: "Billing" },
-        ]}
-      />
+      {layout === "tabs" && (
+        <Tabs<SettingsTab>
+          value={activeTab}
+          onChange={showTab}
+          className="mb-6"
+          items={items.map(({ value, label }) => ({ value, label }))}
+        />
+      )}
 
-      <div className={`mb-6 ${bodyClassName}`}>
-        {activeTab === "profile" && (
-          <ProfileSettings profile={profile} onSave={onSaveProfile} />
+      <div className={layout === "sidebar" ? "flex gap-6" : undefined}>
+        {layout === "sidebar" && (
+          <div
+            role="tablist"
+            aria-orientation="vertical"
+            aria-label="Settings sections"
+            className="w-48 shrink-0 space-y-1"
+          >
+            {items.map(({ value, label, icon: Icon }) => {
+              const active = value === activeTab;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => showTab(value)}
+                  className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition ${
+                    active
+                      ? "bg-sky-50 text-sky-700 dark:bg-slate-800 dark:text-sky-300"
+                      : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{label}</span>
+                </button>
+              );
+            })}
+          </div>
         )}
-        {activeTab === "security" && <ChangePasswordSettings />}
-        {activeTab === "appearance" && <AppearanceSettings />}
-        {activeTab === "notifications" && (
-          <NotificationSettings
-            // The profile can arrive after this tab is open. Re-keying resets
-            // the tab's local copy to the new preferences instead of freezing
-            // whatever the first render was handed.
-            key={JSON.stringify(notificationPreferences)}
-            preferences={notificationPreferences}
-            onSave={onSaveNotifications}
-          />
-        )}
-        {activeTab === "privacy" && <PrivacySettings onLogout={onLogout} />}
-        {activeTab === "billing" && <BillingSettings />}
+
+        <div
+          role="tabpanel"
+          className={`min-w-0 flex-1 ${layout === "tabs" ? "mb-6 " : ""}${bodyClassName}`}
+        >
+          {activeTab === "profile" && (
+            <ProfileSettings profile={profile} onSave={onSaveProfile} />
+          )}
+          {activeTab === "security" && <ChangePasswordSettings />}
+          {activeTab === "appearance" && <AppearanceSettings />}
+          {activeTab === "notifications" && (
+            <NotificationSettings
+              // The profile can arrive after this tab is open. Re-keying resets
+              // the tab's local copy to the new preferences instead of freezing
+              // whatever the first render was handed.
+              key={JSON.stringify(notificationPreferences)}
+              preferences={notificationPreferences}
+              onSave={onSaveNotifications}
+            />
+          )}
+          {activeTab === "privacy" && <PrivacySettings onLogout={onLogout} />}
+          {activeTab === "billing" && <BillingSettings />}
+        </div>
       </div>
     </div>
   );
