@@ -113,7 +113,10 @@ import {
   ListChecks,
   Plus,
   Search,
+  User,
+  Users,
 } from "lucide-react";
+import { NewDirectMessageModal } from "./NewDirectMessageModal";
 
 // One definition, owned by the component that renders it. The alias keeps the
 // ~40 existing references in this file reading as they did.
@@ -433,6 +436,10 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [pendingJoinError, setPendingJoinError] = useState("");
   const [pendingJoinRequestSent, setPendingJoinRequestSent] = useState(false);
   const [isLoopMenuOpen, setIsLoopMenuOpen] = useState(false);
+  // The "+" is two destinations now, so it opens a menu rather than going
+  // straight to one of them. Null is closed.
+  const [newMenu, setNewMenu] = useState<ContextMenuOrigin | null>(null);
+  const [isNewDirectMessageOpen, setIsNewDirectMessageOpen] = useState(false);
   const [isSelectChatsMode, setIsSelectChatsMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string | number>>(
     new Set(),
@@ -1675,6 +1682,28 @@ export function HomeShell({ mode }: HomeShellProps) {
     setIsCreateLoopOpen(false);
   }
 
+  /**
+   * A direct conversation was opened - which may be one that already existed,
+   * since the server hands back the same thread for a pair rather than a
+   * second one. Selected by ID for that reason: "the newest" is right after
+   * creating a group and wrong here.
+   */
+  async function handleDirectMessageStarted(conversationId: string | number) {
+    setIsNewDirectMessageOpen(false);
+
+    const result = await fetchConversations();
+    if (!result.ok) return;
+
+    setPendingConversation(null);
+    setConversations(
+      result.conversations.map((conversation) => ({
+        ...conversation,
+        active: conversation.id === conversationId,
+      })),
+    );
+    setSelectedConversationId(conversationId);
+  }
+
   async function handleAddMembers(members: string[]) {
     if (!selectedConversationId) return;
     if (typeof maxMembersPerGroup === "number" && selectedConversation) {
@@ -2532,8 +2561,16 @@ export function HomeShell({ mode }: HomeShellProps) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  title="Create Loop"
-                  onClick={handleOpenCreateLoop}
+                  title="New conversation"
+                  aria-haspopup="menu"
+                  aria-expanded={newMenu !== null}
+                  data-ignore-click-outside
+                  onClick={(event) => {
+                    // Anchored under the button rather than at the pointer, so
+                    // the menu hangs off the control that opened it.
+                    const box = event.currentTarget.getBoundingClientRect();
+                    setNewMenu({ x: box.left, y: box.bottom + 6 });
+                  }}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
                   <Plus className="h-5 w-5" />
@@ -3360,6 +3397,36 @@ export function HomeShell({ mode }: HomeShellProps) {
         currentUsername={currentUsername}
         onClose={() => setInfoMessage(null)}
       />
+
+      <ContextMenu
+        origin={newMenu}
+        onClose={() => setNewMenu(null)}
+        label="New conversation"
+        items={[
+          {
+            id: "direct",
+            label: "Direct message",
+            description: "Message a Loopd'n user",
+            icon: <User className="h-4 w-4" />,
+            onSelect: () => setIsNewDirectMessageOpen(true),
+          },
+          {
+            id: "group",
+            label: "Create group",
+            description: "Start a group conversation",
+            icon: <Users className="h-4 w-4" />,
+            onSelect: handleOpenCreateLoop,
+          },
+        ]}
+      />
+
+      {isNewDirectMessageOpen && (
+        <NewDirectMessageModal
+          isOpen
+          onClose={() => setIsNewDirectMessageOpen(false)}
+          onStarted={handleDirectMessageStarted}
+        />
+      )}
 
       <CreateLoopModal
         isOpen={isCreateLoopOpen}
