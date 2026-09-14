@@ -490,7 +490,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         By providing your number, you agree to receive SMS
                         messages from Loopd&apos;n. Msg &amp; data rates may
                         apply. Msg frequency may vary. Reply HELP for help and
-                        STOP to opt out.
+                        STOP to opt out. We will not share mobile information
+                        with third parties for promotional or marketing
+                        purposes.
                       </>
                     }
                   />
