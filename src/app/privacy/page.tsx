@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 
 function H2({ children }: { children: string }) {
   return (
-    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+    <h2 className="text-2xl font-semibold text-[#1d3f7f] dark:text-[#bfe2ff]">
       {children}
     </h2>
   );
@@ -15,200 +15,211 @@ function H2({ children }: { children: string }) {
 
 export default function PrivacyPage() {
   return (
-    <LegalLayout title="Privacy Policy" lastUpdated="September 1, 2026">
+    <LegalLayout title="Privacy Policy" lastUpdated="September 14, 2026">
       <section>
-        <H2>1. Overview</H2>
         <p>
-          This policy explains what information Loopd&apos;n collects when you
-          create an account, join a Loop, or communicate over web, SMS or voice,
-          and how that information is used. Loopd&apos;n is a multi-channel
-          group communication platform: the same Loop can be reached by web
-          members and by members who only use SMS or voice.
+          Loopd&apos;n (&ldquo;Loopd&apos;n,&rdquo; &ldquo;we,&rdquo;
+          &ldquo;us,&rdquo; or &ldquo;our&rdquo;) is a communication platform
+          designed to help groups stay connected through SMS, web, and voice.
+          This Privacy Policy explains how Loopd&apos;n handles information when
+          you use our services.
         </p>
       </section>
 
       <section>
-        <H2>2. Information We Collect</H2>
+        <H2>1. Information We Collect</H2>
+        <p>Depending on how you use Loopd&apos;n, we may handle:</p>
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Account information:</strong> email address and/or phone
-            number, username, display name, and password (stored hashed).
+            Account information such as your name, email address, and phone
+            number.
+          </li>
+          <li>Group and membership information.</li>
+          <li>
+            Group invitations, join requests, codes, and membership status.
+          </li>
+          <li>Messages and communication sent through Loopd&apos;n.</li>
+          <li>Voice messages and related media.</li>
+          <li>Delivery and usage information associated with messages.</li>
+          <li>Information related to group roles and permissions.</li>
+          <li>
+            Technical information required to provide and secure the service.
+          </li>
+        </ul>
+        <p>
+          Loopd&apos;n&apos;s core architecture connects users, group
+          memberships, messages, communication channels, and delivery records so
+          that communication can work across SMS and web.
+        </p>
+      </section>
+
+      <section>
+        <H2>2. How We Use Information</H2>
+        <p>We use information to:</p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Create and manage Loopd&apos;n groups.</li>
+          <li>Manage memberships, roles, and permissions.</li>
+          <li>Deliver messages through supported communication channels.</li>
+          <li>Provide the shared SMS + web conversation experience.</li>
+          <li>Deliver and play voice messages.</li>
+          <li>Process join requests and invitations.</li>
+          <li>Provide delivery and usage records.</li>
+          <li>Maintain, secure, and improve the service.</li>
+          <li>Prevent spam, abuse, and unauthorized access.</li>
+        </ul>
+      </section>
+
+      <section>
+        <H2>3. Your Conversations Are Private</H2>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Private conversations are not available to advertisers.</li>
+          <li>
+            Loopd&apos;n does not use private conversation content for
+            advertising targeting in the initial product.
           </li>
           <li>
-            <strong>Loop &amp; membership data:</strong> the Loops you create or
-            join, your role (admin/member), join method, and moderation actions
-            (e.g. blocks, removals).
-          </li>
-          <li>
-            <strong>Message content:</strong> text messages, voice notes, media
-            and reactions you send, regardless of whether they were sent from
-            the web or from SMS.
-          </li>
-          <li>
-            <strong>Telecom &amp; delivery metadata:</strong> phone numbers used
-            for SMS/voice delivery, delivery/receipt status, and provider event
-            data needed to route messages and (for paid Loops) meter usage.
-          </li>
-          <li>
-            <strong>Usage &amp; billing data:</strong> a usage ledger of
-            SMS/voice deliveries for Loops on a paid plan, and wallet/balance
-            information.
-          </li>
-          <li>
-            <strong>Device &amp; log data:</strong> basic technical data (such
-            as IP address and browser type) used for security and abuse
-            prevention.
+            Where advertising is supported, targeting is designed around
+            permitted aggregate information such as group category and geography
+            rather than private conversation content.
           </li>
         </ul>
       </section>
 
       <section>
-        <H2>3. How We Use Information</H2>
+        <H2>4. SMS Communication</H2>
+        <p>
+          SMS is a core part of Loopd&apos;n. Members may be able to join and
+          participate using an ordinary phone without installing an application
+          or creating a full app account.
+        </p>
+        <p>
+          SMS interactions may include commands such as <code>JOIN</code>,
+          <code> HELP</code>, <code>MUTE</code>/<code>UNMUTE</code>, and
+          <code> LEAVE</code>/<code>STOP</code>, depending on the finalized
+          service configuration.
+        </p>
+      </section>
+
+      <section>
+        <H2>5. Voice &amp; Media</H2>
+        <p>
+          Loopd&apos;n may store and provide access to voice messages and other
+          supported media so they can be delivered and played across supported
+          channels.
+        </p>
+        <p>Voice and media links are designed to be secure and tokenized.</p>
+      </section>
+
+      <section>
+        <H2>6. Groups &amp; Membership</H2>
+        <p>Group administrators may control:</p>
         <ul className="list-disc space-y-1 pl-5">
-          <li>
-            Deliver messages across the channels a Loop uses (web, SMS, voice)
-            and keep the unified conversation in sync;
-          </li>
-          <li>Operate joining, membership, and admin/moderation controls;</li>
-          <li>Meter and bill usage for ad-free/paid Loops;</li>
-          <li>Provide customer support and respond to requests;</li>
-          <li>Detect and prevent spam, abuse and fraud; and</li>
-          <li>Improve the reliability and features of the service.</li>
+          <li>Who can join.</li>
+          <li>Whether approval is required.</li>
+          <li>Who can invite others.</li>
+          <li>Who can post.</li>
+          <li>Member roles.</li>
+          <li>Member removal or blocking.</li>
+          <li>Join links and codes.</li>
+        </ul>
+        <p>
+          Depending on the group configuration, members may join through an
+          approved link, code, invitation, QR code, or supported SMS flow.
+        </p>
+      </section>
+
+      <section>
+        <H2>7. Advertising</H2>
+        <p>
+          Loopd&apos;n may support sponsored communication as part of its
+          business model.
+        </p>
+        <p>
+          Sponsored content must be clearly labeled. Advertisers are not
+          provided with private group conversations, member lists, or raw
+          personal data.
+        </p>
+      </section>
+
+      <section>
+        <H2>8. Security &amp; Abuse Prevention</H2>
+        <p>
+          Loopd&apos;n&apos;s architecture is intended to include safeguards
+          such as:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Spam prevention.</li>
+          <li>Abuse controls.</li>
+          <li>Blocking.</li>
+          <li>Rate limits.</li>
+          <li>Audit logging.</li>
+          <li>Secure voice and media access.</li>
+        </ul>
+        <p>
+          These controls are part of the product&apos;s planned security
+          architecture.
+        </p>
+      </section>
+
+      <section>
+        <H2>9. Service Providers</H2>
+        <p>
+          Loopd&apos;n may work with telecommunications providers and other
+          service providers necessary to deliver SMS and voice functionality.
+        </p>
+        <p>
+          Telecom infrastructure may include provider systems, phone numbers,
+          routing, carrier requirements, delivery events, and related technical
+          services.
+        </p>
+      </section>
+
+      <section>
+        <H2>10. Data Retention</H2>
+        <p>
+          We retain personal information for as long as reasonably necessary to
+          provide and operate the service, including maintaining group
+          communication history, enforcing safety controls, and supporting user
+          requests.
+        </p>
+        <p>
+          We also retain certain records for legitimate business purposes such
+          as security, fraud prevention, dispute resolution, and legal
+          compliance. When information is no longer required for these purposes,
+          we will delete it, de-identify it, or aggregate it in accordance with
+          applicable law.
+        </p>
+      </section>
+
+      <section>
+        <H2>11. Your Choices</H2>
+        <p>
+          Depending on the functionality available to you, you may be able to:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>Leave a group.</li>
+          <li>Mute or change notification settings.</li>
+          <li>Stop SMS communication using supported commands.</li>
+          <li>Request or manage membership access.</li>
+          <li>Contact Loopd&apos;n regarding your information.</li>
         </ul>
       </section>
 
       <section>
-        <H2>4. SMS &amp; Voice Specific Practices</H2>
+        <H2>12. Changes to This Policy</H2>
         <p>
-          Phone numbers are used to route messages for the service and are not
-          sold. SMS members can opt out at any time by texting <code>STOP</code>{" "}
-          (or <code>MUTE</code>/<code>LEAVE</code> for finer-grained control) to
-          a Loop&apos;s number. Voice notes are stored as secure message assets;
-          SMS-only recipients access them through a tokenized playback link
-          rather than a raw file, so the link itself does not expose the
-          underlying storage location.
-        </p>
-        <p>
-          Loops can also deliver messages by email to members with a verified
-          address. Every such email carries a one-click unsubscribe link and the
-          words to reply with (<code>STOP EMAILS</code>) to stop email from that
-          Loop only; other Loops are unaffected. Email from every Loop can be
-          switched off at once under Settings &rarr; Notifications, and a
-          message you mark as spam has the same effect. None of these stop the
-          emails needed to run your account, such as a verification code or a
-          password reset. Replies you send to a Loop by email are accepted only
-          from your own verified address, after your mail provider has
-          authenticated the message.
+          We may update this Privacy Policy as Loopd&apos;n evolves. When
+          changes are made, the updated version will be posted on this page with
+          a revised &ldquo;Last Updated&rdquo; date.
         </p>
       </section>
 
       <section>
-        <H2>5. How We Share Information</H2>
-        <p>
-          We do not sell your personal information. We share information only:
-        </p>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>
-            With telecom/carrier and infrastructure providers, to the extent
-            needed to deliver SMS, voice and web messages;
-          </li>
-          <li>
-            With service providers who process data on our behalf under
-            confidentiality obligations (e.g. hosting, storage);
-          </li>
-          <li>
-            When required by law, legal process, or to protect the rights,
-            safety or property of Loopd&apos;n or our users; or
-          </li>
-          <li>With your consent.</li>
-        </ul>
-        <p>
-          Private conversation content and member lists are never shared with
-          advertisers.
-        </p>
-      </section>
-
-      <section>
-        <H2>6. Advertising &amp; Sponsored Content</H2>
-        <p>
-          Free/sponsored Loops may show clearly labeled sponsored messages. We
-          do not use the content of private conversations to target advertising.
-          Where targeting is offered, it is limited to permitted aggregate
-          information, such as a Loop&apos;s category and geography - not
-          individual message content or member identities.
-        </p>
-      </section>
-
-      <section>
-        <H2>7. Data Retention</H2>
-        <p>
-          We retain account, Loop and message data for as long as your account
-          or Loop is active, and for a reasonable period afterward as needed for
-          legal, security or billing-record purposes. You can request deletion
-          of your account as described below.
-        </p>
-      </section>
-
-      <section>
-        <H2>8. Security</H2>
-        <p>
-          We use reasonable technical and organizational safeguards to protect
-          your information, including tokenized links for voice/media playback
-          rather than direct file access. No method of transmission or storage
-          is completely secure, and we cannot guarantee absolute security.
-        </p>
-      </section>
-
-      <section>
-        <H2>9. Your Rights &amp; Choices</H2>
-        <ul className="list-disc space-y-1 pl-5">
-          <li>Access, correct or delete your account information;</li>
-          <li>
-            Opt out of SMS from a specific Loop at any time via{" "}
-            <code>STOP</code>;
-          </li>
-          <li>
-            Opt out of email from a specific Loop via the unsubscribe link or by
-            replying <code>STOP EMAILS</code>, or from every Loop under Settings
-            &rarr; Notifications;
-          </li>
-          <li>Leave any Loop you have joined; and</li>
-          <li>
-            Contact us to request a copy of, or the deletion of, your personal
-            data.
-          </li>
-        </ul>
-      </section>
-
-      <section>
-        <H2>10. Children&apos;s Privacy</H2>
-        <p>
-          Loopd&apos;n is not directed to children under 13, and we do not
-          knowingly collect personal information from children under 13.
-        </p>
-      </section>
-
-      <section>
-        <H2>11. Changes to this Policy</H2>
-        <p>
-          We may update this policy as the product evolves. Material changes
-          will be reflected by updating the &quot;Last updated&quot; date above.
-        </p>
-      </section>
-
-      <section>
-        <H2>12. Contact Us</H2>
-        <p>
-          Questions about this policy or requests regarding your data can be
-          sent to{" "}
-          <a
-            href="mailto:privacy@loopdn.com"
-            className="text-sky-600 underline dark:text-sky-300"
-          >
-            privacy@loopdn.com
-          </a>
-          .
-        </p>
+        <H2>13. Contact</H2>
+        <p>For privacy questions or requests:</p>
+        <p>Email: contact@loopdn.com</p>
+        <p>Company: Loopdn</p>
+        <p>Address: USA</p>
       </section>
     </LegalLayout>
   );

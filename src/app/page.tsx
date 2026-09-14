@@ -47,9 +47,15 @@ export default function RootPage() {
 
       <SiteTopNav />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-col items-center px-4 pb-16 pt-14 sm:px-8 lg:items-start lg:pt-20">
-        <section className="w-full rounded-[18px] bg-[#edf7ff80] p-5 shadow-[0_18px_50px_rgba(86,139,204,0.12)] dark:bg-[#0a2a72]/35 dark:shadow-[0_18px_50px_rgba(2,13,45,0.3)] sm:p-7">
-          <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] lg:gap-10">
+      <main className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-col items-center px-4 pb-16 pt-6 sm:px-8 lg:items-start lg:pt-5">
+        <section className="relative w-full overflow-hidden rounded-[18px] bg-[linear-gradient(180deg,#ecf7ff_0%,#d9efff_100%)] p-5 shadow-[0_18px_50px_rgba(86,139,204,0.12)] dark:bg-[linear-gradient(180deg,#102a73_0%,#0a1f5a_100%)] dark:shadow-[0_18px_50px_rgba(2,13,45,0.3)] sm:p-7">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_92%,rgba(197,235,255,0.95)_0%,rgba(125,199,255,0.5)_36%,rgba(76,158,245,0.08)_62%,rgba(76,158,245,0)_75%)] dark:hidden" />
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(160,224,255,0)_35%,rgba(103,190,255,0.82)_50%,rgba(160,224,255,0)_64%)] dark:hidden" />
+
+          <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_18%_96%,rgba(255,255,255,0.72)_0%,rgba(145,221,255,0.45)_24%,rgba(77,177,255,0.18)_40%,rgba(24,80,170,0)_66%)] dark:block" />
+          <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(136deg,rgba(122,212,255,0)_36%,rgba(182,237,255,0.8)_50%,rgba(122,212,255,0)_63%)] dark:block" />
+
+          <div className="relative z-10 grid items-center gap-8 lg:grid-cols-[minmax(0,560px)_minmax(0,1fr)] lg:gap-10">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-[#67b8ff]/60 bg-[#eff7ffcc] px-3 py-1 text-[11px] font-medium text-[#2c6db6] dark:border-[#5cb8ff]/45 dark:bg-[#0a2e74]/65 dark:text-[#9fd7ff]">
                 <span className="h-1.5 w-1.5 rounded-full bg-[#1a8cff] dark:bg-[#3bd1ff]" />
@@ -62,7 +68,7 @@ export default function RootPage() {
                 Every Way To Connect.
               </h1>
 
-              <p className="mt-6 max-w-[530px] text-[17px] leading-8 text-[#3a6aa6] dark:text-[#8cb5e7]">
+              <p className="mt-6 max-w-[530px] text-[17px] leading-8 text-[#3a6aa6] dark:text-[#E1ECFA] dark:[text-shadow:1px_1px_0_#8cb5e7,-1px_-1px_0_#8cb5e7,1px_-1px_0_#8cb5e7,-1px_1px_0_#8cb5e7]">
                 Bring your family, community, or team into one shared
                 conversation where everyone can connect through SMS, web, or
                 voice, without needing to use the same app.
@@ -75,7 +81,7 @@ export default function RootPage() {
                 >
                   Create Your Loopd&apos;n →
                 </Link>
-                <p className="inline-flex h-12 items-center justify-center rounded-[10px] border border-[#5ba8ef]/60 bg-[#7dc6ff2e] px-5 text-[15px] font-medium text-[#2f6eb2] dark:bg-[#58b9ff26] dark:text-[#9fd7ff]">
+                <p className="inline-flex h-12 items-center justify-center rounded-[10px] border border-[#5ba8ef]/60 bg-[#7dc6ff2e] px-5 text-[15px] font-medium text-[#2f6eb2] dark:bg-[#58b9ff26]">
                   No credit card required
                 </p>
               </div>
@@ -114,16 +120,16 @@ export default function RootPage() {
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/step-1.png"
                 alt="Step 1: Create your Loopdn"
                 width={420}
                 height={280}
-                className="h-auto w-full"
+                className="h-full w-full"
               />
             </article>
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/step-2.png"
                 alt="Step 2: Invite your people"
@@ -132,7 +138,7 @@ export default function RootPage() {
                 className="h-auto w-full"
               />
             </article>
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/step-3.png"
                 alt="Step 3: Everyone connects"
@@ -162,7 +168,7 @@ export default function RootPage() {
           </p>
 
           <div className="mt-6 grid gap-1.5 lg:grid-cols-[0.95fr_1.28fr] lg:items-stretch">
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:max-w-[560px]">
+            <article className="overflow-hidden rounded-xl border bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:max-w-[560px]">
               <Image
                 src="/connected-by-text.png"
                 alt="Stay connected by text"
@@ -173,7 +179,7 @@ export default function RootPage() {
             </article>
 
             <div className="grid gap-2 lg:grid-rows-2">
-              <article className="overflow-hidden h-full rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:min-h-[188px]">
+              <article className="overflow-hidden h-full rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:min-h-[188px]">
                 <Image
                   src="/shared-space-for-all.png"
                   alt="A shared space for everyone"
@@ -182,7 +188,7 @@ export default function RootPage() {
                   className="h-full w-full object-cover object-left"
                 />
               </article>
-              <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:min-h-[188px]">
+              <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)] lg:min-h-[188px]">
                 <Image
                   src="/connect-with-your-voice.png"
                   alt="Connect with your voice"
@@ -213,7 +219,7 @@ export default function RootPage() {
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/families-and-friends.png"
                 alt="Families and friends"
@@ -222,7 +228,7 @@ export default function RootPage() {
                 className="h-auto w-full"
               />
             </article>
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/communities.png"
                 alt="Communities"
@@ -231,7 +237,7 @@ export default function RootPage() {
                 className="h-auto w-full"
               />
             </article>
-            <article className="overflow-hidden rounded-xl border border-[#9ecbff]/80 bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
+            <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/organizations.png"
                 alt="Organizations"
