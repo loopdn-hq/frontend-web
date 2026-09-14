@@ -1,50 +1,42 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useTheme } from "@/lib/theme/ThemeProvider";
 import { displayNameForSession, useAuth } from "@/lib/auth/client";
 
+function StatusIcon({ ok }: { ok: boolean }) {
+  return ok ? (
+    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
+      <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4">
+        <path
+          d="M5 12.5 9.2 16.7 19 6.9"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </span>
+  ) : (
+    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/15 text-rose-500">
+      <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4">
+        <path
+          d="M7 7 17 17M17 7 7 17"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </svg>
+    </span>
+  );
+}
+
 export default function RootPage() {
   const { session } = useAuth();
-  const { resolvedTheme, setTheme } = useTheme();
-  const [isMounted, setIsMounted] = useState(false);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const isDark = isMounted && resolvedTheme === "dark";
-
-  function StatusIcon({ ok }: { ok: boolean }) {
-    return ok ? (
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-500">
-        <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4">
-          <path
-            d="M5 12.5 9.2 16.7 19 6.9"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </span>
-    ) : (
-      <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-rose-500/15 text-rose-500">
-        <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4">
-          <path
-            d="M7 7 17 17M17 7 7 17"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-          />
-        </svg>
-      </span>
-    );
-  }
+  const { setTheme } = useTheme();
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#eaf4ff] text-[#0b2558] transition-colors dark:bg-[#071d5c] dark:text-white">
@@ -102,11 +94,7 @@ export default function RootPage() {
                 type="button"
                 onClick={() => setTheme("light")}
                 aria-label="Enable light mode"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
-                  !isDark
-                    ? "bg-[#d6eaff] shadow-[inset_0_0_0_1px_rgba(54,114,192,0.35)]"
-                    : "hover:bg-[#d0e6ff] dark:hover:bg-[#144192]"
-                }`}
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-[#d6eaff] shadow-[inset_0_0_0_1px_rgba(54,114,192,0.35)] transition hover:bg-[#d0e6ff] dark:bg-transparent dark:shadow-none dark:hover:bg-[#144192]"
               >
                 <Image src="/light-mode.svg" alt="" width={16} height={16} />
               </button>
@@ -114,11 +102,7 @@ export default function RootPage() {
                 type="button"
                 onClick={() => setTheme("dark")}
                 aria-label="Enable dark mode"
-                className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
-                  isDark
-                    ? "bg-[#1a4da6] shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)]"
-                    : "hover:bg-[#d0e6ff] dark:hover:bg-[#144192]"
-                }`}
+                className="flex h-8 w-8 items-center justify-center rounded-md transition hover:bg-[#d0e6ff] dark:bg-[#1a4da6] dark:shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)] dark:hover:bg-[#144192]"
               >
                 <Image src="/dark-mode.svg" alt="" width={16} height={16} />
               </button>
