@@ -130,7 +130,7 @@ export function AddMembersModal({
               : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
           }`}
         >
-          Loopdn Account
+          Loopd&apos;n Account
         </button>
         <button
           type="button"

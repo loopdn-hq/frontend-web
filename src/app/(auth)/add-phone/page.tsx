@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isValidPhoneNumber } from "libphonenumber-js";
 import { updatePhoneNumber, useAuth } from "@/lib/auth/client";
@@ -94,10 +95,19 @@ export default function AddPhonePage() {
             label={
               <>
                 By providing your number, you agree to receive SMS messages from
-                Loopd&apos;n. Msg &amp; data rates may apply. Msg frequency may
-                vary. Reply HELP for help and STOP to opt out. We will not share
-                mobile information with third parties for promotional or
-                marketing purposes.
+                Loopd&apos;n, including account verification codes, account
+                notifications, and customer care messages. Msg &amp; data rates
+                may apply. Msg frequency may vary. Reply HELP for help and STOP
+                to opt out. We will not share mobile information with third
+                parties for promotional or marketing purposes. Read our{" "}
+                <Link href="/terms/" className="underline">
+                  Terms
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy/" className="underline">
+                  Privacy Policy
+                </Link>
+                .
               </>
             }
           />

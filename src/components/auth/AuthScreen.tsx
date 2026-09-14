@@ -50,7 +50,7 @@ type AuthScreenProps = {
 
 const panelTitle: Record<AuthMode, string> = {
   login: "Welcome Back",
-  signup: "Create your Loopdn account",
+  signup: "Create your Loopd'n account",
 };
 
 const panelSubTitle: Record<AuthMode, string> = {
@@ -152,6 +152,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
   const ctaText =
     authMode === "login" ? "Continue with email" : "Create account";
+  const isSignup = authMode === "signup";
 
   // Derived in the background: first name + last initial, e.g. "Sam T.".
   const computedDisplayName = useMemo(() => {
@@ -278,9 +279,17 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           </div>
         </div>
 
-        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-6 sm:p-10">
-          <div className="w-full max-w-md rounded-3xl border border-sky-100 bg-white p-6 shadow-[0_10px_40px_rgba(34,113,176,0.15)] sm:p-8">
-            <div className="mb-[26px] flex h-[52px] items-center gap-[7px] rounded-[13px] bg-[#F4F4F4] p-[5px]">
+        <div className="flex items-center justify-center bg-[linear-gradient(180deg,#ffffff_0%,#f6fbff_100%)] p-2 sm:p-4">
+          <div
+            className={`w-full max-w-md rounded-3xl border border-sky-100 bg-white shadow-[0_10px_40px_rgba(34,113,176,0.15)] ${
+              isSignup ? "p-5 sm:p-6" : "p-6 sm:p-8"
+            }`}
+          >
+            <div
+              className={`flex h-[52px] items-center gap-[7px] rounded-[13px] bg-[#F4F4F4] p-[5px] ${
+                isSignup ? "mb-4" : "mb-[26px]"
+              }`}
+            >
               <Link
                 href="/login/"
                 onClick={() => switchMode("login")}
@@ -308,14 +317,22 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             <h2 className="text-[30px] leading-none font-medium tracking-[-0.03em] text-[#05205A]">
               {panelTitle[authMode]}
             </h2>
-            <p className="mt-3 text-[15px] leading-[150%] font-normal text-[#05205A]">
+            <p
+              className={`text-[15px] leading-[150%] font-normal text-[#05205A] ${
+                isSignup ? "mt-2" : "mt-3"
+              }`}
+            >
               {panelSubTitle[authMode]}
             </p>
 
             {/* 23px, per Frame 22's gap between the Welcome block and the
                 Google button. It had none, so the button sat flush
                 against the subtitle. */}
-            <div className="mt-[23px] flex w-full justify-center [&>div]:w-full">
+            <div
+              className={`flex w-full justify-center [&>div]:w-full ${
+                isSignup ? "mt-4" : "mt-[23px]"
+              }`}
+            >
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={handleGoogleError}
@@ -338,7 +355,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             )}
 
             {authMode === "signup" && (
-              <div className="mt-[23px] mb-[23px] flex items-center gap-[6px] text-[15px] leading-[150%] text-[#05205A]">
+              <div className="mt-4 mb-4 flex items-center gap-[6px] text-[15px] leading-[150%] text-[#05205A]">
                 <div className="h-px flex-1 bg-[#D7D7D7]" />
                 or sign up with email
                 <div className="h-px flex-1 bg-[#D7D7D7]" />
@@ -346,7 +363,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             )}
 
             <form
-              className="mt-4 space-y-4"
+              className={isSignup ? "mt-3 space-y-3" : "mt-4 space-y-4"}
               onSubmit={
                 authMode === "login"
                   ? handleLoginFormSubmit(onLoginSubmit)
@@ -488,11 +505,20 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     label={
                       <>
                         By providing your number, you agree to receive SMS
-                        messages from Loopd&apos;n. Msg &amp; data rates may
-                        apply. Msg frequency may vary. Reply HELP for help and
-                        STOP to opt out. We will not share mobile information
-                        with third parties for promotional or marketing
-                        purposes.
+                        messages from Loopd&apos;n, including account
+                        verification codes, account notifications, and customer
+                        care messages. Msg &amp; data rates may apply. Msg
+                        frequency may vary. Reply HELP for help and STOP to opt
+                        out. We will not share mobile information with third
+                        parties for promotional or marketing purposes. Read our{" "}
+                        <Link href="/terms/" className="underline">
+                          Terms
+                        </Link>{" "}
+                        and{" "}
+                        <Link href="/privacy/" className="underline">
+                          Privacy Policy
+                        </Link>
+                        .
                       </>
                     }
                   />
@@ -617,7 +643,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     </p>
                   )}
 
-                  <p className="rounded-[12px] bg-[#DAFFED] p-[14px] text-center text-[14px] leading-[140%] text-[#1A7351]">
+                  <p className="rounded-[12px] bg-[#DAFFED] p-3 text-center text-[14px] leading-[140%] text-[#1A7351]">
                     We&apos;ll email you a verification code next, then text one
                     to your phone.
                   </p>
@@ -630,6 +656,21 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                 </p>
               )}
 
+              <p className="mt-[17px] text-center text-[14px] leading-[150%] text-[#6B7280]">
+                By continuing, you agree to Loopd&apos;n{" "}
+                <Link href="/terms/" className="underline hover:text-slate-700">
+                  Terms
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy/"
+                  className="underline hover:text-slate-700"
+                >
+                  Privacy Policy
+                </Link>
+                .
+              </p>
+
               <button
                 type="submit"
                 disabled={isSubmitting}
@@ -640,18 +681,6 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
 
               {isSubmitting && <ProgressBar />}
             </form>
-
-            <p className="mt-[17px] text-center text-[14px] leading-[150%] text-[#AAAAAA]">
-              By continuing, you agree to Loopd&apos;n{" "}
-              <Link href="/terms/" className="underline hover:text-slate-700">
-                Terms
-              </Link>{" "}
-              and{" "}
-              <Link href="/privacy/" className="underline hover:text-slate-700">
-                Privacy Policy
-              </Link>
-              .
-            </p>
           </div>
         </div>
       </section>
