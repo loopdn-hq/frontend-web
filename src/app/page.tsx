@@ -18,13 +18,17 @@ export default function RootPage() {
   const isDark = isMounted && resolvedTheme === "dark";
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#071d5c] text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_100%,#9fddf4_0%,#4bb9f3_20%,rgba(23,132,246,0.45)_35%,rgba(10,37,111,0.1)_52%,rgba(7,29,92,0)_65%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(136deg,rgba(6,36,114,0)_41%,rgba(106,222,255,0.88)_50%,rgba(6,36,114,0)_59%)]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#0a256f_0%,#061a54_100%)] opacity-95" />
+    <div className="relative min-h-screen overflow-hidden bg-[#eaf4ff] text-[#0b2558] transition-colors dark:bg-[#071d5c] dark:text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_100%,#c8ecff_0%,#84d3ff_24%,rgba(95,181,255,0.42)_44%,rgba(127,187,255,0)_69%)] dark:hidden" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(155deg,rgba(223,243,255,0)_34%,rgba(151,223,255,0.86)_50%,rgba(223,243,255,0)_65%)] dark:hidden" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#f3faff_0%,#d4ecff_100%)] dark:hidden" />
+
+      <div className="pointer-events-none absolute inset-0 hidden bg-[radial-gradient(circle_at_10%_100%,#9fddf4_0%,#4bb9f3_20%,rgba(23,132,246,0.45)_35%,rgba(10,37,111,0.1)_52%,rgba(7,29,92,0)_65%)] dark:block" />
+      <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(136deg,rgba(6,36,114,0)_41%,rgba(106,222,255,0.88)_50%,rgba(6,36,114,0)_59%)] dark:block" />
+      <div className="pointer-events-none absolute inset-0 hidden bg-[linear-gradient(180deg,#0a256f_0%,#061a54_100%)] opacity-95 dark:block" />
 
       <header className="relative z-10 mx-auto w-full max-w-[1320px] px-4 pt-5 sm:px-8">
-        <div className="flex min-h-[62px] items-center justify-between gap-4 rounded-2xl border border-[#89beff]/20 bg-[#092565]/70 px-4 shadow-[0_8px_30px_rgba(6,18,57,0.35)] backdrop-blur-sm sm:px-6">
+        <div className="flex min-h-[62px] items-center justify-between gap-4 rounded-2xl border border-[#9bc8ff]/70 bg-[#f3f9ff]/80 px-4 shadow-[0_8px_30px_rgba(76,126,190,0.25)] backdrop-blur-sm dark:border-[#89beff]/20 dark:bg-[#092565]/70 dark:shadow-[0_8px_30px_rgba(6,18,57,0.35)] sm:px-6">
           <Link href="/" className="shrink-0 transition hover:opacity-90">
             <Image
               src="/home-logo.png"
@@ -36,31 +40,43 @@ export default function RootPage() {
             />
           </Link>
 
-          <nav className="hidden items-center gap-8 text-[14px] font-medium text-[#d8e6ff] lg:flex">
-            <a href="#how-it-works" className="transition hover:text-white">
+          <nav className="hidden items-center gap-8 text-[14px] font-medium text-[#29518c] dark:text-[#d8e6ff] lg:flex">
+            <a
+              href="#how-it-works"
+              className="transition hover:text-[#0d2d68] dark:hover:text-white"
+            >
               How It Works
             </a>
-            <a href="#who-its-for" className="transition hover:text-white">
+            <a
+              href="#who-its-for"
+              className="transition hover:text-[#0d2d68] dark:hover:text-white"
+            >
               Who It&apos;s For
             </a>
-            <Link href="/pricing/" className="transition hover:text-white">
+            <Link
+              href="/pricing/"
+              className="transition hover:text-[#0d2d68] dark:hover:text-white"
+            >
               Pricing
             </Link>
-            <a href="#groupme-alt" className="transition hover:text-white">
+            <a
+              href="#groupme-alt"
+              className="transition hover:text-[#0d2d68] dark:hover:text-white"
+            >
               GroupMe Alternative
             </a>
           </nav>
 
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 rounded-xl border border-[#7db4ff]/30 bg-[#0b2f7b]/80 p-1">
+            <div className="flex items-center gap-1 rounded-xl border border-[#9ac3f5]/80 bg-[#e4f1ff] p-1 dark:border-[#7db4ff]/30 dark:bg-[#0b2f7b]/80">
               <button
                 type="button"
                 onClick={() => setTheme("light")}
                 aria-label="Enable light mode"
                 className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
                   !isDark
-                    ? "bg-[#1a4da6] shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)]"
-                    : "hover:bg-[#144192]"
+                    ? "bg-[#d6eaff] shadow-[inset_0_0_0_1px_rgba(54,114,192,0.35)]"
+                    : "hover:bg-[#d0e6ff] dark:hover:bg-[#144192]"
                 }`}
               >
                 <Image src="/light-mode.svg" alt="" width={16} height={16} />
@@ -72,7 +88,7 @@ export default function RootPage() {
                 className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
                   isDark
                     ? "bg-[#1a4da6] shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)]"
-                    : "hover:bg-[#144192]"
+                    : "hover:bg-[#d0e6ff] dark:hover:bg-[#144192]"
                 }`}
               >
                 <Image src="/dark-mode.svg" alt="" width={16} height={16} />
@@ -96,7 +112,7 @@ export default function RootPage() {
                 </Link>
                 <Link
                   href="/login/"
-                  className="rounded-xl border border-[#8cb6ff]/40 bg-[#0a2a72] px-4 py-2 text-sm font-semibold text-[#ecf4ff] transition hover:bg-[#113785]"
+                  className="rounded-xl border border-[#8cb6ff]/60 bg-[#ffffffb3] px-4 py-2 text-sm font-semibold text-[#0d336f] transition hover:bg-white dark:border-[#8cb6ff]/40 dark:bg-[#0a2a72] dark:text-[#ecf4ff] dark:hover:bg-[#113785]"
                 >
                   Log In
                 </Link>
@@ -108,18 +124,18 @@ export default function RootPage() {
 
       <main className="relative z-10 mx-auto flex w-full max-w-[1320px] flex-col items-center px-4 pb-16 pt-14 sm:px-8 lg:flex-row lg:items-start lg:pt-20">
         <section className="w-full max-w-[580px] lg:pt-16">
-          <p className="inline-flex items-center gap-2 rounded-full border border-[#5cb8ff]/45 bg-[#0a2e74]/65 px-3 py-1 text-[11px] font-medium text-[#9fd7ff]">
-            <span className="h-1.5 w-1.5 rounded-full bg-[#3bd1ff]" />
+          <p className="inline-flex items-center gap-2 rounded-full border border-[#67b8ff]/60 bg-[#eff7ffcc] px-3 py-1 text-[11px] font-medium text-[#2c6db6] dark:border-[#5cb8ff]/45 dark:bg-[#0a2e74]/65 dark:text-[#9fd7ff]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#1a8cff] dark:bg-[#3bd1ff]" />
             Free to start. No app required.
           </p>
 
-          <h1 className="mt-7 text-4xl leading-[1.15] font-semibold tracking-[-0.02em] text-[#b2d8ff] sm:text-5xl lg:text-[56px]">
+          <h1 className="mt-7 text-4xl leading-[1.15] font-semibold tracking-[-0.02em] text-[#1d3f7f] dark:text-[#b2d8ff] sm:text-5xl lg:text-[56px]">
             One Connected Group.
             <br />
             Every Way To Connect.
           </h1>
 
-          <p className="mt-6 max-w-[530px] text-[17px] leading-8 text-[#8cb5e7]">
+          <p className="mt-6 max-w-[530px] text-[17px] leading-8 text-[#3a6aa6] dark:text-[#8cb5e7]">
             Bring your family, community, or team into one shared conversation
             where everyone can connect through SMS, web, or voice, without
             needing to use the same app.
@@ -132,7 +148,7 @@ export default function RootPage() {
             >
               Create Your Loopd&apos;n →
             </Link>
-            <p className="inline-flex h-12 items-center justify-center rounded-[10px] border border-[#5ba8ef]/60 bg-[#58b9ff26] px-5 text-[15px] font-medium text-[#9fd7ff]">
+            <p className="inline-flex h-12 items-center justify-center rounded-[10px] border border-[#5ba8ef]/60 bg-[#7dc6ff2e] px-5 text-[15px] font-medium text-[#2f6eb2] dark:bg-[#58b9ff26] dark:text-[#9fd7ff]">
               No credit card required
             </p>
           </div>
@@ -146,7 +162,7 @@ export default function RootPage() {
               width={760}
               height={560}
               priority
-              className="h-auto w-full"
+              className="h-auto w-full opacity-95 dark:opacity-100"
             />
           </div>
         </section>
