@@ -7,7 +7,9 @@ export const metadata: Metadata = {
 
 function H2({ children }: { children: string }) {
   return (
-    <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{children}</h2>
+    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+      {children}
+    </h2>
   );
 }
 
@@ -201,7 +203,7 @@ export default function PrivacyPage() {
           sent to{" "}
           <a
             href="mailto:privacy@loopdn.com"
-            className="text-sky-600 underline"
+            className="text-sky-600 underline dark:text-sky-300"
           >
             privacy@loopdn.com
           </a>

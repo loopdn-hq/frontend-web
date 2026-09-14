@@ -7,7 +7,9 @@ export const metadata: Metadata = {
 
 function H2({ children }: { children: string }) {
   return (
-    <h2 className="text-lg font-bold text-slate-900 sm:text-xl">{children}</h2>
+    <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 sm:text-xl">
+      {children}
+    </h2>
   );
 }
 
@@ -152,7 +154,10 @@ export default function TermsPage() {
           By sending content through Loopd&apos;n you grant us the rights
           necessary to transmit, store and deliver that content across the
           channels your Loop uses (web, SMS, voice), consistent with our{" "}
-          <a href="/privacy/" className="text-sky-600 underline">
+          <a
+            href="/privacy/"
+            className="text-sky-600 underline dark:text-sky-300"
+          >
             Privacy Policy
           </a>
           .
@@ -194,7 +199,10 @@ export default function TermsPage() {
         <H2>14. Contact</H2>
         <p>
           Questions about these Terms can be sent to{" "}
-          <a href="mailto:legal@loopdn.com" className="text-sky-600 underline">
+          <a
+            href="mailto:legal@loopdn.com"
+            className="text-sky-600 underline dark:text-sky-300"
+          >
             legal@loopdn.com
           </a>
           .
