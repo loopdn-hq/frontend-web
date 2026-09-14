@@ -1,202 +1,156 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useTheme } from "@/lib/theme/ThemeProvider";
 import { displayNameForSession, useAuth } from "@/lib/auth/client";
 
 export default function RootPage() {
   const { session } = useAuth();
+  const { resolvedTheme, setTheme } = useTheme();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const isDark = isMounted && resolvedTheme === "dark";
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_15%_20%,#5bd0ff_0%,#daf4ff_30%,#eaf7ff_60%,#f8fcff_100%)] text-slate-800">
-      {/* Background glow effects */}
-      <div className="pointer-events-none absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-300/40 blur-3xl" />
-      <div className="pointer-events-none absolute -right-16 top-96 h-96 w-96 rounded-full bg-sky-400/25 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-10 left-1/3 h-80 w-80 rounded-full bg-blue-300/20 blur-3xl" />
+    <div className="relative min-h-screen overflow-hidden bg-[#071d5c] text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_100%,#9fddf4_0%,#4bb9f3_20%,rgba(23,132,246,0.45)_35%,rgba(10,37,111,0.1)_52%,rgba(7,29,92,0)_65%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(136deg,rgba(6,36,114,0)_41%,rgba(106,222,255,0.88)_50%,rgba(6,36,114,0)_59%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,#0a256f_0%,#061a54_100%)] opacity-95" />
 
-      {/* Header / Nav */}
-      <header className="relative mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6 sm:px-8">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="transition hover:opacity-80">
+      <header className="relative z-10 mx-auto w-full max-w-[1320px] px-4 pt-5 sm:px-8">
+        <div className="flex min-h-[62px] items-center justify-between gap-4 rounded-2xl border border-[#89beff]/20 bg-[#092565]/70 px-4 shadow-[0_8px_30px_rgba(6,18,57,0.35)] backdrop-blur-sm sm:px-6">
+          <Link href="/" className="shrink-0 transition hover:opacity-90">
             <Image
-              src="/full-logo.png"
+              src="/home-logo.png"
               alt="Loopd'n"
-              width={200}
-              height={40}
+              width={115}
+              height={26}
               priority
-              className="h-8 w-auto sm:h-10"
+              className="h-auto w-[94px] sm:w-[108px]"
             />
           </Link>
-        </div>
 
-        <nav className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href="/pricing/"
-            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/contact/"
-            className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
-          >
-            Contact
-          </Link>
-          {session ? (
-            <>
-              <span className="hidden text-xs text-slate-500 sm:inline">
-                Signed in as{" "}
-                <strong className="font-semibold text-slate-700">
-                  {displayNameForSession(session)}
-                </strong>
-              </span>
-              <Link
-                href="/chats/"
-                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(0,143,223,0.3)] transition hover:brightness-110"
+          <nav className="hidden items-center gap-8 text-[14px] font-medium text-[#d8e6ff] lg:flex">
+            <a href="#how-it-works" className="transition hover:text-white">
+              How It Works
+            </a>
+            <a href="#who-its-for" className="transition hover:text-white">
+              Who It&apos;s For
+            </a>
+            <Link href="/pricing/" className="transition hover:text-white">
+              Pricing
+            </Link>
+            <a href="#groupme-alt" className="transition hover:text-white">
+              GroupMe Alternative
+            </a>
+          </nav>
+
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 rounded-xl border border-[#7db4ff]/30 bg-[#0b2f7b]/80 p-1">
+              <button
+                type="button"
+                onClick={() => setTheme("light")}
+                aria-label="Enable light mode"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
+                  !isDark
+                    ? "bg-[#1a4da6] shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)]"
+                    : "hover:bg-[#144192]"
+                }`}
               >
-                Go to Home
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link
-                href="/login/"
-                className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+                <Image src="/light-mode.svg" alt="" width={16} height={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme("dark")}
+                aria-label="Enable dark mode"
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition ${
+                  isDark
+                    ? "bg-[#1a4da6] shadow-[inset_0_0_0_1px_rgba(146,196,255,0.45)]"
+                    : "hover:bg-[#144192]"
+                }`}
               >
-                Log In
-              </Link>
-              <Link
-                href="/signup/"
-                className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(0,143,223,0.3)] transition hover:brightness-110"
-              >
-                Get Started
-              </Link>
-            </>
-          )}
-        </nav>
-      </header>
+                <Image src="/dark-mode.svg" alt="" width={16} height={16} />
+              </button>
+            </div>
 
-      {/* Hero Section */}
-      <main className="relative mx-auto max-w-6xl px-6 pt-10 pb-20 sm:px-8 sm:pt-16">
-        <div className="mx-auto max-w-3xl text-center">
-          <p className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/70 px-4 py-1.5 text-xs font-semibold tracking-wider text-sky-800 uppercase shadow-xs backdrop-blur-sm">
-            One group &bull; Any phone &bull; Everyone connected
-          </p>
-
-          <h1 className="mt-6 text-4xl leading-tight font-extrabold tracking-tight text-slate-900 sm:text-6xl sm:leading-[1.15]">
-            The group chat where everyone stays connected.
-          </h1>
-
-          <p className="mt-6 text-base leading-relaxed text-slate-600 sm:text-lg">
-            Coordinate groups seamlessly across web and SMS. Phone members can
-            read, reply, and participate without installing an app, while web
-            users get real-time chat, voice notes, and admin broadcast controls.
-          </p>
-
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
             {session ? (
               <Link
                 href="/chats/"
-                className="w-full rounded-2xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-8 py-4 text-center text-base font-bold text-white shadow-[0_12px_28px_rgba(0,143,223,0.35)] transition hover:brightness-110 sm:w-auto"
+                className="rounded-xl bg-[linear-gradient(180deg,#95b9ff_0%,#6e97f6_100%)] px-4 py-2 text-sm font-semibold text-[#052364] shadow-[0_10px_22px_rgba(74,126,255,0.33)]"
               >
-                Open Loopd&apos;n Home &rarr;
+                {displayNameForSession(session)}
               </Link>
             ) : (
               <>
                 <Link
                   href="/signup/"
-                  className="w-full rounded-2xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-8 py-4 text-center text-base font-bold text-white shadow-[0_12px_28px_rgba(0,143,223,0.35)] transition hover:brightness-110 sm:w-auto"
+                  className="rounded-xl bg-[linear-gradient(180deg,#95b9ff_0%,#6e97f6_100%)] px-4 py-2 text-sm font-semibold text-[#052364] shadow-[0_10px_22px_rgba(74,126,255,0.33)]"
                 >
-                  Create Your Loop (Free)
+                  Sign Up
                 </Link>
                 <Link
                   href="/login/"
-                  className="w-full rounded-2xl border border-slate-200 bg-white/80 px-8 py-4 text-center text-base font-semibold text-slate-700 shadow-xs backdrop-blur-sm transition hover:bg-white hover:text-slate-900 sm:w-auto"
+                  className="rounded-xl border border-[#8cb6ff]/40 bg-[#0a2a72] px-4 py-2 text-sm font-semibold text-[#ecf4ff] transition hover:bg-[#113785]"
                 >
-                  Log In &rarr;
+                  Log In
                 </Link>
               </>
             )}
           </div>
         </div>
+      </header>
 
-        {/* Feature Cards Grid */}
-        <section className="mt-20 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_10px_30px_rgba(0,102,179,0.08)] backdrop-blur-sm transition hover:shadow-md">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-xl font-bold text-sky-700">
-              💬
-            </div>
-            <h3 className="mt-4 text-lg font-bold text-slate-900">
-              Realtime Web + SMS Sync
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Messages sent from the web instantly broadcast to SMS members, and
-              text replies from phones appear live in the group thread.
-            </p>
-          </div>
+      <main className="relative z-10 mx-auto flex w-full max-w-[1320px] flex-col items-center px-4 pb-16 pt-14 sm:px-8 lg:flex-row lg:items-start lg:pt-20">
+        <section className="w-full max-w-[580px] lg:pt-16">
+          <p className="inline-flex items-center gap-2 rounded-full border border-[#5cb8ff]/45 bg-[#0a2e74]/65 px-3 py-1 text-[11px] font-medium text-[#9fd7ff]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3bd1ff]" />
+            Free to start. No app required.
+          </p>
 
-          <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_10px_30px_rgba(0,102,179,0.08)] backdrop-blur-sm transition hover:shadow-md">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-xl font-bold text-sky-700">
-              🎙️
-            </div>
-            <h3 className="mt-4 text-lg font-bold text-slate-900">
-              Voice Notes Anywhere
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Record voice updates once. Web users play them inline, while SMS
-              members receive a secure, instant playback link.
-            </p>
-          </div>
+          <h1 className="mt-7 text-4xl leading-[1.15] font-semibold tracking-[-0.02em] text-[#b2d8ff] sm:text-5xl lg:text-[56px]">
+            One Connected Group.
+            <br />
+            Every Way To Connect.
+          </h1>
 
-          <div className="rounded-3xl border border-white/60 bg-white/70 p-6 shadow-[0_10px_30px_rgba(0,102,179,0.08)] backdrop-blur-sm transition hover:shadow-md sm:col-span-2 lg:col-span-1">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-xl font-bold text-sky-700">
-              🛡️
-            </div>
-            <h3 className="mt-4 text-lg font-bold text-slate-900">
-              Admin &amp; Broadcast Modes
-            </h3>
-            <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Run open community discussions or broadcast announcements with
-              flexible joining methods, approvals, and reply controls.
+          <p className="mt-6 max-w-[530px] text-[17px] leading-8 text-[#8cb5e7]">
+            Bring your family, community, or team into one shared conversation
+            where everyone can connect through SMS, web, or voice, without
+            needing to use the same app.
+          </p>
+
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/signup/"
+              className="inline-flex h-12 items-center justify-center rounded-[10px] bg-[linear-gradient(180deg,#2048a4_0%,#142f78_100%)] px-6 text-[15px] font-semibold text-[#eef5ff] shadow-[0_12px_30px_rgba(2,11,42,0.4)]"
+            >
+              Create Your Loopd&apos;n →
+            </Link>
+            <p className="inline-flex h-12 items-center justify-center rounded-[10px] border border-[#5ba8ef]/60 bg-[#58b9ff26] px-5 text-[15px] font-medium text-[#9fd7ff]">
+              No credit card required
             </p>
           </div>
         </section>
-      </main>
 
-      {/* Footer */}
-      <footer className="relative border-t border-sky-100/60 bg-white/40 py-8 text-center text-xs text-slate-500 backdrop-blur-xs">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 sm:flex-row sm:px-8">
-          <p>
-            &copy; {new Date().getFullYear()} Loopd&apos;n. All rights reserved.
-          </p>
-          <div className="flex items-center gap-6">
-            <Link
-              href="/pricing/"
-              className="text-slate-600 underline hover:text-slate-900"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/contact/"
-              className="text-slate-600 underline hover:text-slate-900"
-            >
-              Contact Sales
-            </Link>
-            <Link
-              href="/terms/"
-              className="text-slate-600 underline hover:text-slate-900"
-            >
-              Terms of Service
-            </Link>
-            <Link
-              href="/privacy/"
-              className="text-slate-600 underline hover:text-slate-900"
-            >
-              Privacy Policy
-            </Link>
+        <section className="mt-12 w-full lg:mt-0 lg:flex lg:justify-end">
+          <div className="relative mx-auto w-full max-w-[760px] lg:mx-0">
+            <Image
+              src="/hero-image.png"
+              alt="Loopd'n app chat preview"
+              width={760}
+              height={560}
+              priority
+              className="h-auto w-full"
+            />
           </div>
-        </div>
-      </footer>
+        </section>
+      </main>
     </div>
   );
 }
