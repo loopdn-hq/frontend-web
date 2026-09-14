@@ -253,6 +253,27 @@ export function normalizeConversationPayload(
 }
 
 /**
+ * Fold conversations into a list: the incoming ones first and fresh, every
+ * other row kept after them in the order it had.
+ *
+ * Everything that calls this is reporting something that just changed - a
+ * first page refetched after being added to a group, one conversation a
+ * message has just arrived in - and "just changed" is also "belongs at the
+ * top". Replacing the list instead would throw away every later page the
+ * reader had scrolled to.
+ */
+export function mergeConversations(
+  current: Conversation[],
+  incoming: Conversation[],
+): Conversation[] {
+  const replaced = new Set(incoming.map((row) => String(row.id)));
+  return [
+    ...incoming,
+    ...current.filter((row) => !replaced.has(String(row.id))),
+  ];
+}
+
+/**
  * One message straight off the wire, whatever brought it.
  *
  * Exported so the websocket path runs the SAME conversion as the REST path
@@ -370,7 +391,16 @@ function senderLabelFrom(sender: unknown): string {
 
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
-  if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
+  // `title`, not `name`, is what says a conversation can be shown. A direct
+  // conversation has no name of its own - the column is always '' - and is
+  // titled after the other person by the server. Requiring `name` threw away
+  // every direct conversation in the list, on the live `conversation.added`
+  // refresh and in fetchConversation alike, so a DM could be created and never
+  // opened by either person.
+  if (
+    (typeof id !== "string" && typeof id !== "number") ||
+    !(item.title || item.name)
+  ) {
     return null;
   }
 
