@@ -33,11 +33,6 @@ export default function AddPhonePage() {
       return;
     }
 
-    if (!smsConsent) {
-      setError("You must agree to receive SMS messages before continuing.");
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {
@@ -100,7 +95,9 @@ export default function AddPhonePage() {
               <>
                 By providing your number, you agree to receive SMS messages from
                 Loopd&apos;n. Msg &amp; data rates may apply. Msg frequency may
-                vary. Reply HELP for help and STOP to opt out.
+                vary. Reply HELP for help and STOP to opt out. We will not
+                share mobile information with third parties for promotional or
+                marketing purposes.
               </>
             }
           />
@@ -113,7 +110,7 @@ export default function AddPhonePage() {
 
           <button
             type="submit"
-            disabled={isSubmitting || phone.trim().length === 0 || !smsConsent}
+            disabled={isSubmitting || phone.trim().length === 0}
             className="w-full rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(0,143,223,0.35)] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {isSubmitting ? "Saving..." : "Continue"}
