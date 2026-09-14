@@ -72,10 +72,17 @@ export default function PrivacyPage() {
       <section>
         <H2>3. Your Conversations Are Private</H2>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Private conversations are not available to advertisers.</li>
+          <li>
+            Private conversations and personal data are not sold or shared with
+            advertisers.
+          </li>
           <li>
             Loopd&apos;n does not use private conversation content for
             advertising targeting in the initial product.
+          </li>
+          <li>
+            SMS consent data and related phone messaging preferences are not
+            shared with third parties for promotional or marketing purposes.
           </li>
           <li>
             Where advertising is supported, targeting is designed around
@@ -218,7 +225,7 @@ export default function PrivacyPage() {
         <H2>13. Contact</H2>
         <p>For privacy questions or requests:</p>
         <p>Email: contact@loopdn.com</p>
-        <p>Company: Loopdn</p>
+        <p>Company: Loopd&apos;n</p>
         <p>Address: USA</p>
       </section>
     </LegalLayout>

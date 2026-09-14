@@ -115,15 +115,16 @@ export default function RootPage() {
             Everyone stays in the loop.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#3f679a] dark:text-[#86afe4]">
-            Create your Loopdn, invite your people, and bring everyone into one
-            shared conversation, whether they text, call, or use the web.
+            Create your Loopd&apos;n, invite your people, and bring everyone
+            into one shared conversation, whether they text, call, or use the
+            web.
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             <article className="overflow-hidden rounded-xl bg-[#f4faff] shadow-[0_12px_28px_rgba(95,144,206,0.2)] dark:border-[#2f63b6] dark:bg-[#10327d]/65 dark:shadow-[0_12px_28px_rgba(1,9,32,0.35)]">
               <Image
                 src="/step-1.png"
-                alt="Step 1: Create your Loopdn"
+                alt="Step 1: Create your Loopd'n"
                 width={420}
                 height={280}
                 className="h-full w-full"
@@ -163,8 +164,8 @@ export default function RootPage() {
             to stay connected.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#3f679a] dark:text-[#86afe4]">
-            Loopdn brings SMS, web, and voice together so everyone can stay
-            connected without needing to use the same app.
+            Loopd&apos;n brings SMS, web, and voice together so everyone can
+            stay connected without needing to use the same app.
           </p>
 
           <div className="mt-6 grid gap-1.5 lg:grid-cols-[0.95fr_1.28fr] lg:items-stretch">
@@ -214,8 +215,9 @@ export default function RootPage() {
             you need to reach.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#3f679a] dark:text-[#86afe4]">
-            From family and friends to communities and organizations, Loopdn
-            brings everyone into one shared space no matter how they connect.
+            From family and friends to communities and organizations,
+            Loopd&apos;n brings everyone into one shared space no matter how
+            they connect.
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
@@ -417,8 +419,8 @@ export default function RootPage() {
             Start Free. Stay Connected.
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-[#3f679a] dark:text-[#86afe4]">
-            Choose Loopdn&apos;s free tier and keep your core members connected
-            through SMS, web, and voice.
+            Choose Loopd&apos;n&apos;s free tier and keep your core members
+            connected through SMS, web, and voice.
           </p>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-[1.05fr_1fr]">

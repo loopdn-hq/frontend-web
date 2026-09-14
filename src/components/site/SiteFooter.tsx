@@ -14,8 +14,8 @@ export function SiteFooter() {
             className="h-auto w-[108px]"
           />
           <p className="mt-4 max-w-md text-xs leading-6 text-[#3e669c] dark:text-[#87afe3]">
-            Loopdn keeps groups connected through SMS, voice, and web in one
-            shared conversation everyone can access.
+            Loopd&apos;n keeps groups connected through SMS, voice, and web in
+            one shared conversation everyone can access.
           </p>
         </div>
 

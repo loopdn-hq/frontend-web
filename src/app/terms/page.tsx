@@ -156,6 +156,10 @@ export default function TermsPage() {
           instructions associated with the group.
         </p>
         <p>
+          Message frequency may vary based on group activity, group settings,
+          and your interactions with supported SMS commands.
+        </p>
+        <p>
           Supported SMS commands may include <code>JOIN</code>,
           <code> HELP</code>, <code>MUTE</code>/<code>UNMUTE</code>, and
           <code> LEAVE</code>/<code>STOP</code>, depending on the service
@@ -324,7 +328,7 @@ export default function TermsPage() {
         <H2>21. Contact</H2>
         <p>For questions regarding these Terms:</p>
         <p>Email: contact@loopdn.com</p>
-        <p>Company: Loopdn</p>
+        <p>Company: Loopd&apos;n</p>
         <p>Address: USA</p>
       </section>
     </LegalLayout>

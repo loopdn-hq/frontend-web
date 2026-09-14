@@ -162,7 +162,7 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
 function planSummaryFromCode(code: string): string {
   const normalizedCode = code.toLowerCase();
   if (normalizedCode === "free") {
-    return "For small groups getting started with Loopdn.";
+    return "For small groups getting started with Loopd'n.";
   }
   if (normalizedCode.startsWith("premium")) {
     return "For active teams and communities with growth needs.";
