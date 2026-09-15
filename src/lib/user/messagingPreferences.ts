@@ -12,9 +12,12 @@
  *   setting with no control in the app yet.
  * - "Press Enter to send" is real: the chat composer
  *   (components/home/HomeShell) reads the browser copy.
- * - Link previews, the external-contact choice, media auto-download and "Send
- *   SMS when recipient is available on Loopd'n" are saved and read by nothing
- *   yet. That last one starts ticked because the backend ALREADY texts every
+ * - "Show link previews" is real, and it is the SENDER's: with it on, the
+ *   first link in a message you send gets a card the server fetches after
+ *   sending (backend chat/link_previews.py), which everyone in the chat sees.
+ * - The external-contact choice, media auto-download and "Send SMS when
+ *   recipient is available on Loopd'n" are saved and read by nothing yet.
+ *   That last one starts ticked because the backend ALREADY texts every
  *   account member with a verified number in a Loop whose texts are on,
  *   whether or not they use the app (sms/outbound.py); unticking it changes
  *   no delivery.

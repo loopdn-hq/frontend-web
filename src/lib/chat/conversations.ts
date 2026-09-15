@@ -170,6 +170,19 @@ export type MessageReaction = {
   usernames: string[];
 };
 
+/**
+ * The card for the first link in a message: the page's title, description
+ * and picture. Built by the server after the message was sent, and only when
+ * the SENDER has "Show link previews" on - it arrives as a message update.
+ */
+export type LinkPreview = {
+  url: string;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+};
+
 export type ConversationMessage = {
   id: string | number;
   conversationId: string | number;
@@ -199,6 +212,8 @@ export type ConversationMessage = {
   source: MessageSource;
   /** The message this one answers, when it answers one. */
   replyTo?: MessageReplyTo;
+  /** The card for its first link, when it has one. */
+  linkPreview?: LinkPreview;
 };
 
 type ApiObject = Record<string, unknown>;
@@ -553,6 +568,24 @@ export function hasReacted(
   return username !== null && reaction.usernames.includes(username);
 }
 
+/**
+ * A card off the wire, or undefined. Only a web link may open from it, and
+ * only an https picture is shown - an http one on an https page is blocked.
+ */
+function normalizeLinkPreview(raw: unknown): LinkPreview | undefined {
+  if (!isApiObject(raw)) return undefined;
+  const url = asText(raw.url);
+  if (!/^https?:\/\//i.test(url)) return undefined;
+  const imageUrl = asText(raw.image_url);
+  return {
+    url,
+    title: asText(raw.title) || null,
+    description: asText(raw.description) || null,
+    imageUrl: /^https:\/\//i.test(imageUrl) ? imageUrl : null,
+    siteName: asText(raw.site_name) || null,
+  };
+}
+
 function normalizeMessage(item: ApiObject): ConversationMessage | null {
   const id = item.id;
   const conversationId = item.conversation;
@@ -579,6 +612,7 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
 
   const replyTo = normalizeReplyTo(item.reply_to);
   const reactions = normalizeReactions(item.reactions);
+  const linkPreview = normalizeLinkPreview(item.link_preview);
 
   const rawSource = item.source;
   const source: MessageSource =
@@ -605,6 +639,7 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     forwarded: item.forwarded === true,
     editedAt: asText(item.edited_at) || null,
     deletedAt: asText(item.deleted_at) || null,
+    ...(linkPreview ? { linkPreview } : {}),
     attachments: Array.isArray(item.attachments)
       ? item.attachments
           .filter(isApiObject)

@@ -4,6 +4,7 @@ import { useRef } from "react";
 import Image from "next/image";
 import { Check, CheckCheck, CornerUpRight, MoreHorizontal } from "lucide-react";
 import { ChatAvatar } from "../ChatAvatar";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MessageReactions } from "./MessageReactions";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
 import type { ConversationMessage } from "@/lib/chat/conversations";
@@ -42,6 +43,8 @@ export type ThreadMessage = {
   source: ConversationMessage["source"];
   /** The message this one answers, when it answers one. */
   replyTo?: ConversationMessage["replyTo"];
+  /** The card for its first link, when it has one. */
+  linkPreview?: ConversationMessage["linkPreview"];
   /** One entry per emoji used, in the order they were first used. */
   reactions: ConversationMessage["reactions"];
   /** Passed along from another conversation. Never says who from. */
@@ -254,6 +257,13 @@ export function MessageBubble({
                 ))}
             </span>
           </div>
+
+          {!isDeleted && message.linkPreview && (
+            <LinkPreviewCard
+              preview={message.linkPreview}
+              mine={message.mine}
+            />
+          )}
 
           {!isDeleted &&
             message.attachments &&

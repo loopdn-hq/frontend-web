@@ -837,6 +837,9 @@ export function HomeShell({ mode }: HomeShellProps) {
         createdAt: message.createdAt,
         source: message.source,
         replyTo: message.replyTo,
+        // Copied field by field, so a field left out here never reaches the
+        // bubble - on load or on a live update.
+        linkPreview: message.linkPreview,
         reactions: message.reactions,
         forwarded: message.forwarded,
         editedAt: message.editedAt,
