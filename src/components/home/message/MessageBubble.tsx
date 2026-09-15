@@ -259,35 +259,55 @@ export function MessageBubble({
             message.attachments &&
             message.attachments.length > 0 && (
               <div className="mt-2 space-y-1">
-                {message.attachments.map((attachment) => (
-                  <div key={attachment.id ?? attachment.url}>
-                    {attachment.contentType?.startsWith("audio/") && (
-                      <audio
-                        controls
-                        src={attachment.url}
-                        className="mb-1 max-w-full"
-                      />
-                    )}
-                    {attachment.contentType?.startsWith("image/") && (
-                      <Image
-                        src={attachment.url}
-                        alt={attachment.originalName}
-                        width={400}
-                        height={224}
-                        unoptimized
-                        className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
-                      />
-                    )}
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block truncate text-xs text-sky-700 underline"
-                    >
-                      {attachment.originalName}
-                    </a>
-                  </div>
-                ))}
+                {message.attachments.map((attachment) => {
+                  const isImage = attachment.contentType?.startsWith("image/");
+                  const isAudio = attachment.contentType?.startsWith("audio/");
+
+                  return (
+                    <div key={attachment.id ?? attachment.url}>
+                      {isAudio && (
+                        <audio
+                          controls
+                          src={attachment.url}
+                          className="mb-1 max-w-full"
+                        />
+                      )}
+                      {isImage && (
+                        // The picture is the link now, so opening it full size
+                        // does not need its filename printed underneath.
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Open ${attachment.originalName}`}
+                          className="block"
+                        >
+                          <Image
+                            src={attachment.url}
+                            alt={attachment.originalName}
+                            width={400}
+                            height={224}
+                            unoptimized
+                            className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
+                          />
+                        </a>
+                      )}
+                      {/* The name only where nothing else shows the attachment:
+                          a document, or a video - which has no player yet. Under
+                          an image or a voice note it was just clutter. */}
+                      {!isImage && !isAudio && (
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block truncate text-xs text-sky-700 underline"
+                        >
+                          {attachment.originalName}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           {/* INSIDE the article, on a row of its own. `absolute right-0
