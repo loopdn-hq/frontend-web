@@ -1,14 +1,14 @@
 /**
- * Settings kept in this browser: for screens that are ahead of the API
- * (Notifications, Privacy, Messaging), and for settings that belong to a
- * device rather than an account (Appearance). Each describes its settings
- * once - groups, rows, labels,
- * options and defaults - and gets its store from here, so there is one copy of
- * "read localStorage safely, keep tabs in step, survive blocked storage" rather
- * than one per screen.
+ * Settings kept in this browser: the copy of the account's Notifications,
+ * Privacy and Messaging settings (saved on the server through
+ * lib/user/accountSettings), and settings that belong to a device rather than
+ * an account (Appearance). Each describes its settings once - groups, rows,
+ * labels, options and defaults - and gets its store from here, so there is one
+ * copy of "read localStorage safely, keep tabs in step, survive blocked
+ * storage" rather than one per screen.
  *
- * Values are per BROWSER, not per account: a second account signed in on the
- * same browser sees the same values. Nothing on the server reads them.
+ * Values are per BROWSER: a second account signed in on the same browser sees
+ * the first one's copy until its own settings have loaded.
  */
 import { useSyncExternalStore } from "react";
 

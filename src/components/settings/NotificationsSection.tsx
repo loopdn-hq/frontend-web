@@ -16,9 +16,8 @@ import { useOptimisticChanges } from "./useOptimisticChanges";
 import { useSubView } from "./useSubView";
 
 /**
- * Everything the Notifications screen saves. Only browser-kept settings for
- * now (see lib/user/notificationPreferences); the name is the screen's, so it
- * can grow account-saved keys later.
+ * Everything the Notifications screen saves, on the account (see
+ * lib/user/notificationPreferences).
  *
  * Group email used to have a card here. It is on Messaging now, where the
  * design puts it - one setting, one switch.

@@ -19,9 +19,8 @@ import { useOptimisticChanges } from "./useOptimisticChanges";
 import { useSubView } from "./useSubView";
 
 /**
- * Everything the Privacy screen saves. Only browser-kept settings for now (see
- * lib/user/privacyPreferences); the name is the screen's, so it can grow
- * account-saved keys later, the way MessagingPreferences adds `emailEnabled`.
+ * Everything the Privacy screen saves, on the account (see
+ * lib/user/privacyPreferences).
  */
 export type PrivacyPreferences = LocalPrivacyPreferences;
 
