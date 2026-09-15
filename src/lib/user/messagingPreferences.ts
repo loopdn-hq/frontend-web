@@ -4,7 +4,7 @@
  * Three kinds of truth on one screen - read this before relying on any row:
  *
  * - "Allow messages to be delivered by email" is REAL. It is
- *   `Profile.email_enabled`, the account-wide switch for group email, and
+ *   `MessagingSettings.email_enabled`, the account-wide switch for group email, and
  *   `useUserSettingsProps` sends it to the API. It is not kept here. It does
  *   not undo a single Loop stopped from an email's footer link: that is a
  *   per-Loop setting with no control in the app yet.
@@ -15,9 +15,9 @@
  *   reach somebody without an account.
  * - The two SMS boxes do not describe the backend - never trust them when
  *   debugging a text. "Allow messages to be delivered by SMS" changes
- *   nothing: `Profile.sms_enabled` is deliberately not writable from the app,
+ *   nothing: `MessagingSettings.sms_enabled` is deliberately not writable from the app,
  *   and only a carrier STOP or START moves it (see its comment in the backend's
- *   user/models.py). "Send SMS when recipient is available on Loopd'n" starts
+ *   user/models/messaging_settings.py). "Send SMS when recipient is available on Loopd'n" starts
  *   unticked, as the design shows, while the backend ALREADY texts every
  *   account member with a verified number in a Loop whose texts are on,
  *   whether or not they use the app (sms/outbound.py). Wiring either box is a
@@ -55,7 +55,7 @@ export type LocalMessagingPreferences = {
 
 /** Everything the Messaging screen shows: the browser-kept values, and email. */
 export type MessagingPreferences = LocalMessagingPreferences & {
-  /** Group email across every Loop - `Profile.email_enabled`. */
+  /** Group email across every Loop - `MessagingSettings.email_enabled`. */
   emailEnabled: boolean;
 };
 

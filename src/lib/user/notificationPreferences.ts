@@ -12,7 +12,7 @@
  * reads that key from the profile instead of this store and PATCHes it
  * instead of saving it here.
  *
- * Group email is NOT here. It is real (`Profile.email_enabled`) and lives on
+ * Group email is NOT here. It is real (`MessagingSettings.email_enabled`) and lives on
  * the Messaging screen, where the design puts it.
  */
 import {
