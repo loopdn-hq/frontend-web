@@ -1,18 +1,16 @@
 /**
- * The notification settings the API has no fields for yet.
+ * The notification settings.
  *
- * FRONTEND ONLY, FOR NOW. Saved in this browser (see lib/app/localPreferences)
- * and read by nothing that decides what is delivered - there are no push
- * notifications, calls or delivery-failure alerts to switch off yet.
+ * Saved on the account (`NotificationSettings`, through
+ * lib/user/accountSettings), with a copy in this browser (see
+ * lib/app/localPreferences) that the screen reads. READ BY NOTHING that
+ * decides what is delivered - there are no push notifications, calls or
+ * delivery-failure alerts to switch off yet.
  *
- * When the backend grows a field for one, the screen does not change, but two
- * places do. First lib/auth/client.ts: `updateUserProfile` and the profile
- * mapping build the request and read the response field by field, so a key
- * they do not name is silently dropped. Then `useUserSettingsProps`, which
- * reads that key from the profile instead of this store and PATCHes it
- * instead of saving it here.
+ * A new setting: add its row here, then its API name in
+ * lib/user/accountSettings. The screen does not change.
  *
- * Group email is NOT here. It is real (`Profile.email_enabled`) and lives on
+ * Group email is NOT here. It is real (`MessagingSettings.email_enabled`) and lives on
  * the Messaging screen, where the design puts it.
  */
 import {

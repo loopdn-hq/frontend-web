@@ -1,31 +1,31 @@
 /**
  * The messaging settings.
  *
- * Three kinds of truth on one screen - read this before relying on any row:
+ * Saved on the account (`MessagingSettings`, through lib/user/accountSettings),
+ * with a copy in this browser that the screen and the chat box read. What each
+ * row DOES is another matter - read this before relying on any row:
  *
  * - "Allow messages to be delivered by email" is REAL. It is
- *   `Profile.email_enabled`, the account-wide switch for group email, and
- *   `useUserSettingsProps` sends it to the API. It is not kept here. It does
- *   not undo a single Loop stopped from an email's footer link: that is a
- *   per-Loop setting with no control in the app yet.
- * - "Press Enter to send" is real IN THIS BROWSER: the chat composer
- *   (components/home/HomeShell) reads it.
- * - Everything else is FRONTEND ONLY and read by nothing yet. There are no
- *   link previews or media downloads to control, and nothing asks which way to
- *   reach somebody without an account.
- * - The two SMS boxes do not describe the backend - never trust them when
- *   debugging a text. "Allow messages to be delivered by SMS" changes
- *   nothing: `Profile.sms_enabled` is deliberately not writable from the app,
- *   and only a carrier STOP or START moves it (see its comment in the backend's
- *   user/models.py). "Send SMS when recipient is available on Loopd'n" starts
- *   unticked, as the design shows, while the backend ALREADY texts every
+ *   `MessagingSettings.email_enabled`, the account-wide switch for group
+ *   email, and the shell keeps it on the profile rather than here. It does not
+ *   undo a single Loop stopped from an email's footer link: that is a per-Loop
+ *   setting with no control in the app yet.
+ * - "Press Enter to send" is real: the chat composer
+ *   (components/home/HomeShell) reads the browser copy.
+ * - Link previews, the external-contact choice, media auto-download and "Send
+ *   SMS when recipient is available on Loopd'n" are saved and read by nothing
+ *   yet. That last one starts ticked because the backend ALREADY texts every
  *   account member with a verified number in a Loop whose texts are on,
- *   whether or not they use the app (sms/outbound.py). Wiring either box is a
- *   delivery decision, not an endpoint.
+ *   whether or not they use the app (sms/outbound.py); unticking it changes
+ *   no delivery.
+ * - "Allow messages to be delivered by SMS" is NOT saved on the account and
+ *   changes nothing - never trust it when debugging a text.
+ *   `MessagingSettings.sms_enabled` is deliberately not writable from the app,
+ *   and only a carrier STOP or START moves it (see its comment in the
+ *   backend's user/models/messaging_settings.py). It stays in this browser.
  *
- * When the backend grows a field, take the same path as `emailEnabled`: teach
- * lib/auth/client.ts to carry it, then have `useUserSettingsProps` read and
- * PATCH it instead of saving it here. The screen does not change.
+ * A new setting: add its row here, then its API name in
+ * lib/user/accountSettings. The screen does not change.
  */
 import {
   createLocalPreferences,
@@ -55,7 +55,7 @@ export type LocalMessagingPreferences = {
 
 /** Everything the Messaging screen shows: the browser-kept values, and email. */
 export type MessagingPreferences = LocalMessagingPreferences & {
-  /** Group email across every Loop - `Profile.email_enabled`. */
+  /** Group email across every Loop - `MessagingSettings.email_enabled`. */
   emailEnabled: boolean;
 };
 
@@ -66,7 +66,8 @@ export const defaultLocalMessagingPreferences: LocalMessagingPreferences = {
   linkPreviews: true,
   externalContact: "ask",
   smsDelivery: true,
-  smsWhenOnLoopdn: false,
+  // What the account starts with, and what delivery already does - see above.
+  smsWhenOnLoopdn: true,
   mediaAutoDownload: "wifi",
 };
 

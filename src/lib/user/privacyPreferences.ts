@@ -1,8 +1,9 @@
 /**
- * The privacy settings the API has no fields for yet.
+ * The privacy settings.
  *
- * FRONTEND ONLY, FOR NOW - AND NOTHING ENFORCES THEM. Saved in this browser
- * (see lib/app/localPreferences). Until the backend reads them, choosing
+ * Saved on the account (`PrivacySettings`, through lib/user/accountSettings),
+ * with a copy in this browser that the screen reads - AND NOTHING ENFORCES
+ * THEM. Until the backend reads them, choosing
  * "Nobody" does not stop a direct message, and switching off either "Find me"
  * switch hides nobody: `find_user` (backend user/lookups.py) still resolves an
  * exact verified phone number or email when someone starts a direct message,
@@ -13,10 +14,8 @@
  *
  * Blocking is NOT here. It is real (lib/user/blocks) and already enforced.
  *
- * When the backend grows fields, take the same path as `emailEnabled` on
- * Messaging (lib/user/messagingPreferences): teach
- * lib/auth/client.ts to carry them, then have `useUserSettingsProps` read and
- * PATCH them instead of saving them here. The screen does not change.
+ * A new setting: add its row here, then its API name in
+ * lib/user/accountSettings. The screen does not change.
  */
 import {
   createLocalPreferences,

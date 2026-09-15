@@ -109,7 +109,7 @@ export type UserProfile = {
   phone?: string;
   emailVerified?: boolean;
   phoneVerified?: boolean;
-  // Account-wide group email; mirrors Profile.email_enabled on the backend.
+  // Account-wide group email; mirrors MessagingSettings.email_enabled on the backend.
   emailEnabled?: boolean;
   bio?: string;
   avatarUrl?: string;
