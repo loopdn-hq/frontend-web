@@ -6,6 +6,7 @@ import {
   CreditCard,
   KeyRound,
   Lock,
+  MessageSquare,
   Palette,
   User,
   UserCog,
@@ -13,10 +14,23 @@ import {
 } from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
 import { AccountSection } from "./AccountSection";
-import { BlockedUsersSection } from "./BlockedUsersSection";
-import { useTheme, type ThemePreference } from "@/lib/theme/ThemeProvider";
-import { changePassword, type FieldErrors } from "@/lib/auth/client";
-import { changePasswordSchema } from "@/lib/validation/auth";
+import { AppearanceSection } from "./AppearanceSection";
+import { MessagingSection } from "./MessagingSection";
+import {
+  defaultNotificationPreferences,
+  NotificationsSection,
+  type NotificationPreferences,
+} from "./NotificationsSection";
+import {
+  defaultPrivacyPreferences,
+  PrivacySection,
+  type PrivacyPreferences,
+} from "./PrivacySection";
+import { SecuritySection } from "./SecuritySection";
+import {
+  defaultMessagingPreferences,
+  type MessagingPreferences,
+} from "@/lib/user/messagingPreferences";
 import {
   createCreditCheckoutSession,
   createPlanCheckoutSession,
@@ -30,10 +44,8 @@ import {
 import {
   Alert,
   Button,
-  Checkbox,
   Field,
   Input,
-  RadioGroup,
   Select,
   Tabs,
   Textarea,
@@ -43,6 +55,7 @@ export type SettingsTab =
   | "profile"
   | "security"
   | "appearance"
+  | "messaging"
   | "notifications"
   | "privacy"
   | "billing"
@@ -59,6 +72,7 @@ const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
   { value: "profile", label: "Profile", icon: User },
   { value: "security", label: "Security", icon: KeyRound },
   { value: "appearance", label: "Appearance", icon: Palette },
+  { value: "messaging", label: "Messaging", icon: MessageSquare },
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "privacy", label: "Privacy", icon: Lock },
   { value: "billing", label: "Billing", icon: CreditCard },
@@ -102,24 +116,6 @@ export type UserProfile = {
 };
 
 /**
- * What the Notifications tab can change. One switch, because the backend has
- * one: group email across every Loop. Per-Loop email is stopped from the
- * footer of any message from that Loop, and SMS is controlled by texting STOP
- * or START from the phone - neither is a setting here.
- *
- * The four toggles this replaced (message alerts, digest, sound, desktop) were
- * saved nowhere and read by nothing.
- */
-export type NotificationPreferences = {
-  emailEnabled: boolean;
-};
-
-// The backend default: every account starts opted in.
-export const defaultNotificationPreferences: NotificationPreferences = {
-  emailEnabled: true,
-};
-
-/**
  * A profile as edited, which is the stored profile plus a file that is not
  * part of it. The avatar is only ever in flight - once saved it comes back as
  * `avatarUrl` - so it rides along here rather than living on UserProfile,
@@ -132,10 +128,19 @@ export type UserSettingsPanelProps = {
   /** Which tab to open on. Defaults to Profile. */
   initialTab?: SettingsTab;
   onSaveProfile?: (profile: ProfileEdit) => Promise<void> | void;
-  notificationPreferences?: NotificationPreferences;
-  onSaveNotifications?: (
-    prefs: NotificationPreferences,
+  messagingPreferences?: MessagingPreferences;
+  /** Receives only the keys that changed. */
+  onSaveMessaging?: (
+    change: Partial<MessagingPreferences>,
   ) => Promise<void> | void;
+  notificationPreferences?: NotificationPreferences;
+  /** Receives only the keys that changed. */
+  onSaveNotifications?: (
+    change: Partial<NotificationPreferences>,
+  ) => Promise<void> | void;
+  privacyPreferences?: PrivacyPreferences;
+  /** Receives only the keys that changed. */
+  onSavePrivacy?: (change: Partial<PrivacyPreferences>) => Promise<void> | void;
   /**
    * The tab the user just picked.
    *
@@ -179,8 +184,12 @@ export function UserSettingsPanel({
   profile,
   initialTab = "profile",
   onSaveProfile,
+  messagingPreferences = defaultMessagingPreferences,
+  onSaveMessaging,
   notificationPreferences = defaultNotificationPreferences,
   onSaveNotifications,
+  privacyPreferences = defaultPrivacyPreferences,
+  onSavePrivacy,
   onTabChange,
   showHeading = true,
   tabs = SETTINGS_TABS,
@@ -265,19 +274,26 @@ export function UserSettingsPanel({
           {activeTab === "profile" && (
             <ProfileSettings profile={profile} onSave={onSaveProfile} />
           )}
-          {activeTab === "security" && <ChangePasswordSettings />}
-          {activeTab === "appearance" && <AppearanceSettings />}
+          {activeTab === "security" && <SecuritySection profile={profile} />}
+          {activeTab === "appearance" && <AppearanceSection />}
+          {activeTab === "messaging" && (
+            <MessagingSection
+              preferences={messagingPreferences}
+              onSave={onSaveMessaging}
+            />
+          )}
           {activeTab === "notifications" && (
-            <NotificationSettings
-              // The profile can arrive after this tab is open. Re-keying resets
-              // the tab's local copy to the new preferences instead of freezing
-              // whatever the first render was handed.
-              key={JSON.stringify(notificationPreferences)}
+            <NotificationsSection
               preferences={notificationPreferences}
               onSave={onSaveNotifications}
             />
           )}
-          {activeTab === "privacy" && <BlockedUsersSection />}
+          {activeTab === "privacy" && (
+            <PrivacySection
+              preferences={privacyPreferences}
+              onSave={onSavePrivacy}
+            />
+          )}
           {activeTab === "billing" && <BillingSettings />}
           {activeTab === "account" && (
             <AccountSection profile={profile} onSaveProfile={onSaveProfile} />
@@ -495,7 +511,7 @@ function BillingSettings() {
             </div>
             <div className="text-right">
               <span
-                className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                className={`inline-flex rounded-full px-2.5 py-1 text-2xs font-semibold ${
                   summary.wallet.autoRechargeEnabled
                     ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                     : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
@@ -748,241 +764,5 @@ function ProfileSettings({
         )}
       </div>
     </div>
-  );
-}
-
-function ChangePasswordSettings() {
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [generalError, setGeneralError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setGeneralError("");
-    setFieldErrors({});
-    setSaved(false);
-
-    const parsed = changePasswordSchema.safeParse({ oldPassword, newPassword });
-    if (!parsed.success) {
-      const issues: FieldErrors = {};
-      for (const issue of parsed.error.issues) {
-        const key =
-          issue.path[0] === "oldPassword" ? "old_password" : "new_password";
-        issues[key] = [...(issues[key] ?? []), issue.message];
-      }
-      setFieldErrors(issues);
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      const result = await changePassword({ oldPassword, newPassword });
-
-      if (!result.ok) {
-        setFieldErrors(result.fieldErrors);
-        setGeneralError(result.message);
-        return;
-      }
-
-      setOldPassword("");
-      setNewPassword("");
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2500);
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  const oldPasswordErrors = fieldErrors.old_password ?? [];
-  const newPasswordErrors = fieldErrors.new_password ?? [];
-
-  return (
-    <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-      <Field label="Current Password" htmlFor="settings-current-password">
-        <Input
-          id="settings-current-password"
-          type="password"
-          value={oldPassword}
-          onChange={(e) => setOldPassword(e.target.value)}
-          autoComplete="current-password"
-          disabled={isSaving}
-          className="rounded-lg px-3 py-2"
-        />
-        {oldPasswordErrors.map((message) => (
-          <p key={message} className="mt-1 text-xs text-rose-600">
-            {message}
-          </p>
-        ))}
-      </Field>
-
-      <Field label="New Password" htmlFor="settings-new-password">
-        <Input
-          id="settings-new-password"
-          type="password"
-          value={newPassword}
-          onChange={(e) => setNewPassword(e.target.value)}
-          autoComplete="new-password"
-          disabled={isSaving}
-          className="rounded-lg px-3 py-2"
-        />
-        {newPasswordErrors.map((message) => (
-          <p key={message} className="mt-1 text-xs text-rose-600">
-            {message}
-          </p>
-        ))}
-      </Field>
-
-      {generalError && (
-        <Alert variant="error" className="text-xs">
-          {generalError}
-        </Alert>
-      )}
-
-      <div className="flex items-center gap-3">
-        <Button
-          type="submit"
-          disabled={isSaving || !oldPassword || !newPassword}
-        >
-          {isSaving ? "Saving..." : "Change Password"}
-        </Button>
-        {saved && (
-          <p className="text-xs font-medium text-emerald-600">
-            Password changed ✓
-          </p>
-        )}
-      </div>
-    </form>
-  );
-}
-
-function AppearanceSettings() {
-  const { theme, setTheme } = useTheme();
-
-  const options: {
-    id: ThemePreference;
-    label: string;
-    description: string;
-    icon: string;
-  }[] = [
-    {
-      id: "light",
-      label: "Light",
-      description: "Bright background, dark text",
-      icon: "☀️",
-    },
-    {
-      id: "dark",
-      label: "Dark",
-      description: "Dark background, light text",
-      icon: "🌙",
-    },
-    {
-      id: "system",
-      label: "System",
-      description: "Match your device setting",
-      icon: "🖥️",
-    },
-  ];
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-        Theme
-      </p>
-      <RadioGroup
-        name="theme-preference"
-        value={theme}
-        onChange={setTheme}
-        orientation="horizontal"
-        options={options.map((option) => ({
-          value: option.id,
-          label: `${option.icon} ${option.label}`,
-          description: option.description,
-        }))}
-      />
-    </div>
-  );
-}
-
-function NotificationSettings({
-  preferences,
-  onSave,
-}: {
-  preferences: NotificationPreferences;
-  onSave?: (prefs: NotificationPreferences) => Promise<void> | void;
-}) {
-  const [prefs, setPrefs] = useState(preferences);
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleToggle(
-    key: keyof NotificationPreferences,
-    value: boolean,
-  ) {
-    const previous = prefs;
-    const next = { ...prefs, [key]: value };
-    setPrefs(next);
-    setError(null);
-    setIsSaving(true);
-    try {
-      await onSave?.(next);
-    } catch (err) {
-      // Show what is true, not what was asked for.
-      setPrefs(previous);
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "Couldn't save that. Try again.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      <ToggleRow
-        label="Group email"
-        description="Get messages from your Loops by email. Turning this off stops email from every Loop; to stop just one, use the link at the bottom of any message from it."
-        checked={prefs.emailEnabled}
-        onChange={(v) => handleToggle("emailEnabled", v)}
-      />
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        Text messages are controlled from your phone: reply STOP to a Loop to
-        stop it, or START to resume.
-      </p>
-      {isSaving && <p className="text-xs text-slate-400">Saving...</p>}
-      {error && (
-        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  checked: boolean;
-  onChange: (value: boolean) => void;
-}) {
-  return (
-    <Checkbox
-      checked={checked}
-      onChange={(event) => onChange(event.target.checked)}
-      label={label}
-      description={description}
-      containerClassName="items-start justify-between"
-      className="mt-1"
-    />
   );
 }

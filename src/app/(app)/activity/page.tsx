@@ -172,7 +172,7 @@ export default function ActivityPage() {
                   {option.label}
                   {option.id === "unread" && activityUnread > 0 && (
                     <span
-                      className={`rounded-full px-1.5 text-[10px] font-bold ${
+                      className={`rounded-full px-1.5 text-3xs font-bold ${
                         active
                           ? "bg-white/25 text-white"
                           : "bg-[#168CFF] text-white"
@@ -209,7 +209,7 @@ export default function ActivityPage() {
           ) : (
             groups.map((group) => (
               <div key={group.bucket} className="mb-4">
-                <p className="mb-2 px-1 text-[11px] font-bold tracking-[0.1em] text-slate-400 uppercase dark:text-slate-500">
+                <p className="mb-2 px-1 text-2xs font-bold tracking-[0.1em] text-slate-400 uppercase dark:text-slate-500">
                   {group.bucket}
                 </p>
                 <div className="space-y-2">
@@ -298,7 +298,7 @@ function ActivityRow({
           >
             {title}
           </span>
-          <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
+          <span className="shrink-0 text-2xs text-slate-400 dark:text-slate-500">
             {timeLabel(notification.createdAt, bucket)}
           </span>
         </span>

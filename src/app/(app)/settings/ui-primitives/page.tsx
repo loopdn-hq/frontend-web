@@ -14,6 +14,7 @@ import {
   Modal,
   RadioGroup,
   Select,
+  Switch,
   Tabs,
   Textarea,
 } from "@/components/ui";
@@ -25,6 +26,7 @@ export default function UiPrimitivesPage() {
   const [tab, setTab] = useState<DemoTab>("forms");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isChecked, setIsChecked] = useState(true);
+  const [isSwitchOn, setIsSwitchOn] = useState(true);
   const [radioValue, setRadioValue] = useState("chat");
   const [selectValue, setSelectValue] = useState("admins");
 
@@ -91,7 +93,7 @@ export default function UiPrimitivesPage() {
 
             <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                Select, Checkbox, Radio
+                Select, Checkbox, Switch, Radio
               </h2>
               <Field label="Select" htmlFor="demo-select">
                 <Select
@@ -110,6 +112,12 @@ export default function UiPrimitivesPage() {
                 label="Enable notifications"
                 description="Send push and in-app alerts"
               />
+              <label className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 dark:border-slate-700">
+                <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                  Switch - takes effect when flipped
+                </span>
+                <Switch checked={isSwitchOn} onCheckedChange={setIsSwitchOn} />
+              </label>
               <RadioGroup
                 name="demo-mode"
                 value={radioValue}

@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/ui/cn";
 import { useReturnFocus } from "@/lib/hooks/useReturnFocus";
@@ -39,6 +39,17 @@ export function Modal({
   children,
 }: ModalProps) {
   const dialog = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  const descriptionId = useId();
+
+  // The latest onClose, read when Escape is pressed. The listener effect below
+  // must NOT re-run when a parent passes a new inline onClose: re-running
+  // re-pushes this dialog onto the stack, so an outer dialog that re-renders
+  // - a message arriving - would jump above an inner one and take its Escape.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   // Focus goes in when the dialog opens and comes back out when it closes -
   // the second half via useReturnFocus, whose own docstring asks for exactly
@@ -66,7 +77,7 @@ export function Modal({
       if (event.key !== "Escape") return;
       // Only the innermost dialog answers. See openModals above.
       if (openModals[openModals.length - 1] !== token) return;
-      onClose();
+      onCloseRef.current();
     };
 
     const originalOverflow = document.body.style.overflow;
@@ -80,7 +91,7 @@ export function Modal({
       // the outer dialog's own "hidden" rather than the page's scroll.
       document.body.style.overflow = originalOverflow;
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -94,6 +105,8 @@ export function Modal({
         ref={dialog}
         role="dialog"
         aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         className={cn(
           "w-full rounded-3xl border border-sky-100 bg-white shadow-[0_20px_70px_rgba(14,88,148,0.25)] focus:outline-none dark:border-slate-700 dark:bg-slate-900",
@@ -103,11 +116,17 @@ export function Modal({
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5 dark:border-slate-700">
           <div>
-            <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">
+            <h2
+              id={titleId}
+              className="text-xl font-bold text-slate-900 dark:text-slate-100"
+            >
               {title}
             </h2>
             {description && (
-              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+              <p
+                id={descriptionId}
+                className="mt-1 text-sm text-slate-600 dark:text-slate-400"
+              >
                 {description}
               </p>
             )}

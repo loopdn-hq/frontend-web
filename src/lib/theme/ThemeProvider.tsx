@@ -8,6 +8,7 @@ import {
   ReactNode,
   useCallback,
 } from "react";
+import { useApplyAppearance } from "@/lib/app/appearance";
 
 export type ThemePreference = "light" | "dark" | "system";
 
@@ -44,6 +45,8 @@ function getStoredTheme(): ThemePreference {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  // Text size and message spacing sit on <html> beside the theme.
+  useApplyAppearance();
   const [theme, setThemeState] = useState<ThemePreference>(getStoredTheme);
   const [resolvedTheme, setResolvedTheme] = useState<"light" | "dark">(() => {
     const initialTheme = getStoredTheme();

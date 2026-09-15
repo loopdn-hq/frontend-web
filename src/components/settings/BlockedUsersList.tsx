@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Ban, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button, Input, Modal } from "@/components/ui";
 import { ChatAvatar } from "@/components/home/ChatAvatar";
 import {
@@ -9,22 +8,18 @@ import {
   unblockUser,
   type BlockedEntry,
 } from "@/lib/user/blocks";
+import { SettingsError, SettingsHeading } from "./SettingsRows";
 
 /**
- * Privacy: who you have stopped hearing from.
+ * The people you have blocked, loaded once when Privacy opens.
  *
- * Two views in one section rather than a route of its own - the summary row
- * with a count, and the list behind it - because the settings dialog has no
- * router and a person on this screen is answering one question: "who did I
- * block, and do I still mean it".
- *
- * Nothing here can ADD a block. That happens where you meet somebody, not in
- * a settings list, and the list is the only place it can be undone.
+ * `entries` is null until the list arrives, so Privacy can leave the count off
+ * rather than claim zero while it is still loading. `removed` takes somebody
+ * off after an unblock, so the count on the way back is already right.
  */
-export function BlockedUsersSection() {
+export function useBlockedUsers() {
   const [entries, setEntries] = useState<BlockedEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showList, setShowList] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,62 +41,17 @@ export function BlockedUsersSection() {
     );
   }
 
-  if (showList) {
-    return (
-      <BlockedUsersList
-        entries={entries ?? []}
-        onBack={() => setShowList(false)}
-        onUnblocked={removed}
-      />
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          Privacy
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Manage who can contact you on Loopd&apos;n.
-        </p>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setShowList(true)}
-        disabled={entries === null}
-        className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 text-left transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
-      >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500 dark:bg-rose-950/40">
-          <Ban className="h-5 w-5" />
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block font-medium text-slate-900 dark:text-slate-100">
-            Blocked users
-          </span>
-          <span className="block text-xs text-slate-500 dark:text-slate-400">
-            Manage people you&apos;ve blocked
-          </span>
-        </span>
-        {entries !== null && (
-          <span className="shrink-0 rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700 dark:bg-sky-950 dark:text-sky-300">
-            {entries.length}
-          </span>
-        )}
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
-      </button>
-
-      {error && (
-        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
+  return { entries, error, removed };
 }
 
-function BlockedUsersList({
+/**
+ * Who you have blocked, and a way to undo each one - the view behind
+ * Privacy → Blocked users.
+ *
+ * Nothing here can ADD a block. That happens where you meet somebody, not in
+ * a settings list, and the list is the only place it can be undone.
+ */
+export function BlockedUsersList({
   entries,
   onBack,
   onUnblocked,
@@ -125,8 +75,28 @@ function BlockedUsersList({
     );
   }, [entries, query]);
 
+  // After an unblock the focused button is gone with its row, so the dialog's
+  // own return-focus has nothing to go back to and focus would fall to the
+  // page behind. Send it to the Unblock now in the same place, or to the
+  // heading once nobody is left.
+  const root = useRef<HTMLDivElement>(null);
+  const refocusAt = useRef<number | null>(null);
+
+  useEffect(() => {
+    const index = refocusAt.current;
+    if (confirming !== null || index === null) return;
+    refocusAt.current = null;
+
+    const buttons = root.current?.querySelectorAll<HTMLElement>("li button");
+    const next =
+      buttons && buttons.length > 0
+        ? buttons[Math.min(index, buttons.length - 1)]
+        : null;
+    (next ?? root.current?.querySelector<HTMLElement>("h2"))?.focus();
+  }, [confirming]);
+
   async function confirmUnblock() {
-    if (!confirming) return;
+    if (!confirming || busy) return;
     setBusy(true);
     setError(null);
     const result = await unblockUser(confirming);
@@ -136,32 +106,21 @@ function BlockedUsersList({
       setError(result.message);
       return;
     }
+    refocusAt.current = matches.indexOf(confirming);
     onUnblocked(confirming);
     setConfirming(null);
   }
 
   return (
-    <div className="space-y-4">
-      <div>
-        {/* The design has no way back out of this view. Without one the only
-            escape is closing the whole dialog, so there is one. */}
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-2 -ml-1 inline-flex items-center gap-1 rounded-lg px-1 py-0.5 text-xs font-medium text-slate-500 transition hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Privacy
-        </button>
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-          Blocked users
-        </h2>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          People you block can&apos;t message you directly or add you to a
-          group. Groups you already share are unaffected - you both stay
-          members, and you both still see each other&apos;s messages there.
-        </p>
-      </div>
+    <div ref={root} className="space-y-4">
+      {/* The design has no way back out of this view. Without one the only
+          escape is closing the whole dialog, so there is one. */}
+      <SettingsHeading
+        title="Blocked users"
+        description="People you block can't message you directly or add you to a group. Groups you already share stay as they are - you both stay members and see each other's messages - except that their messages there no longer reach you by text or email."
+        backLabel="Privacy"
+        onBack={onBack}
+      />
 
       {entries.length > 0 && (
         <Input
@@ -216,11 +175,7 @@ function BlockedUsersList({
         ))}
       </ul>
 
-      {error && !confirming && (
-        <p className="text-xs text-red-600 dark:text-red-400" role="alert">
-          {error}
-        </p>
-      )}
+      {error && !confirming && <SettingsError>{error}</SettingsError>}
 
       <Modal
         isOpen={confirming !== null}
@@ -237,7 +192,13 @@ function BlockedUsersList({
             >
               Cancel
             </Button>
-            <Button onClick={confirmUnblock} disabled={busy}>
+            {/* aria-disabled, not disabled: this button has focus, and
+                disabling it would throw focus out of the dialog mid-request. */}
+            <Button
+              onClick={confirmUnblock}
+              aria-disabled={busy}
+              className="aria-disabled:opacity-60"
+            >
               {busy ? "Unblocking..." : "Unblock"}
             </Button>
           </div>
@@ -247,14 +208,7 @@ function BlockedUsersList({
           {confirming?.label} will be able to send you direct messages and add
           you to groups again.
         </p>
-        {error && (
-          <p
-            className="mt-3 text-xs text-red-600 dark:text-red-400"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
+        {error && <SettingsError className="mt-3">{error}</SettingsError>}
       </Modal>
     </div>
   );

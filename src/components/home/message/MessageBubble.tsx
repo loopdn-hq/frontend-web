@@ -119,9 +119,11 @@ export function MessageBubble({
       data-message-id={message.id}
       className={`group/message relative flex items-start gap-2 ${
         message.mine ? "justify-end" : "justify-start"
-      } ${startsRun ? "mt-3" : "mt-0.5"} ${
-        message.mine && isLastOwn ? "mb-4" : ""
-      }`}
+      } ${
+        // Settings → Appearance → Message spacing. `compact:` applies only
+        // when it is set to Compact; Comfortable is these values as they were.
+        startsRun ? "mt-3 compact:mt-1.5" : "mt-0.5 compact:mt-px"
+      } ${message.mine && isLastOwn ? "mb-4" : ""}`}
       onContextMenu={(event) => {
         // Nothing to act on once it is gone, so the browser keeps its menu.
         if (isDeleted || wantsNativeMenu(event.target)) return;
@@ -167,7 +169,7 @@ export function MessageBubble({
           narrower than before the extraction. */}
       <div className="relative min-w-0">
         <article
-          className={`max-w-xl rounded-2xl px-3 py-2 ${
+          className={`max-w-xl rounded-2xl px-3 py-2 compact:py-1 ${
             message.mine
               ? "bg-[#dff1ff] text-slate-900"
               : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
@@ -183,7 +185,7 @@ export function MessageBubble({
               crosses conversations, so naming the original sender would tell
               this room about somebody in a room it cannot see. */}
           {message.forwarded && !isDeleted && (
-            <p className="mb-0.5 flex items-center gap-1 text-[11px] text-slate-400 italic dark:text-slate-500">
+            <p className="mb-0.5 flex items-center gap-1 text-2xs text-slate-400 italic dark:text-slate-500">
               <CornerUpRight className="h-3 w-3" aria-hidden />
               Forwarded
             </p>
@@ -224,7 +226,7 @@ export function MessageBubble({
               )
             )}
             <span
-              className={`ml-auto flex shrink-0 items-center gap-1 text-[10px] leading-none ${
+              className={`ml-auto flex shrink-0 items-center gap-1 text-3xs leading-none ${
                 message.mine ? "text-sky-700/70" : "text-slate-400"
               }`}
             >
@@ -317,7 +319,7 @@ export function MessageBubble({
       {/* Spelled out once, under the newest message you sent - under every one
           it is noise, and the ticks already say it per message. */}
       {message.mine && isLastOwn && readers > 0 && (
-        <span className="absolute right-0 -bottom-4 text-[10px] whitespace-nowrap text-slate-400 dark:text-slate-500">
+        <span className="absolute right-0 -bottom-4 text-3xs whitespace-nowrap text-slate-400 dark:text-slate-500">
           {readers} read {message.time}
         </span>
       )}

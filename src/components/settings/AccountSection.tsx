@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Pencil, Trash2, User } from "lucide-react";
-import { Button, Modal } from "@/components/ui";
+import { Badge, Button, Modal } from "@/components/ui";
 import { ChatAvatar } from "@/components/home/ChatAvatar";
 import { EditProfileModal } from "./EditProfileModal";
 import type { ProfileEdit, UserProfile } from "./UserSettingsPanel";
@@ -114,7 +114,7 @@ export function AccountSection({
           Danger zone
         </p>
 
-        <div className="mt-3 flex items-center justify-between gap-4">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <div className="min-w-0">
             <p className="font-semibold text-slate-900 dark:text-slate-100">
               Delete account
@@ -204,9 +204,7 @@ function Detail({
           </span>
         )}
         {value && verified === false && (
-          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-400">
-            Unverified
-          </span>
+          <Badge tone="warning">Unverified</Badge>
         )}
       </dd>
     </div>

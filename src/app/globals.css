@@ -5,6 +5,11 @@
    manual theme toggle (which adds/removes the `.dark` class) actually works. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Settings → Appearance → Message spacing. `compact:` classes apply when the
+   saved spacing is compact - `data-message-spacing` on <html>, set before the
+   first paint by app/layout.tsx. */
+@custom-variant compact (&:where([data-message-spacing="compact"] *));
+
 :root {
   --background: #e8f5ff;
   --foreground: #0f172a;
@@ -28,6 +33,50 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-public-sans);
   --font-mono: var(--font-space-mono);
+}
+
+/* Two sizes below Tailwind's smallest, for the 10px and 11px text - chat
+   times, read receipts, reaction counts, badges. Tokens rather than
+   text-[10px], so they follow Text size below. No line-height of their own:
+   like the pixel classes they replace, they set the font size only. */
+@theme {
+  --text-3xs: 0.625rem;
+  --text-2xs: 0.6875rem;
+}
+
+/* Settings → Appearance → Text size. Tailwind's text-* utilities read these
+   variables (font-size: var(--text-sm)), so scaling them resizes text
+   everywhere without stretching the layout around it. Sizes still written
+   in pixels - text-[16px] and up - do not follow. Unlayered, so it wins
+   over Tailwind's own @layer theme values. */
+:root[data-text-size] {
+  --text-3xs: calc(0.625rem * var(--text-scale, 1));
+  --text-2xs: calc(0.6875rem * var(--text-scale, 1));
+  --text-xs: calc(0.75rem * var(--text-scale, 1));
+  --text-sm: calc(0.875rem * var(--text-scale, 1));
+  --text-base: calc(1rem * var(--text-scale, 1));
+  --text-lg: calc(1.125rem * var(--text-scale, 1));
+  --text-xl: calc(1.25rem * var(--text-scale, 1));
+  --text-2xl: calc(1.5rem * var(--text-scale, 1));
+  --text-3xl: calc(1.875rem * var(--text-scale, 1));
+  --text-4xl: calc(2.25rem * var(--text-scale, 1));
+  --text-5xl: calc(3rem * var(--text-scale, 1));
+  --text-6xl: calc(3.75rem * var(--text-scale, 1));
+}
+
+:root[data-text-size="small"] {
+  --text-scale: 0.9;
+}
+:root[data-text-size="large"] {
+  --text-scale: 1.125;
+}
+:root[data-text-size="larger"] {
+  --text-scale: 1.25;
+}
+
+/* Text with no size class of its own follows too. */
+:root[data-text-size] body {
+  font-size: var(--text-base);
 }
 
 body {

@@ -49,7 +49,7 @@ export function LoopMessagingInterface({
                   {message.sender}
                 </p>
                 {message.type === "announcement" && !message.mine && (
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+                  <p className="text-2xs font-semibold uppercase tracking-wide text-emerald-600">
                     📢 Announcement
                   </p>
                 )}
@@ -57,7 +57,7 @@ export function LoopMessagingInterface({
             </div>
             <p className="mt-1 text-sm leading-relaxed">{message.text}</p>
             <p
-              className={`mt-2 text-[11px] ${message.mine ? "text-sky-100" : "text-slate-400"}`}
+              className={`mt-2 text-2xs ${message.mine ? "text-sky-100" : "text-slate-400"}`}
             >
               {message.time}
             </p>
@@ -67,7 +67,7 @@ export function LoopMessagingInterface({
               !message.mine &&
               mode === "broadcast" && (
                 <div className="mt-2 border-t border-slate-200 pt-2">
-                  <p className="text-[11px] text-slate-600">
+                  <p className="text-2xs text-slate-600">
                     {message.replyMode === "private" &&
                       "💬 Reply privately to admins"}
                     {message.replyMode === "group_wide" &&
