@@ -21,7 +21,7 @@ const mono = Space_Mono({
 
 export const metadata: Metadata = {
   title: "Loopd'n",
-  description: "Loopdn: The group chat where everyone stays connected.",
+  description: "Loopd'n: The group chat where everyone stays connected.",
 };
 
 // Applies the saved theme before hydration to avoid a light/dark flash.
