@@ -15,28 +15,46 @@ type RadioGroupProps<T extends string = string> = {
   onChange: (value: T) => void;
   disabled?: boolean;
   orientation?: "vertical" | "horizontal";
+  /**
+   * "card" boxes each option. "plain" is a bare list, for a group that sits
+   * inside something that already has a border - a settings card.
+   */
+  variant?: "card" | "plain";
   className?: string;
+  /** Names the group - usually the id of the question's heading. */
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
 };
 
-const optionVariants = cva(
-  "flex cursor-pointer items-start gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800",
-  {
-    variants: {
-      checked: {
-        true: "border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30",
-        false: "",
-      },
-      disabled: {
-        true: "cursor-not-allowed opacity-60",
-        false: "",
-      },
+const optionVariants = cva("flex cursor-pointer items-start gap-3 transition", {
+  variants: {
+    variant: {
+      card: "rounded-lg border border-slate-200 p-3 hover:border-sky-300 hover:bg-sky-50 dark:border-slate-700 dark:hover:bg-slate-800",
+      plain: "py-1",
     },
-    defaultVariants: {
-      checked: false,
-      disabled: false,
+    checked: {
+      true: "",
+      false: "",
+    },
+    disabled: {
+      true: "cursor-not-allowed opacity-60",
+      false: "",
     },
   },
-);
+  compoundVariants: [
+    {
+      variant: "card",
+      checked: true,
+      className:
+        "border-sky-300 bg-sky-50 dark:border-sky-700 dark:bg-sky-950/30",
+    },
+  ],
+  defaultVariants: {
+    variant: "card",
+    checked: false,
+    disabled: false,
+  },
+});
 
 export function RadioGroup<T extends string = string>({
   name,
@@ -45,18 +63,27 @@ export function RadioGroup<T extends string = string>({
   onChange,
   disabled = false,
   orientation = "vertical",
+  variant = "card",
   className,
+  "aria-labelledby": labelledBy,
+  "aria-describedby": describedBy,
 }: RadioGroupProps<T>) {
+  const plain = variant === "plain";
+
   return (
     <div
       className={cn(
         orientation === "vertical"
-          ? "space-y-2"
+          ? plain
+            ? "space-y-0.5"
+            : "space-y-2"
           : "grid grid-cols-1 gap-2 sm:grid-cols-2",
         className,
       )}
       role="radiogroup"
       aria-disabled={disabled}
+      aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
     >
       {options.map((option) => {
         const checked = option.value === value;
@@ -65,7 +92,9 @@ export function RadioGroup<T extends string = string>({
         return (
           <label
             key={option.value}
-            className={cn(optionVariants({ checked, disabled: isDisabled }))}
+            className={cn(
+              optionVariants({ variant, checked, disabled: isDisabled }),
+            )}
           >
             <input
               type="radio"
@@ -74,10 +103,18 @@ export function RadioGroup<T extends string = string>({
               checked={checked}
               onChange={() => onChange(option.value)}
               disabled={isDisabled}
-              className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+              className={cn(
+                "h-4 w-4 cursor-pointer accent-sky-600",
+                plain ? "mt-0.5" : "mt-1",
+              )}
             />
             <span>
-              <span className="block font-medium text-slate-900 dark:text-slate-100">
+              <span
+                className={cn(
+                  "block text-slate-900 dark:text-slate-100",
+                  plain ? "text-sm" : "font-medium",
+                )}
+              >
                 {option.label}
               </span>
               {option.description && (

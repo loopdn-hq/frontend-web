@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Public_Sans, Space_Mono } from "next/font/google";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
+import { appearanceInitScript } from "@/lib/app/appearanceOptions";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
 
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+        <script dangerouslySetInnerHTML={{ __html: appearanceInitScript }} />
       </head>
       <body className="min-h-full flex flex-col">
         <GoogleOAuthProvider

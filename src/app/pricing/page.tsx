@@ -531,14 +531,14 @@ export default function PricingPage() {
                     {plan.highlighted && (
                       <p
                         aria-label="Most popular plan"
-                        className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
+                        className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-2xs font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
                       >
                         Most Popular
                       </p>
                     )}
 
                     {isCurrentPlan && (
-                      <p className="mb-3 inline-flex absolute -top-2 left-3 rounded-full border bg-emerald-100 px-3 py-1 text-[11px] font-bold tracking-wide text-emerald-800 uppercase dark:bg-emerald-950/50 dark:text-emerald-300">
+                      <p className="mb-3 inline-flex absolute -top-2 left-3 rounded-full border bg-emerald-100 px-3 py-1 text-2xs font-bold tracking-wide text-emerald-800 uppercase dark:bg-emerald-950/50 dark:text-emerald-300">
                         Current Plan
                       </p>
                     )}

@@ -116,6 +116,7 @@ import {
   Search,
 } from "lucide-react";
 import { NewConversationModal } from "./NewConversationModal";
+import { useLocalMessagingPreferences } from "@/lib/user/messagingPreferences";
 
 // One definition, owned by the component that renders it. The alias keeps the
 // ~40 existing references in this file reading as they did.
@@ -740,6 +741,8 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
+  // Settings → Messaging → "Press Enter to send", kept in this browser.
+  const { enterToSend } = useLocalMessagingPreferences();
   /**
    * What the next send will do, when it is not simply "post this".
    *
@@ -2012,7 +2015,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                   {conversation?.name}
                 </p>
                 {conversation.kind === "group" && conversation.isAdmin && (
-                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-3xs font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
                     Admin
                   </span>
                 )}
@@ -2033,7 +2036,7 @@ export function HomeShell({ mode }: HomeShellProps) {
             {/* Time above, badge below - so neither competes with the name for
                 width, and a long group name truncates far later. */}
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-[11px] leading-none text-slate-400 dark:text-slate-500">
+              <span className="text-2xs leading-none text-slate-400 dark:text-slate-500">
                 {conversationTimeLabel(conversation.lastMessageAt)}
               </span>
               <span className="flex items-center gap-1.5">
@@ -2106,7 +2109,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 {conversation.archived ? "Unarchive" : "Archive"}
               </button>
               {/* Says the thing people get wrong about these two. */}
-              <p className="px-3 pt-1.5 pb-1 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+              <p className="px-3 pt-1.5 pb-1 text-2xs leading-snug text-slate-400 dark:text-slate-500">
                 {conversation.muted
                   ? "Muted, so texts are paused too."
                   : "Archiving still delivers texts."}
@@ -2147,14 +2150,14 @@ export function HomeShell({ mode }: HomeShellProps) {
                         ? `Leave ${conversation.name}?`
                         : `Delete ${conversation.name}?`}
                     </p>
-                    <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
                       {rowConfirm === "leave"
                         ? "You stop receiving it. Your messages stay in the group."
                         : "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages."}
                     </p>
 
                     {rowActionError && (
-                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
                         {rowActionError}
                       </p>
                     )}
@@ -2781,7 +2784,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       {chip.label}
                       {chip.count > 0 && (
                         <span
-                          className={`rounded-full px-1.5 text-[10px] font-bold ${
+                          className={`rounded-full px-1.5 text-3xs font-bold ${
                             active
                               ? "bg-white/25 text-white"
                               : "bg-[#168CFF] text-white"
@@ -2870,7 +2873,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                                 ).toLocaleString()}`
                               : participant.name
                         }
-                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-2xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                       >
                         <span
                           aria-hidden
@@ -2899,7 +2902,7 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {selectedConversationId && (
                   <div
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                    className={`rounded-full px-2.5 py-1 text-3xs font-semibold ${
                       socketStatus === "connected"
                         ? "bg-sky-100 text-sky-700"
                         : socketStatus === "connecting"
@@ -3065,7 +3068,7 @@ export function HomeShell({ mode }: HomeShellProps) {
               thread.map((row) =>
                 row.kind === "day" ? (
                   <div key={row.key} className="flex justify-center py-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded-full bg-white px-3 py-1 text-2xs font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
                       {row.label}
                     </span>
                   </div>
@@ -3231,7 +3234,14 @@ export function HomeShell({ mode }: HomeShellProps) {
                         notifyTyping();
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
+                        // With "Press Enter to send" off, Enter does
+                        // nothing - a one-line box has no new line to add -
+                        // and Ctrl/Cmd+Enter still sends.
+                        if (
+                          e.key === "Enter" &&
+                          !e.shiftKey &&
+                          (enterToSend || e.metaKey || e.ctrlKey)
+                        ) {
                           e.preventDefault();
                           handleSendMessage();
                         }

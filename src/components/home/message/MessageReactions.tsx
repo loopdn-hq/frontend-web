@@ -47,7 +47,7 @@ export function MessageReactions({
             aria-label={`${reactionLabel(reaction.emoji)}, ${reaction.count}${
               mine ? ", including you" : ""
             }`}
-            className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] leading-none transition disabled:opacity-50 ${
+            className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-2xs leading-none transition disabled:opacity-50 ${
               mine
                 ? "border-sky-400 bg-sky-100 text-sky-800 dark:border-sky-500 dark:bg-sky-950 dark:text-sky-200"
                 : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300"
