@@ -108,7 +108,8 @@ export const FEATURE_TOGGLES: {
   {
     key: "extended_message_history",
     label: "Extended message history",
-    description: "Keep full message history beyond the standard retention window.",
+    description:
+      "Keep full message history beyond the standard retention window.",
     priceCents: 2_900,
   },
   {
@@ -247,7 +248,8 @@ export function calculateEnterprisePrice(
     MAX_GROUPS_OPTIONS,
     String(configuration.limits.max_groups),
   );
-  if (groups) lines.push({ label: groups.label, amountCents: groups.priceCents });
+  if (groups)
+    lines.push({ label: groups.label, amountCents: groups.priceCents });
 
   const members = findOption(
     MAX_MEMBERS_PER_GROUP_OPTIONS,
@@ -261,7 +263,8 @@ export function calculateEnterprisePrice(
     MAX_ADMINS_PER_GROUP_OPTIONS,
     String(configuration.limits.max_admins_per_group),
   );
-  if (admins) lines.push({ label: admins.label, amountCents: admins.priceCents });
+  if (admins)
+    lines.push({ label: admins.label, amountCents: admins.priceCents });
 
   const storage = findOption(
     STORAGE_GB_OPTIONS,

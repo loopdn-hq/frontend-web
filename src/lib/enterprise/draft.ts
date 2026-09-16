@@ -133,5 +133,9 @@ const getServerSnapshot = () => null;
  * lib/auth/client.ts.
  */
 export function useEnterpriseDraft(): EnterpriseDraft | null {
-  return useSyncExternalStore(subscribe, loadEnterpriseDraft, getServerSnapshot);
+  return useSyncExternalStore(
+    subscribe,
+    loadEnterpriseDraft,
+    getServerSnapshot,
+  );
 }

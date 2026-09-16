@@ -76,11 +76,17 @@ export default function EnterprisePlanBuilderPage() {
     [configuration],
   );
 
-  function persist(next: EnterpriseConfiguration, nextStatus: EnterpriseDraftStatus = "draft") {
+  function persist(
+    next: EnterpriseConfiguration,
+    nextStatus: EnterpriseDraftStatus = "draft",
+  ) {
     saveEnterpriseDraft(next, nextStatus);
   }
 
-  function updateLimit(key: keyof EnterpriseConfiguration["limits"], value: string) {
+  function updateLimit(
+    key: keyof EnterpriseConfiguration["limits"],
+    value: string,
+  ) {
     persist({
       ...configuration,
       limits: { ...configuration.limits, [key]: Number(value) },
@@ -150,9 +156,8 @@ export default function EnterprisePlanBuilderPage() {
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-700 dark:text-slate-300 sm:text-base">
                 Choose the limits, features, and messaging credits your
-                organization needs. Your estimate updates live as you go -
-                the final price is always confirmed before anything is
-                billed.
+                organization needs. Your estimate updates live as you go - the
+                final price is always confirmed before anything is billed.
               </p>
             </div>
             <Link
@@ -192,7 +197,9 @@ export default function EnterprisePlanBuilderPage() {
                     </div>
                   ))}
                 <div className="flex items-center justify-between gap-3 border-t border-emerald-200 pt-2 text-base font-bold dark:border-emerald-800 sm:col-span-2">
-                  <dt>Estimated total ({selectedInterval.label.toLowerCase()})</dt>
+                  <dt>
+                    Estimated total ({selectedInterval.label.toLowerCase()})
+                  </dt>
                   <dd>{formatCents(estimate.periodTotalCents)}</dd>
                 </div>
               </dl>
@@ -251,7 +258,9 @@ export default function EnterprisePlanBuilderPage() {
                       <PricedOptionGroup
                         legendId="max-members"
                         options={MAX_MEMBERS_PER_GROUP_OPTIONS}
-                        value={String(configuration.limits.max_members_per_group)}
+                        value={String(
+                          configuration.limits.max_members_per_group,
+                        )}
                         onChange={(value) =>
                           updateLimit("max_members_per_group", value)
                         }
@@ -264,7 +273,9 @@ export default function EnterprisePlanBuilderPage() {
                       <PricedOptionGroup
                         legendId="max-admins"
                         options={MAX_ADMINS_PER_GROUP_OPTIONS}
-                        value={String(configuration.limits.max_admins_per_group)}
+                        value={String(
+                          configuration.limits.max_admins_per_group,
+                        )}
                         onChange={(value) =>
                           updateLimit("max_admins_per_group", value)
                         }
@@ -401,7 +412,8 @@ export default function EnterprisePlanBuilderPage() {
                   </div>
                   {selectedInterval.months > 1 && (
                     <p className="mt-1 text-right text-xs text-slate-500 dark:text-slate-400">
-                      ~{formatCents(estimate.monthlyEquivalentCents)}/mo equivalent
+                      ~{formatCents(estimate.monthlyEquivalentCents)}/mo
+                      equivalent
                     </p>
                   )}
 
@@ -429,8 +441,8 @@ export default function EnterprisePlanBuilderPage() {
                     )}
                   </div>
                   <p className="mt-3 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Your configuration is saved automatically and will be
-                    here when you come back.
+                    Your configuration is saved automatically and will be here
+                    when you come back.
                   </p>
                 </section>
               </div>
