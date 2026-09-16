@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/auth/client";
 import { MentionPicker } from "@/components/home/message/MentionPicker";
 import {
@@ -406,6 +407,7 @@ type HomeShellProps = {
 };
 
 export function HomeShell({ mode }: HomeShellProps) {
+  const router = useRouter();
   const currentUsername = getSession();
   // The conversation list lives in the (app) layout's provider so it survives
   // navigating to another destination and back.
@@ -655,7 +657,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       const normalizedCode = planCode.toLowerCase();
       if (normalizedCode === "enterprise") {
         closeUpgradePrompt();
-        window.location.assign("/contact/");
+        router.push("/contact/");
         return;
       }
 
@@ -686,7 +688,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         setUpgradeCheckoutPlanCode(null);
       }
     },
-    [closeUpgradePrompt],
+    [closeUpgradePrompt, router],
   );
 
   const ownedGroupCount = useMemo(

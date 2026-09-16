@@ -16,3 +16,9 @@ export const EMAIL_VERIFIED_KEY = "loopdn_email_verified";
 // held only long enough to log in once /verify-email confirms the code, then
 // removed immediately. Registration itself issues no tokens.
 export const PENDING_LOGIN_KEY = "loopdn_pending_login";
+// sessionStorage only: a relative path to send the user to once they finish
+// the full auth chain (login, or signup -> verify-email -> verify-phone),
+// instead of the default /chats/. Set by a page that sent someone to
+// login/signup and wants them back afterwards (e.g. the Enterprise Plan
+// Builder); consumed once by whichever page completes that chain.
+export const POST_AUTH_REDIRECT_KEY = "loopdn_post_auth_redirect";
