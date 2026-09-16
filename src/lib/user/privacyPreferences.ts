@@ -2,15 +2,20 @@
  * The privacy settings.
  *
  * Saved on the account (`PrivacySettings`, through lib/user/accountSettings),
- * with a copy in this browser that the screen reads - AND NOTHING ENFORCES
- * THEM. Until the backend reads them, choosing
- * "Nobody" does not stop a direct message, and switching off either "Find me"
- * switch hides nobody: `find_user` (backend user/lookups.py) still resolves an
- * exact verified phone number or email when someone starts a direct message,
- * adds members or invites by email, and `GET /users/search/` also matches an
- * exact verified number. Enforcing them means gating `find_user`, not only
- * search. Shipping these to real people before the server reads them would
- * tell them they are hidden when they are not.
+ * with a copy in this browser that the screen reads. The backend enforces all
+ * of them (`user/privacy.py`) except **Online status**, which has nothing to
+ * hide yet: nothing sets presence, so everybody reads as offline.
+ *
+ * - "Who can send me direct messages" refuses at the start of a thread, with
+ *   "This person doesn't accept direct messages." A thread the two already
+ *   have carries on.
+ * - "Who can add me to groups" refuses on every route that adds somebody -
+ *   creating a group, adding members, an email invitation, and the moment an
+ *   invitation is claimed. The whole add fails and names who refused.
+ * - The two "Find me" switches hide an exact number or address from
+ *   `find_user` and from search. Neither hides a @username.
+ * - "Read receipts" is a two-way bargain: with it off, nobody sees your reads
+ *   and you see nobody else's. Your own row still shows your own.
  *
  * Blocking is NOT here. It is real (lib/user/blocks) and already enforced.
  *

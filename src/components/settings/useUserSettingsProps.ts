@@ -40,7 +40,6 @@ import type {
  * (lib/user/accountSettings). The browser stores hold a copy of what the
  * account last said, and that copy is what every screen and the chat box
  * read - so they draw at once, and a save shows only once the server has it.
- * "Allow messages to be delivered by SMS" alone stays in the browser.
  *
  * Every save handler THROWS on failure rather than logging. The caller is the
  * only one that knows what to do about it - a modal has to stay open and say
@@ -101,14 +100,7 @@ export function useUserSettingsProps(): ConnectedSettingsProps {
       emailEnabled: userProfile.emailEnabled ?? true,
     },
 
-    onSaveMessaging: async ({ smsDelivery, ...change }) => {
-      // Not on the account: only a carrier STOP or START moves texts (see
-      // lib/user/messagingPreferences).
-      if (smsDelivery !== undefined) {
-        saveLocalMessagingPreferences({ smsDelivery });
-      }
-      if (Object.keys(change).length === 0) return;
-
+    onSaveMessaging: async (change) => {
       const result = await saveAccountSettings("messaging", change);
       if (!result.ok) {
         throw new Error(result.message);
