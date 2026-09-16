@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/client";
 import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
+import type { MessageMention } from "@/lib/chat/mentions";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -228,6 +229,13 @@ export type ConversationMessage = {
   replyTo?: MessageReplyTo;
   /** The card for its first link, when it has one. */
   linkPreview?: LinkPreview;
+  /**
+   * Who this message names. Stored as ids rather than parsed out of the
+   * words, because most members have no handle to parse - see lib/chat/mentions.
+   */
+  mentions: MessageMention[];
+  /** Whether it named the whole Loop, which is a flag rather than a list. */
+  mentionsEveryone: boolean;
 };
 
 type ApiObject = Record<string, unknown>;
@@ -629,6 +637,24 @@ function normalizeLinkPreview(raw: unknown): LinkPreview | undefined {
   };
 }
 
+function normalizeMentions(value: unknown): MessageMention[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter(isApiObject).flatMap((row) => {
+    const participantId = row.participant_id;
+    if (typeof participantId !== "number") return [];
+
+    return [
+      {
+        participantId,
+        userId: typeof row.user_id === "number" ? row.user_id : null,
+        username: asText(row.username) || null,
+        displayLabel: asText(row.display_label),
+      },
+    ];
+  });
+}
+
 function normalizeMessage(item: ApiObject): ConversationMessage | null {
   const id = item.id;
   const conversationId = item.conversation;
@@ -680,6 +706,8 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     mine: item.mine === true,
     reactions,
     forwarded: item.forwarded === true,
+    mentions: normalizeMentions(item.mentions),
+    mentionsEveryone: item.mentions_everyone === true,
     editedAt: asText(item.edited_at) || null,
     deletedAt: asText(item.deleted_at) || null,
     ...(linkPreview ? { linkPreview } : {}),
@@ -1808,13 +1836,26 @@ export async function editConversationMessage(
   conversationId: string | number,
   messageId: string | number,
   text: string,
+  /**
+   * The edited words name whoever the edited words name, so an edit re-states
+   * the mentions - taking "@Bob" out of the sentence has to take Bob out of
+   * the mentions. Left off entirely, the message keeps the ones it has.
+   */
+  mentionIds?: number[],
+  mentionEveryone?: boolean,
 ): Promise<MessageResult> {
   return requestMessage(
     MESSAGE_ROUTE(conversationId, messageId),
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.trim() }),
+      body: JSON.stringify({
+        text: text.trim(),
+        ...(mentionIds !== undefined ? { mentions: mentionIds } : {}),
+        ...(mentionEveryone !== undefined
+          ? { mention_everyone: mentionEveryone }
+          : {}),
+      }),
     },
     "Unable to edit this message.",
   );
@@ -1909,6 +1950,13 @@ export async function sendConversationMessage(
    * id is refused rather than quoted.
    */
   replyToId?: string | number | null,
+  /**
+   * Membership ids the composer offered and the sender picked. The server
+   * drops any that are not an active member of THIS conversation, so a stale
+   * id costs a highlight rather than the message.
+   */
+  mentionIds: number[] = [],
+  mentionEveryone = false,
 ): Promise<
   { ok: true; message: ConversationMessage } | { ok: false; message: string }
 > {
@@ -1925,11 +1973,18 @@ export async function sendConversationMessage(
             if (replyToId != null) {
               formData.append("reply_to", String(replyToId));
             }
+            // Repeated keys, which is how a ListField reads a multipart body.
+            mentionIds.forEach((id) => {
+              formData.append("mentions", String(id));
+            });
+            if (mentionEveryone) formData.append("mention_everyone", "true");
             return formData;
           })()
         : JSON.stringify({
             text: text.trim(),
             ...(replyToId != null ? { reply_to: replyToId } : {}),
+            ...(mentionIds.length > 0 ? { mentions: mentionIds } : {}),
+            ...(mentionEveryone ? { mention_everyone: true } : {}),
           }),
     };
     if (!hasAttachments) {

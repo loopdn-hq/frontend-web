@@ -9,6 +9,21 @@ import {
   useRef,
 } from "react";
 import { getSession } from "@/lib/auth/client";
+import { MentionPicker } from "@/components/home/message/MentionPicker";
+import {
+  EVERYONE,
+  filterCandidates,
+  findMentionQuery,
+  insertMention,
+  pruneMentions,
+  toApiMentions,
+  type DraftMention,
+  type MentionCandidate,
+  type MentionQuery,
+} from "@/lib/chat/mentions";
+
+/** Ties the composer input to the mention list for a screen reader. */
+const MENTION_LIST_ID = "composer-mentions";
 import {
   addConversationMembers,
   fetchConversation,
@@ -820,6 +835,20 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
+  /**
+   * Who the draft names, as the ids the picker offered.
+   *
+   * Ids rather than the words, because the words are ambiguous: two members
+   * can be called "Mum" and a display name can change after the fact. Pruned
+   * against the text on the way out, so a name deleted from the sentence stops
+   * being a mention - see lib/chat/mentions.
+   */
+  const [composerMentions, setComposerMentions] = useState<DraftMention[]>([]);
+  /** The unfinished "@..." at the caret, or null when there is none. */
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  // Needed to put the caret back after a name is inserted mid-sentence.
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
   // Settings → Messaging → "Press Enter to send", kept in this browser.
   const { enterToSend } = useLocalMessagingPreferences();
   /**
@@ -921,6 +950,8 @@ export function HomeShell({ mode }: HomeShellProps) {
         linkPreview: message.linkPreview,
         reactions: message.reactions,
         forwarded: message.forwarded,
+        mentions: message.mentions,
+        mentionsEveryone: message.mentionsEveryone,
         editedAt: message.editedAt,
         deletedAt: message.deletedAt,
         text: message.text,
@@ -949,6 +980,83 @@ export function HomeShell({ mode }: HomeShellProps) {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
+
+  /**
+   * Who can be named in this Loop: everyone, then every other active member.
+   *
+   * Read from the participants the shell already loaded for this conversation.
+   * Members with no account are included - they can be named, they simply get
+   * the message by text like always and no notification of their own.
+   */
+  const mentionCandidates = useMemo<MentionCandidate[]>(() => {
+    const rows = selectedConversation?.participants ?? [];
+    return [
+      {
+        id: EVERYONE,
+        label: "everyone",
+        hint: "Everyone in this Loop",
+      },
+      ...rows
+        .filter(
+          (participant) =>
+            !currentUsername || participant.username !== currentUsername,
+        )
+        .map((participant) => ({
+          id: Number(participant.id),
+          label: participant.name,
+          hint: participant.userId ? undefined : "By text",
+        })),
+    ];
+  }, [selectedConversation, currentUsername]);
+
+  const mentionOptions = useMemo(
+    () =>
+      mentionQuery
+        ? filterCandidates(mentionCandidates, mentionQuery.query)
+        : [],
+    [mentionCandidates, mentionQuery],
+  );
+
+  const closeMentionPicker = useCallback(() => {
+    setMentionQuery(null);
+    setMentionIndex(0);
+  }, []);
+
+  const trackMentionQuery = useCallback((value: string, caret: number) => {
+    setMentionQuery(findMentionQuery(value, caret));
+    setMentionIndex(0);
+  }, []);
+
+  const pickMention = useCallback(
+    (option: MentionCandidate) => {
+      if (!mentionQuery) return;
+
+      const input = composerInputRef.current;
+      const caret = input?.selectionStart ?? messageInput.length;
+      const next = insertMention(
+        messageInput,
+        mentionQuery,
+        caret,
+        option.label,
+      );
+
+      setMessageInput(next.text);
+      setComposerMentions((current) => [
+        ...current,
+        { id: option.id, label: option.label },
+      ]);
+      closeMentionPicker();
+
+      // After React has written the new value, or the caret lands wherever the
+      // browser last had it - which for a name inserted mid-sentence is the
+      // wrong place.
+      requestAnimationFrame(() => {
+        input?.focus();
+        input?.setSelectionRange(next.caret, next.caret);
+      });
+    },
+    [mentionQuery, messageInput, closeMentionPicker],
+  );
   // Another screen asked for a specific Loop - Activity's "Open group". Acted
   // on during render rather than in an effect, which is what React prescribes
   // for adjusting state when an input changes, and waits for the list so a
@@ -1768,16 +1876,20 @@ export function HomeShell({ mode }: HomeShellProps) {
       if (!text) return;
       setIsSendingMessage(true);
       setMessageError(null);
+      const edited = toApiMentions(pruneMentions(text, composerMentions));
       const result = await editConversationMessage(
         selectedConversationId,
         composerContext.message.id,
         text,
+        edited.mentions,
+        edited.mentionEveryone,
       );
       if (!result.ok) {
         setMessageError(result.message);
       } else {
         applyMessageUpdate(result.message);
         setMessageInput("");
+        setComposerMentions([]);
         setComposerContext(null);
       }
       setIsSendingMessage(false);
@@ -1790,11 +1902,16 @@ export function HomeShell({ mode }: HomeShellProps) {
     stickToBottomRef.current = true;
     setIsSendingMessage(true);
     setMessageError(null);
+    // Only the names still in the words: somebody who picked "@Bob" and then
+    // deleted him from the sentence has not mentioned him.
+    const named = toApiMentions(pruneMentions(messageInput, composerMentions));
     const result = await sendConversationMessage(
       selectedConversationId,
       messageInput,
       messageAttachments,
       composerContext?.kind === "reply" ? composerContext.message.id : null,
+      named.mentions,
+      named.mentionEveryone,
     );
     if (!result.ok) {
       setMessageError(result.message);
@@ -1820,12 +1937,14 @@ export function HomeShell({ mode }: HomeShellProps) {
       );
       setMessageInput("");
       setMessageAttachments([]);
+      setComposerMentions([]);
       setComposerContext(null);
     }
     setIsSendingMessage(false);
   }, [
     messageAttachments,
     messageInput,
+    composerMentions,
     selectedConversationId,
     isSendingMessage,
     toUiMessage,
@@ -2748,6 +2867,18 @@ export function HomeShell({ mode }: HomeShellProps) {
   const startEditing = useCallback((message: Message) => {
     setComposerContext({ kind: "edit", message });
     setMessageInput(message.text);
+    // Seeded from the message, so an edit that leaves "@Bob" alone keeps
+    // Bob mentioned - and one that deletes him drops him, because the list is
+    // pruned against the final words on the way out.
+    setComposerMentions([
+      ...(message.mentionsEveryone
+        ? [{ id: EVERYONE as typeof EVERYONE, label: "everyone" }]
+        : []),
+      ...(message.mentions ?? []).map((mention) => ({
+        id: mention.participantId,
+        label: mention.displayLabel,
+      })),
+    ]);
   }, []);
 
   const cancelComposerContext = useCallback(() => {
@@ -3510,12 +3641,60 @@ export function HomeShell({ mode }: HomeShellProps) {
                       placeholder={
                         isEditing ? "Edit your message..." : "Type a message..."
                       }
+                      ref={composerInputRef}
                       value={messageInput}
+                      role="combobox"
+                      aria-expanded={mentionOptions.length > 0}
+                      aria-controls={MENTION_LIST_ID}
+                      aria-autocomplete="list"
+                      aria-activedescendant={
+                        mentionOptions.length > 0
+                          ? `${MENTION_LIST_ID}-option-${mentionIndex}`
+                          : undefined
+                      }
                       onChange={(e) => {
                         setMessageInput(e.target.value);
+                        // Whether an "@..." is being typed is a question about
+                        // the CARET, not the end of the text - somebody can go
+                        // back and name a person mid-sentence.
+                        trackMentionQuery(
+                          e.target.value,
+                          e.target.selectionStart ?? e.target.value.length,
+                        );
                         notifyTyping();
                       }}
                       onKeyDown={(e) => {
+                        // While the picker is open it owns these keys: the
+                        // arrows move the highlight and Enter takes the name.
+                        // Only with it closed does Enter send the message.
+                        if (mentionOptions.length > 0) {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setMentionIndex(
+                              (index) => (index + 1) % mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setMentionIndex(
+                              (index) =>
+                                (index - 1 + mentionOptions.length) %
+                                mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            e.preventDefault();
+                            pickMention(mentionOptions[mentionIndex]);
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            closeMentionPicker();
+                            return;
+                          }
+                        }
                         // With "Press Enter to send" off, Enter does
                         // nothing - a one-line box has no new line to add -
                         // and Ctrl/Cmd+Enter still sends.
@@ -3565,6 +3744,16 @@ export function HomeShell({ mode }: HomeShellProps) {
                   <div className="text-center text-sm text-slate-500 dark:text-slate-400">
                     Only Admins Can Post Messages
                   </div>
+                )}
+
+                {mentionQuery && (
+                  <MentionPicker
+                    id={MENTION_LIST_ID}
+                    options={mentionOptions}
+                    activeIndex={mentionIndex}
+                    onPick={pickMention}
+                    onHover={setMentionIndex}
+                  />
                 )}
 
                 {showEmojiPicker && (
