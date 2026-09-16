@@ -12,6 +12,7 @@ import {
   SettingsError,
   SettingsHeading,
 } from "./SettingsRows";
+import { PushOnThisBrowser } from "./PushOnThisBrowser";
 import { useOptimisticChanges } from "./useOptimisticChanges";
 import { useSubView } from "./useSubView";
 
@@ -66,6 +67,11 @@ export function NotificationsSection({
         title="Notifications"
         description="Choose what Loopd'n tells you about, and how."
       />
+
+      {/* Above the switches on purpose: with notifications not allowed on this
+          browser, none of them can do anything, and a screen that does not say
+          so reads as broken. */}
+      <PushOnThisBrowser />
 
       <PreferenceGroups<NotificationPreferences>
         groups={NOTIFICATION_GROUPS}

@@ -20,6 +20,7 @@ import {
   logout,
   useAccessToken,
 } from "@/lib/auth/client";
+import { syncPush } from "@/lib/app/push";
 import { useWebSocket } from "@/lib/websocket/useWebSocket";
 import {
   conversationMode,
@@ -239,6 +240,64 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   // useWebSocket rebuilds its connection whenever onMessage changes identity,
   // so handing it a subscriber that re-creates each render would tear the
   // socket down and open a new one on every keystroke.
+  // Notifications, on every signed-in route. Two things, both of which have
+  // to happen above the routes: the service worker is registered once for the
+  // whole app, and a tap on a notification has to be able to open a
+  // conversation from wherever the reader happens to be.
+  useEffect(() => {
+    // Silent - it never prompts. It re-points an already-allowed browser at
+    // whoever is signed in NOW, which is what stops a shared computer showing
+    // one person's messages to another. See lib/app/push.ts.
+    void syncPush();
+
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return;
+    }
+
+    // The service worker cannot change this tab's conversation itself - which
+    // one is open is client state, not a URL - so it asks.
+    const onWorkerMessage = (event: MessageEvent) => {
+      const data = event.data as {
+        type?: string;
+        conversationId?: string | number;
+      } | null;
+      if (!data || data.type !== "loopdn:open-conversation") return;
+      if (data.conversationId === undefined) return;
+
+      requestOpenConversation(data.conversationId);
+      router.push("/chats/");
+    };
+
+    navigator.serviceWorker.addEventListener("message", onWorkerMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
+    };
+  }, [requestOpenConversation, router]);
+
+  // The other half: a notification tapped with no Loopd'n window open lands on
+  // /chats/#conversation=<id>, because a fresh page load has no tab to ask.
+  // A hash rather than a query param for the reason given above on
+  // `conversationToOpen`.
+  useEffect(() => {
+    const match = /^#conversation=(\d+)$/.exec(window.location.hash);
+    if (!match) return;
+
+    const conversationId = Number(match[1]);
+    // Out of the URL first, and synchronously: a refresh an hour later must
+    // not yank the reader back to the same conversation.
+    window.history.replaceState(null, "", window.location.pathname);
+
+    // Asked for on the next tick rather than in the effect body. Setting state
+    // synchronously while an effect runs cascades another render before the
+    // first has painted, which is what `react-hooks/set-state-in-effect`
+    // forbids - and this is a one-off handover from the URL, not a
+    // subscription, so there is nothing to keep in sync.
+    const handover = window.setTimeout(() => {
+      requestOpenConversation(conversationId);
+    }, 0);
+    return () => window.clearTimeout(handover);
+  }, [requestOpenConversation]);
+
   const socketListeners = useRef<Set<SocketListener>>(new Set());
 
   const subscribeToSocket = useCallback((listener: SocketListener) => {
