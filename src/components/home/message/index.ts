@@ -7,6 +7,7 @@
  */
 export { MessageBubble, type ThreadMessage } from "./MessageBubble";
 export { MessageReactions } from "./MessageReactions";
+export { MessageThreadSkeleton } from "./MessageThreadSkeleton";
 export { ReactionBar } from "./ReactionBar";
 export { MessageInfoModal } from "./MessageInfoModal";
 export { ComposerContextBar, type ComposerContext } from "./ComposerContextBar";

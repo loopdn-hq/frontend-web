@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Wallet } from "lucide-react";
+import { AnalyticsSkeleton } from "@/components/app/AnalyticsSkeleton";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import { fetchBillingAnalytics, type BillingAnalytics } from "@/lib/billing";
 
@@ -74,11 +75,7 @@ export default function AnalyticsPage() {
       </header>
 
       <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
-        {isLoading && (
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            Loading analytics...
-          </p>
-        )}
+        {isLoading && <AnalyticsSkeleton />}
 
         {!isLoading && error && (
           <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700 dark:bg-rose-950 dark:text-rose-300">
