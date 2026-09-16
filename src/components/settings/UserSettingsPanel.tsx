@@ -354,6 +354,10 @@ function BillingSettings() {
     };
   }, []);
 
+  // The backend folds an active Enterprise contract's entitlements directly
+  // into subscription.plan (code becomes the contract number, limits are the
+  // real ones, features list what's enabled) - no separate Enterprise-aware
+  // path needed here, this already reflects it.
   const activePlan = useMemo(() => {
     return summary?.subscription.plan ?? null;
   }, [summary]);
@@ -458,6 +462,9 @@ function BillingSettings() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             Current Plan
           </p>
+          {/* activePlan.name already includes the contract number for an
+              Enterprise plan (e.g. "Enterprise (ENT-2026-000003)") - no
+              need to append it again here. */}
           <p className="mt-1 text-lg font-semibold text-slate-900 dark:text-slate-100">
             {activePlan.name}
           </p>
@@ -472,7 +479,11 @@ function BillingSettings() {
           </p>
           <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
             Limits: {activePlan.maxGroups ?? "Unlimited"} groups, up to{" "}
-            {activePlan.maxMembersPerGroup ?? "Unlimited"} members per group
+            {activePlan.maxMembersPerGroup ?? "Unlimited"} members per group, up
+            to {activePlan.maxAdminsPerGroup ?? "Unlimited"} admins per group
+            {typeof activePlan.storageGb === "number"
+              ? `, ${activePlan.storageGb} GB storage`
+              : ""}
           </p>
           <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
             Wallet balance: {formatCurrency(summary.wallet.balanceCents)}
@@ -559,6 +570,57 @@ function BillingSettings() {
                 </Button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {summary?.enterpriseCredits && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Enterprise Message Credits
+              </p>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
+                {summary.enterpriseCredits.balance.toLocaleString()}{" "}
+                <span className="text-sm font-normal text-slate-500 dark:text-slate-400">
+                  /{" "}
+                  {summary.enterpriseCredits.monthlyAllowance.toLocaleString()}{" "}
+                  messages
+                </span>
+              </p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                Resets each billing period - separate from the Communication
+                Wallet above.
+              </p>
+            </div>
+            <span
+              className={`inline-flex rounded-full px-2.5 py-1 text-2xs font-semibold ${
+                summary.enterpriseCredits.status === "active"
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+              }`}
+            >
+              {summary.enterpriseCredits.status}
+            </span>
+          </div>
+
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+            <div
+              className="h-full rounded-full bg-sky-500"
+              style={{
+                width: `${
+                  summary.enterpriseCredits.monthlyAllowance > 0
+                    ? Math.min(
+                        100,
+                        (summary.enterpriseCredits.balance /
+                          summary.enterpriseCredits.monthlyAllowance) *
+                          100,
+                      )
+                    : 0
+                }%`,
+              }}
+            />
           </div>
         </div>
       )}

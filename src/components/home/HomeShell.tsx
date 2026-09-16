@@ -643,6 +643,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     });
   }, [billingPlans]);
 
+  // The backend folds an active Enterprise contract's entitlements directly
+  // into subscription.plan (code becomes the contract number, limits are the
+  // real ones, features list what's enabled) - no separate Enterprise-aware
+  // path needed here, this already reflects it.
   const activePlan = billingSummary?.subscription.plan ?? null;
   const currentPlanCode = activePlan?.code?.toLowerCase() ?? "";
 
