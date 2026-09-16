@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  consumePostAuthRedirect,
   getPendingPhone,
   requestPhoneVerificationCode,
   useAuth,
@@ -74,7 +75,7 @@ export default function VerifyPhonePage() {
         return;
       }
 
-      router.push("/chats/");
+      router.push(consumePostAuthRedirect() ?? "/chats/");
     } finally {
       setIsVerifying(false);
     }
