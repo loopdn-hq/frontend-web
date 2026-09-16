@@ -3,19 +3,27 @@
 import { useSyncExternalStore } from "react";
 import type { EnterpriseConfiguration } from "./catalog";
 
-// Anonymous-draft persistence for the Enterprise Plan Builder.
+// Local draft persistence for the Enterprise Plan Builder.
 //
-// The PRD calls for the backend to own drafts (EnterprisePlanDraft, attach on
-// login, freeze into a contract, etc. - see PRD sections 11-13). None of that
-// API exists yet, so this is a local stand-in: the draft lives in
-// localStorage, survives a login/signup round trip on the same device, and
-// can be swapped for real `POST/GET /enterprise/drafts/` calls later without
-// changing the builder page's shape (draftId + configuration + status).
+// The backend owns the authoritative draft (EnterprisePlanDraft - see PRD
+// sections 11-13) once the user is signed in and submits; this is what lets
+// the builder work before that - the draft lives in localStorage, survives a
+// login/signup round trip on the same device, and carries the backend's own
+// draft id (`remoteDraftId`) once one exists.
 
 export type EnterpriseDraftStatus = "draft" | "submitted";
 
 export type EnterpriseDraft = {
+  /** Local-only bookkeeping id - never sent to the backend. */
   draftId: string;
+  /**
+   * The backend's own draft id, once one exists. `POST /enterprise/drafts/`
+   * only accepts a `draft_id` in the body to UPDATE an existing draft - it
+   * 404s if given an id it's never seen, so the very first submit must omit
+   * `draft_id` entirely and let the backend generate one. This is that id,
+   * null until the first successful submit.
+   */
+  remoteDraftId: string | null;
   configuration: EnterpriseConfiguration;
   status: EnterpriseDraftStatus;
   createdAt: string;
@@ -85,6 +93,7 @@ export function saveEnterpriseDraft(
   const now = new Date().toISOString();
   const draft: EnterpriseDraft = {
     draftId: existing?.draftId ?? generateDraftId(),
+    remoteDraftId: existing?.remoteDraftId ?? null,
     configuration,
     status,
     createdAt: existing?.createdAt ?? now,
@@ -100,6 +109,31 @@ export function saveEnterpriseDraft(
   }
 
   return draft;
+}
+
+/**
+ * Records the backend's draft id after a successful submit, so the next
+ * submit updates that same draft instead of the backend 404ing on an id it's
+ * never seen. No-ops (rather than throwing) if there's no local draft to
+ * attach it to, which shouldn't happen in practice - this is only ever
+ * called right after a submit that itself required a local draft to exist.
+ */
+export function setRemoteDraftId(remoteDraftId: string): void {
+  const existing = loadEnterpriseDraft();
+  if (!existing) return;
+
+  const draft: EnterpriseDraft = {
+    ...existing,
+    remoteDraftId,
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    notify();
+  } catch {
+    // ignore
+  }
 }
 
 export function clearEnterpriseDraft(): void {
