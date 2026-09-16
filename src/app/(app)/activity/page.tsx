@@ -28,7 +28,11 @@ const FILTERS = [
   { id: "groups", label: "Groups" },
   { id: "invites", label: "Invites" },
   { id: "account", label: "Account" },
-  { id: "sms", label: "SMS" },
+  // One chip for both channels: text and email failures answer the same
+  // question - did my message get out - and a chip per channel would grow with
+  // every channel. The server derives it from the type prefix
+  // (Notification.CATEGORY_BY_PREFIX).
+  { id: "delivery", label: "Delivery" },
 ] as const;
 
 type FilterId = (typeof FILTERS)[number]["id"];

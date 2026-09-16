@@ -20,10 +20,11 @@ export type NotificationType =
   | "sms.opted_in"
   | "sms.send_failed"
   | "sms.invite_pending"
+  | "email.send_failed"
   | "general";
 
 export type NotificationCategory =
-  "groups" | "invites" | "sms" | "account" | "general";
+  "groups" | "invites" | "delivery" | "account" | "general";
 
 /** Where the recipient stands in the conversation right now, if anywhere. */
 export type ViewerStatus =

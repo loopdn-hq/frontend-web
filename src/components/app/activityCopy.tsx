@@ -34,6 +34,13 @@ export function presentNotification(
   const who = notification.actorName ?? "Someone";
   const group = notification.conversationName ?? "a group";
 
+  // How many people a message failed to reach. One alert per message carries
+  // the count rather than one alert per person - see
+  // backend/notification/delivery_alerts.py.
+  const missed =
+    typeof notification.data?.count === "number" ? notification.data.count : 0;
+  const people = missed === 1 ? "1 person" : `${missed} people`;
+
   switch (notification.type) {
     case "join.requested":
       return {
@@ -106,8 +113,19 @@ export function presentNotification(
     case "sms.send_failed":
       return {
         title: "A message did not reach everyone",
-        detail: "SMS delivery failed for some members.",
+        detail: missed
+          ? `${people} did not get it by text in ${group}.`
+          : "Text delivery failed for some members.",
         icon: CircleAlert,
+        tone: "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300",
+      };
+    case "email.send_failed":
+      return {
+        title: "A message did not reach everyone",
+        detail: missed
+          ? `${people} did not get it by email in ${group}.`
+          : "Email delivery failed for some members.",
+        icon: Mail,
         tone: "bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-300",
       };
     case "sms.invite_pending":
