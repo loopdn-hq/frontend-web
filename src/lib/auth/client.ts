@@ -693,7 +693,7 @@ export type ProfileResult =
       phone?: string;
       emailVerified?: boolean;
       phoneVerified?: boolean;
-      // The account-wide switch for group email (Profile.email_enabled). Per-group
+      // The account-wide switch for group email (MessagingSettings.email_enabled, carried on this endpoint). Per-group
       // opt-outs live on each conversation's delivery settings, not here.
       emailEnabled?: boolean;
       bio?: string;

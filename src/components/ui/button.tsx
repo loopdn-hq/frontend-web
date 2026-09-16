@@ -16,9 +16,11 @@ const buttonVariants = cva(
         danger: "bg-rose-600 text-white hover:bg-rose-700",
       },
       size: {
-        sm: "h-9 px-3",
-        md: "h-11 px-4",
-        lg: "h-12 px-5",
+        // Minimum, not fixed, heights: at a larger Settings → Appearance text
+        // size a label can wrap, and a fixed height let it spill outside.
+        sm: "min-h-9 px-3",
+        md: "min-h-11 px-4",
+        lg: "min-h-12 px-5",
         icon: "h-10 w-10",
       },
       fullWidth: {

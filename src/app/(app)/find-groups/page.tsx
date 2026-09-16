@@ -159,7 +159,7 @@ export default function FindGroupsPage() {
               </span>
             )}
             <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.tone}`}
+              className={`rounded-full px-2 py-0.5 text-2xs font-semibold ${badge.tone}`}
             >
               {badge.label}
             </span>

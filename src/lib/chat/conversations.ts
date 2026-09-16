@@ -170,6 +170,19 @@ export type MessageReaction = {
   usernames: string[];
 };
 
+/**
+ * The card for the first link in a message: the page's title, description
+ * and picture. Built by the server after the message was sent, and only when
+ * the SENDER has "Show link previews" on - it arrives as a message update.
+ */
+export type LinkPreview = {
+  url: string;
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+};
+
 export type ConversationMessage = {
   id: string | number;
   conversationId: string | number;
@@ -199,6 +212,8 @@ export type ConversationMessage = {
   source: MessageSource;
   /** The message this one answers, when it answers one. */
   replyTo?: MessageReplyTo;
+  /** The card for its first link, when it has one. */
+  linkPreview?: LinkPreview;
 };
 
 type ApiObject = Record<string, unknown>;
@@ -250,6 +265,27 @@ export function normalizeConversationPayload(
   raw: unknown,
 ): Conversation | null {
   return isApiObject(raw) ? normalizeConversation(raw) : null;
+}
+
+/**
+ * Fold conversations into a list: the incoming ones first and fresh, every
+ * other row kept after them in the order it had.
+ *
+ * Everything that calls this is reporting something that just changed - a
+ * first page refetched after being added to a group, one conversation a
+ * message has just arrived in - and "just changed" is also "belongs at the
+ * top". Replacing the list instead would throw away every later page the
+ * reader had scrolled to.
+ */
+export function mergeConversations(
+  current: Conversation[],
+  incoming: Conversation[],
+): Conversation[] {
+  const replaced = new Set(incoming.map((row) => String(row.id)));
+  return [
+    ...incoming,
+    ...current.filter((row) => !replaced.has(String(row.id))),
+  ];
 }
 
 /**
@@ -370,7 +406,16 @@ function senderLabelFrom(sender: unknown): string {
 
 function normalizeConversation(item: ApiObject): Conversation | null {
   const id = item.id;
-  if ((typeof id !== "string" && typeof id !== "number") || !item.name) {
+  // `title`, not `name`, is what says a conversation can be shown. A direct
+  // conversation has no name of its own - the column is always '' - and is
+  // titled after the other person by the server. Requiring `name` threw away
+  // every direct conversation in the list, on the live `conversation.added`
+  // refresh and in fetchConversation alike, so a DM could be created and never
+  // opened by either person.
+  if (
+    (typeof id !== "string" && typeof id !== "number") ||
+    !(item.title || item.name)
+  ) {
     return null;
   }
 
@@ -523,6 +568,24 @@ export function hasReacted(
   return username !== null && reaction.usernames.includes(username);
 }
 
+/**
+ * A card off the wire, or undefined. Only a web link may open from it, and
+ * only an https picture is shown - an http one on an https page is blocked.
+ */
+function normalizeLinkPreview(raw: unknown): LinkPreview | undefined {
+  if (!isApiObject(raw)) return undefined;
+  const url = asText(raw.url);
+  if (!/^https?:\/\//i.test(url)) return undefined;
+  const imageUrl = asText(raw.image_url);
+  return {
+    url,
+    title: asText(raw.title) || null,
+    description: asText(raw.description) || null,
+    imageUrl: /^https:\/\//i.test(imageUrl) ? imageUrl : null,
+    siteName: asText(raw.site_name) || null,
+  };
+}
+
 function normalizeMessage(item: ApiObject): ConversationMessage | null {
   const id = item.id;
   const conversationId = item.conversation;
@@ -549,6 +612,7 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
 
   const replyTo = normalizeReplyTo(item.reply_to);
   const reactions = normalizeReactions(item.reactions);
+  const linkPreview = normalizeLinkPreview(item.link_preview);
 
   const rawSource = item.source;
   const source: MessageSource =
@@ -575,6 +639,7 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     forwarded: item.forwarded === true,
     editedAt: asText(item.edited_at) || null,
     deletedAt: asText(item.deleted_at) || null,
+    ...(linkPreview ? { linkPreview } : {}),
     attachments: Array.isArray(item.attachments)
       ? item.attachments
           .filter(isApiObject)

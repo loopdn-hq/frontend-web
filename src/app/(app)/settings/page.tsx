@@ -7,6 +7,7 @@ import {
   settingsHref,
   UserSettingsPanel,
   type SettingsTab,
+  type UserSettingsPanelProps,
 } from "@/components/settings/UserSettingsPanel";
 import { useUserSettingsProps } from "@/components/settings/useUserSettingsProps";
 
@@ -34,6 +35,23 @@ function useTabFromHash(): SettingsTab | undefined {
 }
 
 /**
+ * The panel and its wiring as ONE keyed element.
+ *
+ * The wiring subscribes to the profile and to the browser-kept settings, so
+ * every save re-renders whatever calls it. Called from the page, that
+ * re-render re-read the hash - which `replaceState` had already moved to the
+ * tab just clicked - found a new key, and remounted the panel mid-edit: a
+ * Privacy picker closed on its first choice. Called here, below the key, a
+ * save re-renders the panel and nothing above it.
+ */
+function ConnectedSettingsPanel(
+  props: Pick<UserSettingsPanelProps, "initialTab" | "onTabChange">,
+) {
+  const settingsProps = useUserSettingsProps();
+  return <UserSettingsPanel {...props} {...settingsProps} />;
+}
+
+/**
  * Settings as a page.
  *
  * The nav rail opens the same panel as a dialog, which is how most people will
@@ -42,14 +60,13 @@ function useTabFromHash(): SettingsTab | undefined {
  * dialog rather than keeping a second copy.
  */
 export default function SettingsPage() {
-  const settingsProps = useUserSettingsProps();
   const tab = useTabFromHash();
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="mx-auto max-w-5xl">
         <NavDrawerButton className="mt-4 ml-4 bg-slate-900 text-white" />
-        <UserSettingsPanel
+        <ConnectedSettingsPanel
           // Remounted when the URL names a different tab, so a deep link lands
           // where it says even when Settings is already the open page.
           key={tab ?? "profile"}
@@ -61,7 +78,6 @@ export default function SettingsPage() {
           onTabChange={(next) =>
             window.history.replaceState(null, "", settingsHref(next))
           }
-          {...settingsProps}
         />
       </div>
     </div>

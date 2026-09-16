@@ -18,6 +18,7 @@ import {
 export const SETTINGS_MODAL_TABS: SettingsTab[] = [
   "security",
   "appearance",
+  "messaging",
   "notifications",
   "privacy",
   "billing",
@@ -26,7 +27,7 @@ export const SETTINGS_MODAL_TABS: SettingsTab[] = [
 
 // Re-exported so existing importers of this module keep working; the types now
 // live beside the panel that owns them.
-export type { UserProfile, NotificationPreferences } from "./UserSettingsPanel";
+export type { UserProfile } from "./UserSettingsPanel";
 
 type UserSettingsModalProps = Omit<
   UserSettingsPanelProps,

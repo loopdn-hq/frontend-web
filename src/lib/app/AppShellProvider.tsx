@@ -24,6 +24,7 @@ import { useWebSocket } from "@/lib/websocket/useWebSocket";
 import {
   conversationMode,
   fetchConversations,
+  mergeConversations,
   type Conversation,
 } from "@/lib/chat/conversations";
 import { fetchNotifications } from "@/lib/chat/notifications";
@@ -94,24 +95,6 @@ type AppShellContextType = {
 const AppShellContext = createContext<AppShellContextType | undefined>(
   undefined,
 );
-
-/**
- * Fold a freshly fetched first page into a list that may already hold more.
- *
- * Updates what it recognises in place and puts anything genuinely new at the
- * front, rather than truncating the reader back to twenty rows every time
- * somebody adds them to a group.
- */
-function mergeFirstPage(
-  current: Conversation[],
-  firstPage: Conversation[],
-): Conversation[] {
-  const incoming = new Map(firstPage.map((row) => [String(row.id), row]));
-  const kept = current
-    .filter((row) => !incoming.has(String(row.id)))
-    .map((row) => row);
-  return [...firstPage, ...kept];
-}
 
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -287,7 +270,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       fetchConversations().then((result) => {
         if (!result.ok) return;
         setConversations((current) =>
-          mergeFirstPage(current, result.conversations),
+          mergeConversations(current, result.conversations),
         );
       });
     }

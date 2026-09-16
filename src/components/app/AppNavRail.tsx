@@ -308,7 +308,7 @@ export function AppNavRail() {
           {NAV_SECTIONS.map((section, index) => (
             <div key={section.heading ?? `section-${index}`} className="mb-2">
               {section.heading && !collapsed && (
-                <p className="px-3 pt-4 pb-2 text-[11px] font-semibold tracking-[0.15em] text-slate-500 uppercase">
+                <p className="px-3 pt-4 pb-2 text-2xs font-semibold tracking-[0.15em] text-slate-500 uppercase">
                   {section.heading}
                 </p>
               )}
@@ -357,12 +357,12 @@ export function AppNavRail() {
                             {item.label}
                           </span>
                           {item.tag && (
-                            <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                            <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-3xs font-bold text-white">
                               {item.tag}
                             </span>
                           )}
                           {badge > 0 && (
-                            <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-[11px] font-bold text-white">
+                            <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-2xs font-bold text-white">
                               {badge}
                             </span>
                           )}
@@ -370,7 +370,7 @@ export function AppNavRail() {
                       )}
 
                       {collapsed && badge > 0 && (
-                        <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-[10px] font-bold text-white">
+                        <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-3xs font-bold text-white">
                           {badge}
                         </span>
                       )}
