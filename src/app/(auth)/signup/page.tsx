@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { AuthScreen } from "@/components/auth/AuthScreen";
-import { useAuth } from "@/lib/auth/client";
+import { consumePostAuthRedirect, useAuth } from "@/lib/auth/client";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -11,7 +11,7 @@ export default function SignupPage() {
 
   useEffect(() => {
     if (isLoaded && session) {
-      router.replace("/chats/");
+      router.replace(consumePostAuthRedirect() ?? "/chats/");
     }
   }, [router, isLoaded, session]);
 

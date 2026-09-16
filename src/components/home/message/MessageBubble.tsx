@@ -4,6 +4,7 @@ import { useRef } from "react";
 import Image from "next/image";
 import { Check, CheckCheck, CornerUpRight, MoreHorizontal } from "lucide-react";
 import { ChatAvatar } from "../ChatAvatar";
+import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MessageReactions } from "./MessageReactions";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
 import type { ConversationMessage } from "@/lib/chat/conversations";
@@ -42,6 +43,8 @@ export type ThreadMessage = {
   source: ConversationMessage["source"];
   /** The message this one answers, when it answers one. */
   replyTo?: ConversationMessage["replyTo"];
+  /** The card for its first link, when it has one. */
+  linkPreview?: ConversationMessage["linkPreview"];
   /** One entry per emoji used, in the order they were first used. */
   reactions: ConversationMessage["reactions"];
   /** Passed along from another conversation. Never says who from. */
@@ -119,9 +122,11 @@ export function MessageBubble({
       data-message-id={message.id}
       className={`group/message relative flex items-start gap-2 ${
         message.mine ? "justify-end" : "justify-start"
-      } ${startsRun ? "mt-3" : "mt-0.5"} ${
-        message.mine && isLastOwn ? "mb-4" : ""
-      }`}
+      } ${
+        // Settings → Appearance → Message spacing. `compact:` applies only
+        // when it is set to Compact; Comfortable is these values as they were.
+        startsRun ? "mt-3 compact:mt-1.5" : "mt-0.5 compact:mt-px"
+      } ${message.mine && isLastOwn ? "mb-4" : ""}`}
       onContextMenu={(event) => {
         // Nothing to act on once it is gone, so the browser keeps its menu.
         if (isDeleted || wantsNativeMenu(event.target)) return;
@@ -167,7 +172,7 @@ export function MessageBubble({
           narrower than before the extraction. */}
       <div className="relative min-w-0">
         <article
-          className={`max-w-xl rounded-2xl px-3 py-2 ${
+          className={`max-w-xl rounded-2xl px-3 py-2 compact:py-1 ${
             message.mine
               ? "bg-[#dff1ff] text-slate-900"
               : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
@@ -183,7 +188,7 @@ export function MessageBubble({
               crosses conversations, so naming the original sender would tell
               this room about somebody in a room it cannot see. */}
           {message.forwarded && !isDeleted && (
-            <p className="mb-0.5 flex items-center gap-1 text-[11px] text-slate-400 italic dark:text-slate-500">
+            <p className="mb-0.5 flex items-center gap-1 text-2xs text-slate-400 italic dark:text-slate-500">
               <CornerUpRight className="h-3 w-3" aria-hidden />
               Forwarded
             </p>
@@ -224,7 +229,7 @@ export function MessageBubble({
               )
             )}
             <span
-              className={`ml-auto flex shrink-0 items-center gap-1 text-[10px] leading-none ${
+              className={`ml-auto flex shrink-0 items-center gap-1 text-3xs leading-none ${
                 message.mine ? "text-sky-700/70" : "text-slate-400"
               }`}
             >
@@ -253,39 +258,66 @@ export function MessageBubble({
             </span>
           </div>
 
+          {!isDeleted && message.linkPreview && (
+            <LinkPreviewCard
+              preview={message.linkPreview}
+              mine={message.mine}
+            />
+          )}
+
           {!isDeleted &&
             message.attachments &&
             message.attachments.length > 0 && (
               <div className="mt-2 space-y-1">
-                {message.attachments.map((attachment) => (
-                  <div key={attachment.id ?? attachment.url}>
-                    {attachment.contentType?.startsWith("audio/") && (
-                      <audio
-                        controls
-                        src={attachment.url}
-                        className="mb-1 max-w-full"
-                      />
-                    )}
-                    {attachment.contentType?.startsWith("image/") && (
-                      <Image
-                        src={attachment.url}
-                        alt={attachment.originalName}
-                        width={400}
-                        height={224}
-                        unoptimized
-                        className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
-                      />
-                    )}
-                    <a
-                      href={attachment.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block truncate text-xs text-sky-700 underline"
-                    >
-                      {attachment.originalName}
-                    </a>
-                  </div>
-                ))}
+                {message.attachments.map((attachment) => {
+                  const isImage = attachment.contentType?.startsWith("image/");
+                  const isAudio = attachment.contentType?.startsWith("audio/");
+
+                  return (
+                    <div key={attachment.id ?? attachment.url}>
+                      {isAudio && (
+                        <audio
+                          controls
+                          src={attachment.url}
+                          className="mb-1 max-w-full"
+                        />
+                      )}
+                      {isImage && (
+                        // The picture is the link now, so opening it full size
+                        // does not need its filename printed underneath.
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Open ${attachment.originalName}`}
+                          className="block"
+                        >
+                          <Image
+                            src={attachment.url}
+                            alt={attachment.originalName}
+                            width={400}
+                            height={224}
+                            unoptimized
+                            className="mb-1 max-h-56 max-w-full rounded-lg object-cover"
+                          />
+                        </a>
+                      )}
+                      {/* The name only where nothing else shows the attachment:
+                          a document, or a video - which has no player yet. Under
+                          an image or a voice note it was just clutter. */}
+                      {!isImage && !isAudio && (
+                        <a
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block truncate text-xs text-sky-700 underline"
+                        >
+                          {attachment.originalName}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           {/* INSIDE the article, on a row of its own. `absolute right-0
@@ -317,7 +349,7 @@ export function MessageBubble({
       {/* Spelled out once, under the newest message you sent - under every one
           it is noise, and the ticks already say it per message. */}
       {message.mine && isLastOwn && readers > 0 && (
-        <span className="absolute right-0 -bottom-4 text-[10px] whitespace-nowrap text-slate-400 dark:text-slate-500">
+        <span className="absolute right-0 -bottom-4 text-3xs whitespace-nowrap text-slate-400 dark:text-slate-500">
           {readers} read {message.time}
         </span>
       )}

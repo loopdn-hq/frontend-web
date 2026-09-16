@@ -5,6 +5,7 @@ import { isValidPhoneNumber } from "libphonenumber-js";
 import {
   Alert,
   Button,
+  Checkbox,
   Field,
   Input,
   InternationalPhoneInput,
@@ -12,6 +13,14 @@ import {
   Textarea,
 } from "@/components/ui";
 import { normalizePhone } from "@/lib/validation/auth";
+
+// Required for Telnyx/carrier compliance: an admin must affirmatively confirm
+// consent for this specific number before an invite SMS goes out. Tied to the
+// phone field's onChange (below) rather than left to persist, so editing the
+// number after checking this always forces a fresh confirmation - the
+// checkbox is a claim about one specific person, not a sticky preference.
+const SMS_CONSENT_LABEL =
+  "I confirm that I have permission from this person to add them to this group and that they have agreed to receive SMS messages related to this group.";
 
 type AddMembersModalProps = {
   isOpen: boolean;
@@ -37,8 +46,14 @@ export function AddMembersModal({
   const [value, setValue] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function handlePhoneNumberChange(nextPhoneNumber: string) {
+    setPhoneNumber(nextPhoneNumber);
+    setSmsConsent(false);
+  }
 
   if (!isOpen) return null;
 
@@ -83,6 +98,13 @@ export function AddMembersModal({
       return;
     }
 
+    if (!smsConsent) {
+      setError(
+        "Confirm you have this person's permission before sending an invite.",
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
     try {
@@ -92,6 +114,7 @@ export function AddMembersModal({
       });
       setPhoneNumber("");
       setDisplayName("");
+      setSmsConsent(false);
       onClose();
     } catch (submissionError) {
       setError(
@@ -200,7 +223,7 @@ export function AddMembersModal({
               id="invite-phone"
               name="invite-phone"
               value={phoneNumber}
-              onChange={setPhoneNumber}
+              onChange={handlePhoneNumberChange}
               autoFocus
               autoComplete="tel"
               placeholder="Enter phone number"
@@ -219,6 +242,14 @@ export function AddMembersModal({
             />
           </Field>
 
+          <Checkbox
+            id="invite-sms-consent"
+            checked={smsConsent}
+            onChange={(event) => setSmsConsent(event.target.checked)}
+            disabled={isSubmitting || !phoneNumber.trim()}
+            label={SMS_CONSENT_LABEL}
+          />
+
           {error && <Alert variant="error">{error}</Alert>}
 
           <div className="flex gap-3 border-t border-slate-100 pt-4 dark:border-slate-700">
@@ -233,7 +264,7 @@ export function AddMembersModal({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !phoneNumber.trim()}
+              disabled={isSubmitting || !phoneNumber.trim() || !smsConsent}
               fullWidth
             >
               {isSubmitting ? "Sending..." : "Send invite"}

@@ -9,6 +9,7 @@ import {
   PENDING_LOGIN_KEY,
   PENDING_PHONE_KEY,
   PHONE_VERIFIED_KEY,
+  POST_AUTH_REDIRECT_KEY,
   REFRESH_TOKEN_KEY,
   SESSION_COOKIE_NAME,
 } from "./session";
@@ -259,6 +260,26 @@ export function isPhoneVerified(): boolean {
 // setPhoneVerified() (verify-phone page, fetchCurrentUser()).
 export function usePhoneVerified(): boolean {
   return useSyncExternalStore(subscribe, isPhoneVerified, () => false);
+}
+
+/** Remember where to send the user once they finish the auth chain, instead of the default /chats/. `path` must be a relative in-app path. */
+export function setPostAuthRedirect(path: string): void {
+  try {
+    window.sessionStorage.setItem(POST_AUTH_REDIRECT_KEY, path);
+  } catch {
+    // ignore
+  }
+}
+
+/** Reads and clears the stored redirect target. Only ever returns a relative path, never an absolute URL, so it can't be used for an open redirect. */
+export function consumePostAuthRedirect(): string | null {
+  try {
+    const value = window.sessionStorage.getItem(POST_AUTH_REDIRECT_KEY);
+    window.sessionStorage.removeItem(POST_AUTH_REDIRECT_KEY);
+    return value && value.startsWith("/") ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 export function clearSession(): void {
@@ -672,7 +693,7 @@ export type ProfileResult =
       phone?: string;
       emailVerified?: boolean;
       phoneVerified?: boolean;
-      // The account-wide switch for group email (Profile.email_enabled). Per-group
+      // The account-wide switch for group email (MessagingSettings.email_enabled, carried on this endpoint). Per-group
       // opt-outs live on each conversation's delivery settings, not here.
       emailEnabled?: boolean;
       bio?: string;

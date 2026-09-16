@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createPlanCheckoutSession, fetchBillingSummary } from "@/lib/billing";
 import { useAuth } from "@/lib/auth/client";
 import { SiteFooter } from "@/components/site/SiteFooter";
@@ -253,6 +254,7 @@ function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
 }
 
 export default function PricingPage() {
+  const router = useRouter();
   const { session, isLoaded } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [isLoadingPlans, setIsLoadingPlans] = useState(true);
@@ -351,12 +353,12 @@ export default function PricingPage() {
     async (planCode: string) => {
       const normalizedCode = planCode.toLowerCase();
       if (normalizedCode === "enterprise") {
-        window.location.assign("/contact/");
+        router.push("/enterprise/builder/");
         return;
       }
 
       if (!isAuthenticated) {
-        window.location.assign("/login/");
+        router.push("/login/");
         return;
       }
 
@@ -381,7 +383,7 @@ export default function PricingPage() {
         setCheckoutPlanCode(null);
       }
     },
-    [isAuthenticated],
+    [isAuthenticated, router],
   );
 
   return (
@@ -601,7 +603,7 @@ export default function PricingPage() {
                             className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition duration-300 hover:bg-slate-50 group-hover:scale-[1.05] group-focus-within:scale-[1.05] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                           >
                             {plan.code.toLowerCase() === "enterprise"
-                              ? "Contact Sales"
+                              ? "Build Your Plan"
                               : checkoutPlanCode === plan.code
                                 ? "Redirecting..."
                                 : isAuthenticated
@@ -636,16 +638,16 @@ export default function PricingPage() {
               </div>
               <div className="flex flex-col gap-2">
                 <Link
-                  href="/contact/"
+                  href="/enterprise/builder/"
                   className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                 >
-                  Request Enterprise Quote
+                  Build Your Enterprise Plan
                 </Link>
                 <Link
-                  href="/login/"
+                  href="/contact/"
                   className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                 >
-                  I already have an account
+                  Talk to sales instead
                 </Link>
               </div>
             </div>

@@ -1,4 +1,5 @@
 export { Alert } from "./alert";
+export { Badge } from "./badge";
 export { Button } from "./button";
 export { Checkbox } from "./checkbox";
 export {
@@ -12,5 +13,6 @@ export { InternationalPhoneInput } from "./InternationalPhoneInput";
 export { Modal } from "./modal";
 export { RadioGroup, type RadioOption } from "./radio-group";
 export { Select, type SelectOption } from "./select";
+export { Switch } from "./switch";
 export { Tabs, type TabsItem } from "./tabs";
 export { Textarea } from "./textarea";

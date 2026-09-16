@@ -270,7 +270,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   <p className="mt-[10px] text-[13px] leading-[150%] font-semibold text-[#0E357B] uppercase">
                     {feature.label}
                   </p>
-                  <p className="mt-[5px] text-[11px] leading-[138%] font-medium text-[#0E357B]">
+                  <p className="mt-[5px] text-2xs leading-[138%] font-medium text-[#0E357B]">
                     {feature.copy}
                   </p>
                 </div>

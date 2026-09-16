@@ -8,12 +8,14 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/auth/client";
 import {
   addConversationMembers,
   fetchConversation,
   fetchConversationParticipants,
   fetchConversations,
+  mergeConversations,
   fetchJoinCode,
   fetchJoinRequests,
   fetchMessageHistory,
@@ -113,10 +115,9 @@ import {
   ListChecks,
   Plus,
   Search,
-  User,
-  Users,
 } from "lucide-react";
-import { NewDirectMessageModal } from "./NewDirectMessageModal";
+import { NewConversationModal } from "./NewConversationModal";
+import { useLocalMessagingPreferences } from "@/lib/user/messagingPreferences";
 
 // One definition, owned by the component that renders it. The alias keeps the
 // ~40 existing references in this file reading as they did.
@@ -325,6 +326,7 @@ type HomeShellProps = {
 };
 
 export function HomeShell({ mode }: HomeShellProps) {
+  const router = useRouter();
   const currentUsername = getSession();
   // The conversation list lives in the (app) layout's provider so it survives
   // navigating to another destination and back.
@@ -436,10 +438,9 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [pendingJoinError, setPendingJoinError] = useState("");
   const [pendingJoinRequestSent, setPendingJoinRequestSent] = useState(false);
   const [isLoopMenuOpen, setIsLoopMenuOpen] = useState(false);
-  // The "+" is two destinations now, so it opens a menu rather than going
-  // straight to one of them. Null is closed.
-  const [newMenu, setNewMenu] = useState<ContextMenuOrigin | null>(null);
-  const [isNewDirectMessageOpen, setIsNewDirectMessageOpen] = useState(false);
+  // The "+" opens one dialog that holds both ways to start a conversation:
+  // find a person, or make a group.
+  const [isNewConversationOpen, setIsNewConversationOpen] = useState(false);
   const [isSelectChatsMode, setIsSelectChatsMode] = useState(false);
   const [selectedChatIds, setSelectedChatIds] = useState<Set<string | number>>(
     new Set(),
@@ -562,7 +563,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       const normalizedCode = planCode.toLowerCase();
       if (normalizedCode === "enterprise") {
         closeUpgradePrompt();
-        window.location.assign("/contact/");
+        router.push("/contact/");
         return;
       }
 
@@ -593,7 +594,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         setUpgradeCheckoutPlanCode(null);
       }
     },
-    [closeUpgradePrompt],
+    [closeUpgradePrompt, router],
   );
 
   const ownedGroupCount = useMemo(
@@ -710,6 +711,16 @@ export function HomeShell({ mode }: HomeShellProps) {
   useEffect(() => {
     loopMessagesRef.current = loopMessages;
   }, [loopMessages]);
+  // The same mirror for the list. The socket handler has to know whether a
+  // conversation is listed without re-subscribing every time the list changes.
+  const conversationsRef = useRef(conversations);
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
+  // Conversations being fetched because a message arrived for one the list did
+  // not have, so a burst of messages to it fetches it once rather than per
+  // message.
+  const fetchingConversations = useRef<Set<string>>(new Set());
 
   // Store WebSocket status per loop
   // Who is typing, and how far back the history has been paged: both belong
@@ -732,6 +743,8 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
+  // Settings → Messaging → "Press Enter to send", kept in this browser.
+  const { enterToSend } = useLocalMessagingPreferences();
   /**
    * What the next send will do, when it is not simply "post this".
    *
@@ -826,6 +839,9 @@ export function HomeShell({ mode }: HomeShellProps) {
         createdAt: message.createdAt,
         source: message.source,
         replyTo: message.replyTo,
+        // Copied field by field, so a field left out here never reaches the
+        // bubble - on load or on a live update.
+        linkPreview: message.linkPreview,
         reactions: message.reactions,
         forwarded: message.forwarded,
         editedAt: message.editedAt,
@@ -881,12 +897,19 @@ export function HomeShell({ mode }: HomeShellProps) {
       ? typingState.users
       : EMPTY_TYPING_USERS;
   const isSelectedConversationAdmin = selectedConversation?.isAdmin === true;
+  // Group controls are for groups. A direct conversation has no settings, so
+  // `groupSettings?.add_member_permission !== "admins"` came out TRUE and
+  // offered Add members on a one-to-one thread - a third person in a
+  // conversation that is by definition two.
+  const isGroupConversation = selectedConversation?.kind === "group";
   const canAddMembers =
-    isSelectedConversationAdmin ||
-    groupSettings?.add_member_permission !== "admins";
+    isGroupConversation &&
+    (isSelectedConversationAdmin ||
+      groupSettings?.add_member_permission !== "admins");
   const canEditGroupSettings =
-    isSelectedConversationAdmin ||
-    groupSettings?.edit_group_permission !== "admins";
+    isGroupConversation &&
+    (isSelectedConversationAdmin ||
+      groupSettings?.edit_group_permission !== "admins");
 
   // Get messages for selected loop
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
@@ -1365,6 +1388,67 @@ export function HomeShell({ mode }: HomeShellProps) {
     [toUiMessage, setConversations],
   );
 
+  /**
+   * A message arrived in a conversation - sent from here, or live from anyone
+   * - so the list shows it.
+   *
+   * The row is UN-HIDDEN. Clearing a conversation takes it out of the list and
+   * the server brings it back the moment somebody posts, but nothing here ever
+   * set `cleared` back to false, so it stayed gone until a reload: the message
+   * was delivered and there was no row to show it on.
+   *
+   * A conversation the list does not have at all is LOADED rather than
+   * ignored - one the other person has just started, or one past the pages
+   * loaded so far. Updating only rows that already existed is what dropped
+   * those messages.
+   */
+  const noteMessageInList = useCallback(
+    (
+      conversationId: string | number,
+      message: Message,
+      lastMessageAt: string,
+      countAsUnread: boolean,
+    ) => {
+      const key = String(conversationId);
+      const listed = conversationsRef.current.some(
+        (row) => String(row.id) === key,
+      );
+
+      if (!listed) {
+        if (fetchingConversations.current.has(key)) return;
+        fetchingConversations.current.add(key);
+        void fetchConversation(conversationId).then((result) => {
+          fetchingConversations.current.delete(key);
+          if (!result.ok) return;
+          setConversations((current) =>
+            mergeConversations(current, [result.conversation]),
+          );
+        });
+        return;
+      }
+
+      setConversations((current) =>
+        current.map((row) =>
+          String(row.id) === key
+            ? {
+                ...row,
+                cleared: false,
+                // The same composer the fetched path runs, so a live message
+                // reads exactly like the same message reloaded.
+                preview: composePreview(
+                  message.sender,
+                  describeMessageBody(message.text, message.attachments ?? []),
+                ),
+                lastMessageAt,
+                unread: countAsUnread ? (row.unread || 0) + 1 : 0,
+              }
+            : row,
+        ),
+      );
+    },
+    [setConversations],
+  );
+
   const handleWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
       if (message.type === "message.new") {
@@ -1409,29 +1493,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           });
         }
 
-        // Update the preview everywhere, but only bump the unread badge for
-        // a Loop that isn't the one currently open - that one is being read.
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === targetConversationId
-              ? {
-                  ...c,
-                  // The same composer the fetched path runs, so a live
-                  // message reads exactly like the same message reloaded.
-                  preview: composePreview(
-                    newMessage.sender,
-                    describeMessageBody(
-                      newMessage.text,
-                      newMessage.attachments ?? [],
-                    ),
-                  ),
-                  lastMessageAt: String(
-                    rawMessage.created_at ?? new Date().toISOString(),
-                  ),
-                  unread: isForSelectedConversation ? 0 : (c.unread || 0) + 1,
-                }
-              : c,
-          ),
+        // Counted unread only for a Loop that isn't the one currently open -
+        // that one is being read.
+        noteMessageInList(
+          targetConversationId,
+          newMessage,
+          String(rawMessage.created_at ?? new Date().toISOString()),
+          !isForSelectedConversation,
         );
 
         // Arriving in the thread that is open, in a tab the user is actually
@@ -1541,6 +1609,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     [
       applyConversationUpdate,
       applyMessageUpdate,
+      noteMessageInList,
       selectedConversationId,
       toUiMessage,
       setConversations,
@@ -1645,6 +1714,14 @@ export function HomeShell({ mode }: HomeShellProps) {
         }
         return next;
       });
+      // Your own message moves the row too, and brings back a conversation you
+      // had cleared - without waiting for the socket to echo it.
+      noteMessageInList(
+        selectedConversationId,
+        toUiMessage(result.message),
+        new Date().toISOString(),
+        false,
+      );
       setMessageInput("");
       setMessageAttachments([]);
       setComposerContext(null);
@@ -1657,6 +1734,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     isSendingMessage,
     toUiMessage,
     applyMessageUpdate,
+    noteMessageInList,
     composerContext,
   ]);
 
@@ -1689,19 +1767,26 @@ export function HomeShell({ mode }: HomeShellProps) {
    * creating a group and wrong here.
    */
   async function handleDirectMessageStarted(conversationId: string | number) {
-    setIsNewDirectMessageOpen(false);
+    setIsNewConversationOpen(false);
 
-    const result = await fetchConversations();
+    // This one conversation, not the first page of the list. The list is
+    // ordered by last activity and opening an existing DM is not activity, so a
+    // quiet older thread is not on page one.
+    const result = await fetchConversation(conversationId);
     if (!result.ok) return;
 
+    // Shown even if you had cleared it: starting a conversation on purpose is
+    // the opposite of hiding it. The server keeps it cleared only until the
+    // first message, which is what you are about to send.
+    const opened = { ...result.conversation, cleared: false };
     setPendingConversation(null);
-    setConversations(
-      result.conversations.map((conversation) => ({
+    setConversations((current) =>
+      mergeConversations(current, [opened]).map((conversation) => ({
         ...conversation,
-        active: conversation.id === conversationId,
+        active: conversation.id === opened.id,
       })),
     );
-    setSelectedConversationId(conversationId);
+    setSelectedConversationId(opened.id);
   }
 
   async function handleAddMembers(members: string[]) {
@@ -1935,7 +2020,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                   {conversation?.name}
                 </p>
                 {conversation.kind === "group" && conversation.isAdmin && (
-                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-3xs font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
                     Admin
                   </span>
                 )}
@@ -1956,7 +2041,7 @@ export function HomeShell({ mode }: HomeShellProps) {
             {/* Time above, badge below - so neither competes with the name for
                 width, and a long group name truncates far later. */}
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-[11px] leading-none text-slate-400 dark:text-slate-500">
+              <span className="text-2xs leading-none text-slate-400 dark:text-slate-500">
                 {conversationTimeLabel(conversation.lastMessageAt)}
               </span>
               <span className="flex items-center gap-1.5">
@@ -2029,7 +2114,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 {conversation.archived ? "Unarchive" : "Archive"}
               </button>
               {/* Says the thing people get wrong about these two. */}
-              <p className="px-3 pt-1.5 pb-1 text-[11px] leading-snug text-slate-400 dark:text-slate-500">
+              <p className="px-3 pt-1.5 pb-1 text-2xs leading-snug text-slate-400 dark:text-slate-500">
                 {conversation.muted
                   ? "Muted, so texts are paused too."
                   : "Archiving still delivers texts."}
@@ -2070,14 +2155,14 @@ export function HomeShell({ mode }: HomeShellProps) {
                         ? `Leave ${conversation.name}?`
                         : `Delete ${conversation.name}?`}
                     </p>
-                    <p className="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
                       {rowConfirm === "leave"
                         ? "You stop receiving it. Your messages stay in the group."
                         : "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages."}
                     </p>
 
                     {rowActionError && (
-                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
                         {rowActionError}
                       </p>
                     )}
@@ -2562,15 +2647,8 @@ export function HomeShell({ mode }: HomeShellProps) {
                 <button
                   type="button"
                   title="New conversation"
-                  aria-haspopup="menu"
-                  aria-expanded={newMenu !== null}
-                  data-ignore-click-outside
-                  onClick={(event) => {
-                    // Anchored under the button rather than at the pointer, so
-                    // the menu hangs off the control that opened it.
-                    const box = event.currentTarget.getBoundingClientRect();
-                    setNewMenu({ x: box.left, y: box.bottom + 6 });
-                  }}
+                  aria-haspopup="dialog"
+                  onClick={() => setIsNewConversationOpen(true)}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
                 >
                   <Plus className="h-5 w-5" />
@@ -2711,7 +2789,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       {chip.label}
                       {chip.count > 0 && (
                         <span
-                          className={`rounded-full px-1.5 text-[10px] font-bold ${
+                          className={`rounded-full px-1.5 text-3xs font-bold ${
                             active
                               ? "bg-white/25 text-white"
                               : "bg-[#168CFF] text-white"
@@ -2800,7 +2878,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                                 ).toLocaleString()}`
                               : participant.name
                         }
-                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-2xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
                       >
                         <span
                           aria-hidden
@@ -2829,7 +2907,7 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {selectedConversationId && (
                   <div
-                    className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                    className={`rounded-full px-2.5 py-1 text-3xs font-semibold ${
                       socketStatus === "connected"
                         ? "bg-sky-100 text-sky-700"
                         : socketStatus === "connecting"
@@ -2871,36 +2949,40 @@ export function HomeShell({ mode }: HomeShellProps) {
                         </svg>
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdminPanelTab("settings");
-                        setIsAdminPanelOpen(true);
-                      }}
-                      title="Loop Settings"
-                      aria-label="Loop Settings"
-                      className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-                    >
-                      <svg
-                        className="h-5 w-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                    {/* A group admin panel. A direct conversation has no admin and
+                        nothing to configure, so it has no settings button. */}
+                    {isGroupConversation && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAdminPanelTab("settings");
+                          setIsAdminPanelOpen(true);
+                        }}
+                        title="Loop Settings"
+                        aria-label="Loop Settings"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-                        />
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                    </button>
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+                          />
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -2991,7 +3073,7 @@ export function HomeShell({ mode }: HomeShellProps) {
               thread.map((row) =>
                 row.kind === "day" ? (
                   <div key={row.key} className="flex justify-center py-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
+                    <span className="rounded-full bg-white px-3 py-1 text-2xs font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
                       {row.label}
                     </span>
                   </div>
@@ -3157,7 +3239,14 @@ export function HomeShell({ mode }: HomeShellProps) {
                         notifyTyping();
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
+                        // With "Press Enter to send" off, Enter does
+                        // nothing - a one-line box has no new line to add -
+                        // and Ctrl/Cmd+Enter still sends.
+                        if (
+                          e.key === "Enter" &&
+                          !e.shiftKey &&
+                          (enterToSend || e.metaKey || e.ctrlKey)
+                        ) {
                           e.preventDefault();
                           handleSendMessage();
                         }
@@ -3398,33 +3487,16 @@ export function HomeShell({ mode }: HomeShellProps) {
         onClose={() => setInfoMessage(null)}
       />
 
-      <ContextMenu
-        origin={newMenu}
-        onClose={() => setNewMenu(null)}
-        label="New conversation"
-        items={[
-          {
-            id: "direct",
-            label: "Direct message",
-            description: "Message a Loopd'n user",
-            icon: <User className="h-4 w-4" />,
-            onSelect: () => setIsNewDirectMessageOpen(true),
-          },
-          {
-            id: "group",
-            label: "Create group",
-            description: "Start a group conversation",
-            icon: <Users className="h-4 w-4" />,
-            onSelect: handleOpenCreateLoop,
-          },
-        ]}
-      />
-
-      {isNewDirectMessageOpen && (
-        <NewDirectMessageModal
-          isOpen
-          onClose={() => setIsNewDirectMessageOpen(false)}
+      {/* Mounted per open, so the search box and results start empty each
+          time rather than showing whoever was looked up last. */}
+      {isNewConversationOpen && (
+        <NewConversationModal
+          onClose={() => setIsNewConversationOpen(false)}
           onStarted={handleDirectMessageStarted}
+          onCreateGroup={() => {
+            setIsNewConversationOpen(false);
+            handleOpenCreateLoop();
+          }}
         />
       )}
 

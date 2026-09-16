@@ -1,7 +1,25 @@
 "use client";
 
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { updateUserProfile } from "@/lib/auth/client";
+import {
+  fetchAccountSettings,
+  saveAccountSettings,
+  type AccountMessagingPreferences,
+} from "@/lib/user/accountSettings";
+import {
+  saveLocalMessagingPreferences,
+  useLocalMessagingPreferences,
+} from "@/lib/user/messagingPreferences";
+import {
+  saveLocalNotificationPreferences,
+  useLocalNotificationPreferences,
+} from "@/lib/user/notificationPreferences";
+import {
+  saveLocalPrivacyPreferences,
+  useLocalPrivacyPreferences,
+} from "@/lib/user/privacyPreferences";
 import type {
   ProfileEdit,
   UserProfile,
@@ -17,7 +35,14 @@ import type {
  * into the shell" is a second copy that can disagree with the first about what
  * a failed save means. So it lives once, here.
  *
- * Both save handlers THROW on failure rather than logging. The caller is the
+ * This is also the one place that decides where each setting is kept.
+ * Messaging, Notifications and Privacy are saved on the account
+ * (lib/user/accountSettings). The browser stores hold a copy of what the
+ * account last said, and that copy is what every screen and the chat box
+ * read - so they draw at once, and a save shows only once the server has it.
+ * "Allow messages to be delivered by SMS" alone stays in the browser.
+ *
+ * Every save handler THROWS on failure rather than logging. The caller is the
  * only one that knows what to do about it - a modal has to stay open and say
  * so, a toggle has to flip itself back - and a handler that swallows the error
  * leaves every caller believing it worked.
@@ -26,12 +51,36 @@ export type ConnectedSettingsProps = Pick<
   UserSettingsPanelProps,
   | "profile"
   | "onSaveProfile"
+  | "messagingPreferences"
+  | "onSaveMessaging"
   | "notificationPreferences"
   | "onSaveNotifications"
+  | "privacyPreferences"
+  | "onSavePrivacy"
 >;
 
 export function useUserSettingsProps(): ConnectedSettingsProps {
   const { userProfile, setUserProfile } = useAppShell();
+  const localMessaging = useLocalMessagingPreferences();
+  const localNotifications = useLocalNotificationPreferences();
+  const localPrivacy = useLocalPrivacyPreferences();
+
+  // Load the account's settings over the browser copy. Until this answers -
+  // or if it fails - the screens show what this browser last held.
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchAccountSettings().then((result) => {
+      if (cancelled || !result.ok) return;
+      saveLocalNotificationPreferences(result.settings.notifications);
+      saveLocalPrivacyPreferences(result.settings.privacy);
+      holdMessaging(result.settings.messaging, setUserProfile);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setUserProfile]);
 
   return {
     profile: userProfile,
@@ -47,22 +96,58 @@ export function useUserSettingsProps(): ConnectedSettingsProps {
       setUserProfile(result as UserProfile);
     },
 
-    notificationPreferences: { emailEnabled: userProfile.emailEnabled ?? true },
+    messagingPreferences: {
+      ...localMessaging,
+      emailEnabled: userProfile.emailEnabled ?? true,
+    },
 
-    onSaveNotifications: async (prefs) => {
-      // Only the switch is sent; JSON drops the undefined keys, so flipping it
-      // cannot overwrite a display name somebody is halfway through typing.
-      const result = await updateUserProfile({
-        emailEnabled: prefs.emailEnabled,
-      });
+    onSaveMessaging: async ({ smsDelivery, ...change }) => {
+      // Not on the account: only a carrier STOP or START moves texts (see
+      // lib/user/messagingPreferences).
+      if (smsDelivery !== undefined) {
+        saveLocalMessagingPreferences({ smsDelivery });
+      }
+      if (Object.keys(change).length === 0) return;
+
+      const result = await saveAccountSettings("messaging", change);
       if (!result.ok) {
         throw new Error(result.message);
       }
+      holdMessaging(result.values, setUserProfile);
+    },
 
-      setUserProfile((previous) => ({
-        ...previous,
-        emailEnabled: result.emailEnabled ?? prefs.emailEnabled,
-      }));
+    notificationPreferences: localNotifications,
+
+    onSaveNotifications: async (change) => {
+      const result = await saveAccountSettings("notifications", change);
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      saveLocalNotificationPreferences(result.values);
+    },
+
+    privacyPreferences: localPrivacy,
+
+    onSavePrivacy: async (change) => {
+      const result = await saveAccountSettings("privacy", change);
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
+      saveLocalPrivacyPreferences(result.values);
     },
   };
+}
+
+/**
+ * Messaging's account values have two homes: email on the profile, where the
+ * app already reads it, and the rest in the browser copy.
+ */
+function holdMessaging(
+  { emailEnabled, ...rest }: Partial<AccountMessagingPreferences>,
+  setUserProfile: Dispatch<SetStateAction<UserProfile>>,
+) {
+  saveLocalMessagingPreferences(rest);
+  if (emailEnabled !== undefined) {
+    setUserProfile((previous) => ({ ...previous, emailEnabled }));
+  }
 }

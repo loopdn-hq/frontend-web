@@ -38,7 +38,7 @@ export function PinnedMessageBar({
         onClick={() => onJump(message.id)}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block text-[11px] font-semibold text-sky-700 dark:text-sky-300">
+        <span className="block text-2xs font-semibold text-sky-700 dark:text-sky-300">
           Pinned · {message.sender}
         </span>
         <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
