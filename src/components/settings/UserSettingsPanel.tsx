@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   CreditCard,
@@ -305,6 +306,7 @@ export function UserSettingsPanel({
 }
 
 function BillingSettings() {
+  const router = useRouter();
   const [summary, setSummary] = useState<BillingSummary | null>(null);
   const [plans, setPlans] = useState<BillingPlan[]>([]);
   const [creditPackages, setCreditPackages] = useState<CreditPackage[]>([]);
@@ -654,6 +656,21 @@ function BillingSettings() {
                   }`}
             </Button>
           ))}
+        </div>
+
+        <div className="mt-3 border-t border-slate-100 pt-3 dark:border-slate-700">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Need custom limits, features, or volume pricing?
+          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="mt-2"
+            onClick={() => router.push("/enterprise/builder/")}
+          >
+            Enterprise: Customize Plan
+          </Button>
         </div>
       </div>
 
