@@ -84,6 +84,7 @@ import {
   ForwardMessageModal,
   MessageBubble,
   MessageInfoModal,
+  MessageThreadSkeleton,
   PinnedMessageBar,
   ReactionBar,
   type ComposerContext,
@@ -95,6 +96,7 @@ import {
   canPinMessage,
   DELETED_MESSAGE_TEXT,
 } from "@/lib/chat/messageActions";
+import { ConversationListSkeleton } from "./ConversationListSkeleton";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
@@ -422,6 +424,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     clearConversationToOpen,
     hasMoreConversations,
     isLoadingMoreConversations,
+    isLoadingConversations,
     loadMoreConversations,
   } = useAppShell();
   const isBroadcast = mode === "broadcast";
@@ -1308,6 +1311,15 @@ export function HomeShell({ mode }: HomeShellProps) {
   useEffect(() => {
     if (!selectedConversationId) return;
     let cancelled = false;
+
+    // Raised here, and nowhere else. Nothing used to set this true at all - it
+    // was initialised false and only ever set false - so the indicator reading
+    // it was unreachable code and the thread simply sat blank.
+    //
+    // Only when there is nothing cached for this conversation. History is held
+    // per conversation, so re-opening one already read paints instantly, and a
+    // skeleton flashed over it for eighty milliseconds reads as a glitch.
+    setIsMessagesLoading(!loopMessagesRef.current.has(selectedConversationId));
 
     fetchMessageHistory(selectedConversationId).then((result) => {
       if (cancelled) return;
@@ -3165,7 +3177,12 @@ export function HomeShell({ mode }: HomeShellProps) {
                 })}
               </div>
 
-              {listedConversations.length === 0 ? (
+              {isLoadingConversations ? (
+                // BEFORE the empty state, never after it. The list is empty
+                // while the first page is in flight, so testing emptiness
+                // first is what produced "No chats yet" on every cold load.
+                <ConversationListSkeleton />
+              ) : listedConversations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {listFilter === "unread"
@@ -3443,6 +3460,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                   </p>
                 </div>
               </div>
+            ) : isMessagesLoading ? (
+              // Again BEFORE the empty state. The thread is empty while its
+              // history is in flight, so checking emptiness first told the
+              // reader "No messages yet" about a conversation that has plenty.
+              <MessageThreadSkeleton />
             ) : currentMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
@@ -3548,11 +3570,6 @@ export function HomeShell({ mode }: HomeShellProps) {
                     context={composerContext}
                     onCancel={cancelComposerContext}
                   />
-                )}
-                {isMessagesLoading && (
-                  <p className="px-2 pb-2 text-xs text-slate-500">
-                    Loading messages...
-                  </p>
                 )}
                 {messageAttachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-2 pb-2">

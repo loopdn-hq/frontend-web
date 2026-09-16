@@ -13,6 +13,7 @@ export { InternationalPhoneInput } from "./InternationalPhoneInput";
 export { Modal } from "./modal";
 export { RadioGroup, type RadioOption } from "./radio-group";
 export { Select, type SelectOption } from "./select";
+export { Skeleton, SkeletonRegion } from "./skeleton";
 export { Switch } from "./switch";
 export { Tabs, type TabsItem } from "./tabs";
 export { Textarea } from "./textarea";

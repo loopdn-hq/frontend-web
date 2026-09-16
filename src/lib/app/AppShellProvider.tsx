@@ -46,6 +46,14 @@ type AppShellContextType = {
   // The list is paged. Scrolling to the end of it asks for the next page.
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
+  /**
+   * The FIRST page has not arrived yet.
+   *
+   * Distinct from isLoadingMoreConversations, which is paging. Without this the
+   * list cannot tell "you have no chats" from "we have not looked yet", and it
+   * rendered the empty state on every cold load before correcting itself.
+   */
+  isLoadingConversations: boolean;
   loadMoreConversations: () => void;
   userProfile: UserProfile;
   setUserProfile: Dispatch<SetStateAction<UserProfile>>;
@@ -104,6 +112,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [isLoadingMoreConversations, setIsLoadingMoreConversations] =
     useState(false);
+  // Starts true: the fetch below is queued before the first paint, so there is
+  // no frame in which nothing is loading and the list is legitimately empty.
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [userProfile, setUserProfile] = useState<UserProfile>(() => ({
     displayName: displayNameForSession(getSession()),
   }));
@@ -121,7 +132,12 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     fetchConversations().then((result) => {
-      if (cancelled || !result.ok) return;
+      if (cancelled) return;
+      // Lowered even when the request FAILED. A refusal is an answer: leaving
+      // this true would hold the skeleton on screen for ever and present an
+      // error as though it were still loading.
+      setIsLoadingConversations(false);
+      if (!result.ok) return;
       setConversations(
         result.conversations.map((conversation, index) => ({
           ...conversation,
@@ -362,6 +378,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       setConversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      isLoadingConversations,
       loadMoreConversations,
       userProfile,
       setUserProfile,
@@ -386,6 +403,7 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      isLoadingConversations,
       loadMoreConversations,
       userProfile,
       unreadByMode,

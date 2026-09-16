@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ChevronRight, ExternalLink, Inbox } from "lucide-react";
+import { ActivityFeedSkeleton } from "@/components/app/ActivityFeedSkeleton";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import {
   dayBucket,
@@ -193,9 +194,7 @@ export default function ActivityPage() {
 
         <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
           {isLoading && notifications.length === 0 ? (
-            <p className="px-1 py-6 text-center text-xs text-slate-500 dark:text-slate-400">
-              Loading activity...
-            </p>
+            <ActivityFeedSkeleton />
           ) : error ? (
             <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
               {error}

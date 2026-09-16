@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Search, Users } from "lucide-react";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { GroupResultsSkeleton } from "@/components/app/GroupResultsSkeleton";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import {
@@ -258,9 +259,7 @@ export default function FindGroupsPage() {
 
         <div className="mt-6">
           {isSearching ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Searching…
-            </p>
+            <GroupResultsSkeleton />
           ) : results.length > 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {results}
