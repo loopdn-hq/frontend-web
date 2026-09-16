@@ -27,6 +27,7 @@ import {
   setConversationArchived,
   setConversationMuted,
   conversationMode,
+  directCounterpart,
   hasReacted,
   normalizeConversationPayload,
   normalizeMessagePayload,
@@ -59,6 +60,7 @@ import {
   type ContextMenuItem,
   type ContextMenuOrigin,
 } from "@/components/ui/context-menu";
+import { blockUser, unblockUser } from "@/lib/user/blocks";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import {
   ComposerContextBar,
@@ -108,6 +110,7 @@ import {
   Bell,
   BellOff,
   LogOut,
+  Ban,
   Trash2,
   ChevronLeft,
   EllipsisVertical,
@@ -318,6 +321,69 @@ const mockMembers = [
   },
 ];
 
+/**
+ * Take a broadcast's participants, but keep the viewer's own blocks.
+ *
+ * `blocked_by_me` is answered for whoever asked, and a `conversation.updated`
+ * frame is serialized once for the whole group with nobody asking - so it comes
+ * back false for everybody. Applied as-is, pinning a message in a conversation
+ * would quietly un-block the person in it until the next reload.
+ *
+ * Matched on the membership id, which is what the server keys a participant by.
+ * A participant the viewer has never seen keeps whatever the payload said,
+ * which for this field is the only honest answer available.
+ */
+function keepOwnBlocks(
+  incoming: ConversationParticipant[],
+  existing: ConversationParticipant[],
+): ConversationParticipant[] {
+  const known = new Map(existing.map((person) => [person.id, person]));
+  return incoming.map((person) => {
+    const before = known.get(person.id);
+    return before ? { ...person, blockedByMe: before.blockedByMe } : person;
+  });
+}
+
+/**
+ * What to say before blocking or unblocking somebody. One copy of the words.
+ *
+ * Asked from three places - the row menu's inline confirm, the open
+ * conversation's menu, and the notice over a blocked composer - and the answer
+ * has to be the same in all three, because it is the only place the product
+ * explains what a block does and does not do.
+ */
+function blockConfirmCopy(name: string, blocked: boolean) {
+  return blocked
+    ? {
+        title: `Block ${name}?`,
+        body: `${name} can't send you direct messages or add you to a group. Any group you already share stays as it is - you both stay members and see each other's messages there.`,
+        label: "Block",
+      }
+    : {
+        title: `Unblock ${name}?`,
+        body: `${name} will be able to send you direct messages and add you to groups again.`,
+        label: "Unblock",
+      };
+}
+
+/** Which of the row menu's four destructive-ish actions is asking. */
+type RowConfirmKind = "leave" | "clear" | "block" | "unblock";
+
+/**
+ * One confirm step, as data.
+ *
+ * Four actions share one confirm panel. Branching inside the markup meant a
+ * ternary per line - title, body, button label, button colour and the call
+ * itself - so the panel asks for this instead and renders whatever it gets.
+ */
+type RowConfirmStep = {
+  title: string;
+  body: string;
+  label: string;
+  buttonClassName: string;
+  run: () => Promise<void>;
+};
+
 type HomeShellProps = {
   // Which Loops this instance lists: /chats/ shows chat groups, /broadcast/
   // shows broadcast groups. The panels and composer are otherwise identical.
@@ -402,7 +468,20 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [rowMenuFor, setRowMenuFor] = useState<string | number | null>(null);
   // Leaving and deleting are not undoable, so the menu asks first rather than
   // acting on the click that opened it.
-  const [rowConfirm, setRowConfirm] = useState<"leave" | "clear" | null>(null);
+  const [rowConfirm, setRowConfirm] = useState<RowConfirmKind | null>(null);
+  // The open conversation's own menu, and the confirm any block goes through.
+  // `blockConfirm` is shared: the menu and the blocked composer's Unblock both
+  // raise the same dialog rather than each growing their own.
+  const [headerMenuOrigin, setHeaderMenuOrigin] =
+    useState<ContextMenuOrigin | null>(null);
+  const [blockConfirm, setBlockConfirm] = useState<{
+    person: ConversationParticipant;
+    blocked: boolean;
+  } | null>(null);
+  const [isBlockConfirmBusy, setIsBlockConfirmBusy] = useState(false);
+  const [blockConfirmError, setBlockConfirmError] = useState<string | null>(
+    null,
+  );
   const [rowActionError, setRowActionError] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
@@ -900,6 +979,19 @@ export function HomeShell({ mode }: HomeShellProps) {
   // offered Add members on a one-to-one thread - a third person in a
   // conversation that is by definition two.
   const isGroupConversation = selectedConversation?.kind === "group";
+  /**
+   * The other person in the open conversation, when it is one person.
+   *
+   * What the header menu acts on, and what tells the composer whether it is
+   * writing to somebody this account has blocked.
+   */
+  const selectedCounterpart = useMemo(
+    () =>
+      selectedConversation
+        ? directCounterpart(selectedConversation, currentUsername)
+        : null,
+    [selectedConversation, currentUsername],
+  );
   const canAddMembers =
     isGroupConversation &&
     (isSelectedConversationAdmin ||
@@ -1299,11 +1391,17 @@ export function HomeShell({ mode }: HomeShellProps) {
                 }
               : { ...existing, ...updated };
 
+          // Same reasoning as the allow-list above, one level down: a
+          // participant carries one field whose answer depends on who asked,
+          // and a broadcast answered for nobody.
+          const incoming =
+            source === "broadcast"
+              ? keepOwnBlocks(updated.participants, existing.participants)
+              : updated.participants;
+
           return {
             ...merged,
-            participants: updated.participants.length
-              ? updated.participants
-              : existing.participants,
+            participants: incoming.length ? incoming : existing.participants,
           };
         }),
       );
@@ -1976,6 +2074,54 @@ export function HomeShell({ mode }: HomeShellProps) {
         : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-[#F7FAFC] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
     const isMenuOpen = rowMenuFor === conversation.id;
+    // Null unless this row IS one person, which is what decides whether the
+    // menu can offer to block anybody.
+    const counterpart = directCounterpart(conversation, currentUsername);
+
+    /**
+     * What the confirm panel should say and do, for whichever action asked.
+     *
+     * Declared here rather than at module level because every one of them
+     * needs this row's conversation, and two of them need the person in it.
+     */
+    function rowConfirmStep(): RowConfirmStep | null {
+      switch (rowConfirm) {
+        case "leave":
+          return {
+            title: `Leave ${conversation.name}?`,
+            body: "You stop receiving it. Your messages stay in the group.",
+            label: "Leave",
+            buttonClassName: "bg-slate-700 hover:bg-slate-800",
+            run: () => handleLeaveRow(conversation),
+          };
+        case "clear":
+          return {
+            title: `Delete ${conversation.name}?`,
+            body: "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages.",
+            label: "Delete",
+            buttonClassName: "bg-rose-600 hover:bg-rose-700",
+            run: () => handleClearRow(conversation),
+          };
+        case "block":
+          if (!counterpart) return null;
+          return {
+            ...blockConfirmCopy(counterpart.name, true),
+            buttonClassName: "bg-rose-600 hover:bg-rose-700",
+            run: () => handleBlockRow(counterpart, true),
+          };
+        case "unblock":
+          if (!counterpart) return null;
+          return {
+            ...blockConfirmCopy(counterpart.name, false),
+            buttonClassName: "bg-slate-700 hover:bg-slate-800",
+            run: () => handleBlockRow(counterpart, false),
+          };
+        default:
+          return null;
+      }
+    }
+
+    const confirmStep = isMenuOpen ? rowConfirmStep() : null;
 
     return (
       <div key={conversation.id} className="group/row relative">
@@ -2125,14 +2271,34 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {rowConfirm === null ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setRowConfirm("clear")}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete chat
-                    </button>
+                    {/* Ordered by what each one costs, cheapest last to undo
+                        FIRST: blocking is one click back, leaving a group may
+                        need somebody to let you in again, and deleting takes
+                        your copy of the thread with it. Delete chat stays at
+                        the bottom for that reason. */}
+                    {/* Blocking names a person, so it is offered where the row
+                        IS one person. In a group the same menu would have to
+                        ask which member, which is a member list and not a
+                        menu. */}
+                    {counterpart && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRowConfirm(
+                            counterpart.blockedByMe ? "unblock" : "block",
+                          )
+                        }
+                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left ${
+                          counterpart.blockedByMe
+                            ? "hover:bg-slate-100 dark:hover:bg-slate-700"
+                            : "text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        }`}
+                      >
+                        <Ban className="h-4 w-4" />
+                        {counterpart.blockedByMe ? "Unblock" : "Block"}{" "}
+                        {counterpart.name}
+                      </button>
+                    )}
                     {/* Leaving is refused on a one-to-one - there is no way
                         back into one - so it is not offered there. */}
                     {conversation.kind === "group" && (
@@ -2145,54 +2311,52 @@ export function HomeShell({ mode }: HomeShellProps) {
                         Leave group
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setRowConfirm("clear")}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete chat
+                    </button>
                   </>
                 ) : (
-                  <div className="px-3 py-2">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      {rowConfirm === "leave"
-                        ? `Leave ${conversation.name}?`
-                        : `Delete ${conversation.name}?`}
-                    </p>
-                    <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
-                      {rowConfirm === "leave"
-                        ? "You stop receiving it. Your messages stay in the group."
-                        : "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages."}
-                    </p>
-
-                    {rowActionError && (
-                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
-                        {rowActionError}
+                  confirmStep && (
+                    <div className="px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                        {confirmStep.title}
                       </p>
-                    )}
+                      <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
+                        {confirmStep.body}
+                      </p>
 
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRowConfirm(null);
-                          setRowActionError(null);
-                        }}
-                        className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void (rowConfirm === "leave"
-                            ? handleLeaveRow(conversation)
-                            : handleClearRow(conversation))
-                        }
-                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${
-                          rowConfirm === "leave"
-                            ? "bg-slate-700 hover:bg-slate-800"
-                            : "bg-rose-600 hover:bg-rose-700"
-                        }`}
-                      >
-                        {rowConfirm === "leave" ? "Leave" : "Delete"}
-                      </button>
+                      {rowActionError && (
+                        <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                          {rowActionError}
+                        </p>
+                      )}
+
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRowConfirm(null);
+                            setRowActionError(null);
+                          }}
+                          className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void confirmStep.run()}
+                          className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${confirmStep.buttonClassName}`}
+                        >
+                          {confirmStep.label}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )
                 )}
               </>
             </div>
@@ -2294,6 +2458,73 @@ export function HomeShell({ mode }: HomeShellProps) {
     setSelectedConversationId((current) =>
       current === conversation.id ? null : current,
     );
+  }
+
+  /**
+   * Block or unblock one person, and remember the answer everywhere.
+   *
+   * A block is a fact about a PERSON, not about the conversation it was made
+   * from, so every participant row for that account flips - block somebody from
+   * a direct message and the `Blocked` marker beside their name in a shared
+   * group is already right.
+   *
+   * Not optimistic, unlike mute and archive. Those two are the viewer's own
+   * switch and a refusal is close to impossible; this one the server can
+   * genuinely refuse, and showing somebody as blocked when they are not is the
+   * one wrong answer that matters here.
+   */
+  async function setPersonBlocked(
+    person: ConversationParticipant,
+    blocked: boolean,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const target = { username: person.username ?? null, phoneNumber: null };
+    const result = blocked
+      ? await blockUser(target)
+      : await unblockUser(target);
+    if (!result.ok) return result;
+
+    setConversations((current) =>
+      current.map((row) => ({
+        ...row,
+        participants: row.participants.map((member) =>
+          member.username && member.username === person.username
+            ? { ...member, blockedByMe: blocked }
+            : member,
+        ),
+      })),
+    );
+    return result;
+  }
+
+  async function handleBlockRow(
+    person: ConversationParticipant,
+    blocked: boolean,
+  ) {
+    const result = await setPersonBlocked(person, blocked);
+    if (!result.ok) {
+      setRowActionError(result.message);
+      return;
+    }
+    closeRowMenu();
+  }
+
+  /** The same two calls, from the dialog the header and the composer share. */
+  async function handleConfirmBlock() {
+    if (!blockConfirm || isBlockConfirmBusy) return;
+    setIsBlockConfirmBusy(true);
+    setBlockConfirmError(null);
+
+    const result = await setPersonBlocked(
+      blockConfirm.person,
+      blockConfirm.blocked,
+    );
+    setIsBlockConfirmBusy(false);
+
+    if (!result.ok) {
+      setBlockConfirmError(result.message);
+      return;
+    }
+    setBlockConfirm(null);
   }
 
   async function handleToggleMuted(conversation: Conversation) {
@@ -2981,6 +3212,29 @@ export function HomeShell({ mode }: HomeShellProps) {
                         </svg>
                       </button>
                     )}
+                    {/* The mirror of that button for a one-to-one: no settings,
+                        but there is a person, and blocking them is the one
+                        thing this screen can do about it. */}
+                    {selectedCounterpart && (
+                      <button
+                        type="button"
+                        data-ignore-click-outside
+                        onClick={(event) => {
+                          const trigger =
+                            event.currentTarget.getBoundingClientRect();
+                          setHeaderMenuOrigin({
+                            x: trigger.right,
+                            y: trigger.bottom,
+                          });
+                        }}
+                        title={`More about ${selectedCounterpart.name}`}
+                        aria-label={`More about ${selectedCounterpart.name}`}
+                        aria-haspopup="menu"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                      >
+                        <EllipsisVertical className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -3112,6 +3366,31 @@ export function HomeShell({ mode }: HomeShellProps) {
                 <p className="text-sm text-slate-600 dark:text-slate-400">
                   Select or create a Loop to start chatting
                 </p>
+              </div>
+            ) : selectedCounterpart?.blockedByMe ? (
+              // The server refuses this message and says why. Saying it here
+              // instead means nobody writes one first and finds out after -
+              // and the thread above stays exactly where it was, because a
+              // block is not a departure and undoing it brings everything back.
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  You blocked {selectedCounterpart.name}. Unblock them to send a
+                  message.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setBlockConfirmError(null);
+                    setBlockConfirm({
+                      person: selectedCounterpart,
+                      blocked: false,
+                    });
+                  }}
+                >
+                  Unblock
+                </Button>
               </div>
             ) : (
               <div className="relative rounded-2xl border border-slate-200 bg-[#eef7ff] p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
@@ -3323,6 +3602,88 @@ export function HomeShell({ mode }: HomeShellProps) {
           </footer>
         </section>
       </div>
+
+      {/* The open conversation's own menu. One item today - the point of it is
+          that a block is reachable from the conversation you want blocked,
+          rather than only from a settings list that can just undo one. */}
+      <ContextMenu
+        origin={selectedCounterpart ? headerMenuOrigin : null}
+        onClose={() => setHeaderMenuOrigin(null)}
+        label={selectedCounterpart ? selectedCounterpart.name : undefined}
+        items={
+          selectedCounterpart
+            ? [
+                {
+                  id: "block-counterpart",
+                  label: selectedCounterpart.blockedByMe
+                    ? `Unblock ${selectedCounterpart.name}`
+                    : `Block ${selectedCounterpart.name}`,
+                  icon: <Ban className="h-4 w-4" />,
+                  tone: selectedCounterpart.blockedByMe ? "default" : "danger",
+                  onSelect: () => {
+                    setBlockConfirmError(null);
+                    setBlockConfirm({
+                      person: selectedCounterpart,
+                      blocked: !selectedCounterpart.blockedByMe,
+                    });
+                  },
+                },
+              ]
+            : []
+        }
+      />
+
+      {/* Raised from the header menu and from the blocked composer alike. */}
+      <Modal
+        isOpen={blockConfirm !== null}
+        onClose={() => (isBlockConfirmBusy ? undefined : setBlockConfirm(null))}
+        title={
+          blockConfirm
+            ? blockConfirmCopy(blockConfirm.person.name, blockConfirm.blocked)
+                .title
+            : ""
+        }
+        maxWidthClassName="max-w-sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setBlockConfirm(null)}
+              disabled={isBlockConfirmBusy}
+            >
+              Cancel
+            </Button>
+            {/* aria-disabled rather than disabled: this button has focus, and
+                disabling it mid-request throws focus out of the dialog. */}
+            <Button
+              onClick={() => void handleConfirmBlock()}
+              aria-disabled={isBlockConfirmBusy}
+              className="aria-disabled:opacity-60"
+            >
+              {isBlockConfirmBusy
+                ? "Working..."
+                : blockConfirm
+                  ? blockConfirmCopy(
+                      blockConfirm.person.name,
+                      blockConfirm.blocked,
+                    ).label
+                  : ""}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {blockConfirm
+            ? blockConfirmCopy(blockConfirm.person.name, blockConfirm.blocked)
+                .body
+            : ""}
+        </p>
+        {blockConfirmError && (
+          <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+            {blockConfirmError}
+          </p>
+        )}
+      </Modal>
 
       {/* Actions the viewer cannot take are LEFT OUT rather than greyed: a
           disabled Delete on somebody else's message still says "you might be

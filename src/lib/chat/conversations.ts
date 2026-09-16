@@ -125,6 +125,20 @@ export type ConversationParticipant = {
   role: "admin" | "moderator" | "member";
   joinedAt: string;
   isBlocked?: boolean;
+  /**
+   * Whether the VIEWER has blocked this person.
+   *
+   * One direction, and only ever the viewer's own decision: it is never true
+   * because this person blocked the viewer. That asymmetry is the whole point -
+   * a block has to stay invisible to the person it was made against.
+   *
+   * Distinct from `isBlocked`, which is an ADMIN's ban from one group. This one
+   * is personal, spans the product, and no admin can see it.
+   *
+   * The only participant field whose answer depends on who is asking, which is
+   * what makes it unsafe to read off a broadcast - see `applyConversationUpdate`.
+   */
+  blockedByMe: boolean;
   isOnline?: boolean;
   lastActive?: string;
 };
@@ -356,6 +370,9 @@ export function normalizeParticipant(
     role,
     joinedAt: asText(item.joined_at, "Recently"),
     isBlocked: item.is_blocked === true,
+    // Off the ACCOUNT, not the membership row: a block follows the person
+    // everywhere, and a phone-only member has no account to have blocked.
+    blockedByMe: user.blocked_by_me === true,
     avatarUrl: asText(profile.avatar_url) || undefined,
     lastReadMessageId:
       typeof item.last_read_message === "number"
@@ -364,6 +381,32 @@ export function normalizeParticipant(
     isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
   };
+}
+
+/**
+ * The other person in a one-to-one conversation.
+ *
+ * Null for a group, which is not one person, and null for a direct row that
+ * holds nobody but the viewer - which is what a conversation just started
+ * looks like until its participants arrive.
+ *
+ * Matched on username rather than on position, because the order participants
+ * come back in is the server's and not a promise. Only somebody with an
+ * account can be the answer: the actions that need this one person - blocking
+ * them, unblocking them - name an account, and a direct conversation cannot
+ * hold a phone-only member today anyway.
+ */
+export function directCounterpart(
+  conversation: Pick<Conversation, "kind" | "participants">,
+  viewerUsername: string | null,
+): ConversationParticipant | null {
+  if (conversation.kind === "group") return null;
+  return (
+    conversation.participants.find(
+      (participant) =>
+        participant.username && participant.username !== viewerUsername,
+    ) ?? null
+  );
 }
 
 function isCurrentUserAdmin(item: ApiObject): boolean {
