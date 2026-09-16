@@ -18,15 +18,8 @@ import type { LocalPrivacyPreferences } from "./privacyPreferences";
  * yet. What each row does today is written in its screen's file in lib/user.
  */
 
-/**
- * Messaging's rows that are kept on the account - all but "Allow messages to
- * be delivered by SMS", which the app cannot write (only a carrier STOP or
- * START moves texts).
- */
-export type AccountMessagingPreferences = Omit<
-  MessagingPreferences,
-  "smsDelivery"
->;
+/** Messaging's values as the account holds them - every row. */
+export type AccountMessagingPreferences = MessagingPreferences;
 
 type ScreenValues = {
   messaging: AccountMessagingPreferences;
@@ -43,10 +36,9 @@ const FIELDS: {
   messaging: {
     enterToSend: "enter_to_send",
     linkPreviews: "link_previews_enabled",
-    externalContact: "default_external_contact_method",
-    smsWhenOnLoopdn: "sms_to_loopd_users_enabled",
+    // "Send and receive Loop messages by text", for every Loop at once.
+    smsDelivery: "sms_enabled",
     emailEnabled: "email_enabled",
-    mediaAutoDownload: "media_auto_download",
   },
   notifications: {
     messages: "messages",
@@ -71,31 +63,8 @@ const FIELDS: {
   },
 };
 
-/**
- * The one setting whose VALUES are spelled differently too. Web option → API
- * choice.
- */
-const MEDIA_AUTO_DOWNLOAD_TO_API: Record<string, string> = {
-  always: "wifi_mobile",
-  wifi: "wifi_only",
-  never: "never",
-};
-
 type ApiValue = boolean | string;
 type ApiScreen = Record<string, ApiValue>;
-
-function toApiValue(field: string, value: ApiValue): ApiValue {
-  if (field !== "media_auto_download") return value;
-  return MEDIA_AUTO_DOWNLOAD_TO_API[String(value)] ?? value;
-}
-
-function fromApiValue(field: string, value: ApiValue): ApiValue {
-  if (field !== "media_auto_download") return value;
-  const option = Object.keys(MEDIA_AUTO_DOWNLOAD_TO_API).find(
-    (web) => MEDIA_AUTO_DOWNLOAD_TO_API[web] === value,
-  );
-  return option ?? value;
-}
 
 function toApi<S extends AccountSettingsScreen>(
   screen: S,
@@ -106,7 +75,7 @@ function toApi<S extends AccountSettingsScreen>(
   for (const [key, value] of Object.entries(change)) {
     const field = fields[key];
     if (field && value !== undefined) {
-      body[field] = toApiValue(field, value as ApiValue);
+      body[field] = value as ApiValue;
     }
   }
   return body;
@@ -119,7 +88,7 @@ function fromApi<S extends AccountSettingsScreen>(
   const values: Record<string, ApiValue> = {};
   const fields = FIELDS[screen] as Record<string, string>;
   for (const [key, field] of Object.entries(fields)) {
-    if (data && field in data) values[key] = fromApiValue(field, data[field]);
+    if (data && field in data) values[key] = data[field];
   }
   return values as Partial<ScreenValues[S]>;
 }

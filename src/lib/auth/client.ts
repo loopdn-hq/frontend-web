@@ -309,6 +309,21 @@ export async function logout(): Promise<void> {
   const accessToken = getAccessToken();
   const refreshToken = getRefreshToken();
 
+  // Before the token is spent: this browser stops being notified, on the
+  // browser and on the server. It matters most on a shared computer, where
+  // the next person would otherwise get notifications about somebody else's
+  // messages - with the sender and the words in them.
+  //
+  // Imported here rather than at the top because lib/app/push reaches the API
+  // through lib/chat/conversations, which imports this module; a static import
+  // would be a cycle evaluated at load.
+  try {
+    const { unsubscribeOnLogout } = await import("@/lib/app/push");
+    await unsubscribeOnLogout();
+  } catch {
+    // Signing out must never fail because of a notification.
+  }
+
   if (accessToken && refreshToken) {
     try {
       await fetch(`${API_BASE_URL}/users/logout/`, {

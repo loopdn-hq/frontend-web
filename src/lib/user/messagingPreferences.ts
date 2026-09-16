@@ -5,27 +5,22 @@
  * with a copy in this browser that the screen and the chat box read. What each
  * row DOES is another matter - read this before relying on any row:
  *
- * - "Allow messages to be delivered by email" is REAL. It is
- *   `MessagingSettings.email_enabled`, the account-wide switch for group
- *   email, and the shell keeps it on the profile rather than here. It does not
- *   undo a single Loop stopped from an email's footer link: that is a per-Loop
- *   setting with no control in the app yet.
+ * - "Send and receive Loop messages by email" is REAL, and it is the ONE email
+ *   row: `MessagingSettings.email_enabled`, for every Loop at once, and the
+ *   shell keeps it on the profile rather than here. Unticked, no Loop emails
+ *   you and your email replies are ignored (backend mail/outbound.py and
+ *   mail/inbound.py). It is not STOP EMAILS: that reply, or the link at the
+ *   bottom of a Loop's email, stops only that Loop, in both directions.
  * - "Press Enter to send" is real: the chat composer
  *   (components/home/HomeShell) reads the browser copy.
  * - "Show link previews" is real, and it is the SENDER's: with it on, the
  *   first link in a message you send gets a card the server fetches after
  *   sending (backend chat/link_previews.py), which everyone in the chat sees.
- * - The external-contact choice, media auto-download and "Send SMS when
- *   recipient is available on Loopd'n" are saved and read by nothing yet.
- *   That last one starts ticked because the backend ALREADY texts every
- *   account member with a verified number in a Loop whose texts are on,
- *   whether or not they use the app (sms/outbound.py); unticking it changes
- *   no delivery.
- * - "Allow messages to be delivered by SMS" is NOT saved on the account and
- *   changes nothing - never trust it when debugging a text.
- *   `MessagingSettings.sms_enabled` is deliberately not writable from the app,
- *   and only a carrier STOP or START moves it (see its comment in the
- *   backend's user/models/messaging_settings.py). It stays in this browser.
+ * - "Send and receive Loop messages by text" is REAL, and it is the ONE SMS
+ *   row: `MessagingSettings.sms_enabled`, for every Loop at once. Unticked, no
+ *   Loop texts you and texts you send to a Loop are ignored (backend
+ *   sms/outbound.py and sms/inbound.py). It is not STOP: replying STOP to a
+ *   Loop's number stops only that Loop, and START undoes it there.
  *
  * A new setting: add its row here, then its API name in
  * lib/user/accountSettings. The screen does not change.
@@ -35,43 +30,25 @@ import {
   type PreferenceGroup,
 } from "@/lib/app/localPreferences";
 
-export const EXTERNAL_CONTACT_OPTIONS = [
-  { value: "ask", label: "Ask me every time" },
-  { value: "sms", label: "SMS" },
-  { value: "email", label: "Email" },
-] as const;
-
-export const MEDIA_AUTO_DOWNLOAD_OPTIONS = [
-  { value: "always", label: "Wi-Fi and mobile data" },
-  { value: "wifi", label: "Wi-Fi only" },
-  { value: "never", label: "Never" },
-] as const;
-
 export type LocalMessagingPreferences = {
   enterToSend: boolean;
   linkPreviews: boolean;
-  externalContact: (typeof EXTERNAL_CONTACT_OPTIONS)[number]["value"];
+  /** "Send and receive Loop messages by text" - every Loop at once. */
   smsDelivery: boolean;
-  smsWhenOnLoopdn: boolean;
-  mediaAutoDownload: (typeof MEDIA_AUTO_DOWNLOAD_OPTIONS)[number]["value"];
 };
 
 /** Everything the Messaging screen shows: the browser-kept values, and email. */
 export type MessagingPreferences = LocalMessagingPreferences & {
-  /** Group email across every Loop - `MessagingSettings.email_enabled`. */
+  /** "Send and receive Loop messages by email" - every Loop at once. */
   emailEnabled: boolean;
 };
 
-// As the design shows a new account. "Ask me every time" because nothing has
-// been chosen yet, and asking is the only default that decides nothing.
+// As the design shows a new account.
 export const defaultLocalMessagingPreferences: LocalMessagingPreferences = {
   enterToSend: true,
   linkPreviews: true,
-  externalContact: "ask",
+  // What the account starts with.
   smsDelivery: true,
-  // What the account starts with, and what delivery already does - see above.
-  smsWhenOnLoopdn: true,
-  mediaAutoDownload: "wifi",
 };
 
 export const defaultMessagingPreferences: MessagingPreferences = {
@@ -97,34 +74,14 @@ export const MESSAGING_GROUPS: readonly PreferenceGroup<MessagingPreferences>[] 
       ],
     },
     {
-      title: "External messaging",
-      rows: [
-        {
-          kind: "radio",
-          key: "externalContact",
-          label: "Default way to contact people without Loopd'n",
-          options: EXTERNAL_CONTACT_OPTIONS,
-        },
-      ],
-    },
-    {
       title: "SMS",
       rows: [
         {
           kind: "checkbox",
           key: "smsDelivery",
-          label: "Allow messages to be delivered by SMS",
-          // True of the backend today (sms/inbound.py): a STOP moves the switch
-          // for every group that number is in, and a START fully restores only
-          // when it goes to the number that got the STOP. In the description,
-          // not a note under the card, so the checkbox is described by it.
+          label: "Send and receive Loop messages by text",
           description:
-            "Texts are controlled from your phone for now: reply STOP to any Loop's number and texts stop from every Loop; reply START to that same number to turn them back on.",
-        },
-        {
-          kind: "checkbox",
-          key: "smsWhenOnLoopdn",
-          label: "Send SMS when recipient is available on Loopd'n",
+            "Get texts from your Loops, and text back into them. Untick to use the app only. To stop just one Loop, reply STOP to its number.",
         },
       ],
     },
@@ -134,20 +91,9 @@ export const MESSAGING_GROUPS: readonly PreferenceGroup<MessagingPreferences>[] 
         {
           kind: "checkbox",
           key: "emailEnabled",
-          label: "Allow messages to be delivered by email",
+          label: "Send and receive Loop messages by email",
           description:
-            "Stops or allows email from every Loop at once. It doesn't restart a Loop you stopped with the link at the bottom of its emails - there's no switch for a single Loop in the app yet.",
-        },
-      ],
-    },
-    {
-      title: "Media",
-      rows: [
-        {
-          kind: "select",
-          key: "mediaAutoDownload",
-          label: "Photo & video auto-download",
-          options: MEDIA_AUTO_DOWNLOAD_OPTIONS,
+            "Get email from your Loops, and reply to them by email. Untick to use the app only. To stop just one Loop, reply STOP EMAILS or use the link at the bottom of its emails.",
         },
       ],
     },

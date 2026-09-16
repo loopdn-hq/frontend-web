@@ -63,20 +63,53 @@ export async function fetchBlockedUsers(): Promise<
 }
 
 /**
+ * Who a block is against: an account, or a bare number. Never both.
+ *
+ * The same shape a `BlockedEntry` already carries, so a row from the list can
+ * be handed straight back to `unblockUser` without being taken apart.
+ */
+export type BlockTarget = Pick<BlockedEntry, "username" | "phoneNumber">;
+
+/**
+ * Block one person. Idempotent: blocking somebody already blocked is fine.
+ *
+ * Stops direct messages both ways and stops either of you adding the other to
+ * a group. It does NOT touch a group you already share - you both stay members
+ * and both still see each other's messages there.
+ */
+export async function blockUser(
+  target: BlockTarget,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  return changeBlock("add", target, "Could not block them.");
+}
+
+/**
  * Undo one block. Answers the same whether or not there was anything to undo.
+ */
+export async function unblockUser(
+  entry: BlockTarget,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  return changeBlock("remove", entry, "Could not unblock them.");
+}
+
+/**
+ * The half the two share. Both name the person the same way and read the same
+ * refusal back; only the route and the fallback wording differ.
  *
  * Named by whichever identity the block carries, because that is what the
  * server matches on: unblocking an account by its number would find nothing.
  */
-export async function unblockUser(
-  entry: Pick<BlockedEntry, "username" | "phoneNumber">,
+async function changeBlock(
+  route: "add" | "remove",
+  target: BlockTarget,
+  fallbackMessage: string,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
-  const payload = entry.username
-    ? { username: entry.username }
-    : { phone_number: entry.phoneNumber };
+  const payload = target.username
+    ? { username: target.username }
+    : { phone_number: target.phoneNumber };
 
   try {
-    const response = await authorizedRequest("/users/me/blocks/remove/", {
+    const response = await authorizedRequest(`/users/me/blocks/${route}/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -86,7 +119,7 @@ export async function unblockUser(
       const body = (await response.json().catch(() => null)) as {
         message?: string;
       } | null;
-      return { ok: false, message: body?.message ?? "Could not unblock them." };
+      return { ok: false, message: body?.message ?? fallbackMessage };
     }
     return { ok: true };
   } catch (error) {

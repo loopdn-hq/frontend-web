@@ -15,9 +15,9 @@ import { useOptimisticChanges } from "./useOptimisticChanges";
  * Messaging: how you send, and how messages reach people outside Loopd'n.
  *
  * Nothing here is particular to this screen - every row comes from
- * MESSAGING_GROUPS. Where each value is kept (on the account, SMS delivery in
- * this browser) is decided in `useUserSettingsProps`, not here; what each
- * row actually does today is written down in lib/user/messagingPreferences.
+ * MESSAGING_GROUPS. Every value is saved on the account by
+ * `useUserSettingsProps`; what each row actually does today is written down in
+ * lib/user/messagingPreferences.
  */
 export function MessagingSection({
   preferences,
