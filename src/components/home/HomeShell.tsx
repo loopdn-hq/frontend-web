@@ -96,6 +96,7 @@ import {
   canPinMessage,
   DELETED_MESSAGE_TEXT,
 } from "@/lib/chat/messageActions";
+import { LoadFailed } from "@/components/app/LoadFailed";
 import { ConversationListSkeleton } from "./ConversationListSkeleton";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
@@ -425,6 +426,8 @@ export function HomeShell({ mode }: HomeShellProps) {
     hasMoreConversations,
     isLoadingMoreConversations,
     isLoadingConversations,
+    conversationsError,
+    reloadConversations,
     loadMoreConversations,
   } = useAppShell();
   const isBroadcast = mode === "broadcast";
@@ -870,6 +873,18 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  /**
+   * Why the HISTORY would not load, as opposed to why a send failed.
+   *
+   * Two different failures that were sharing one variable, and so one place to
+   * appear: a send error belongs above the composer, where the words that
+   * failed still are, while a history error belongs in the thread - which was
+   * meanwhile displaying "No messages yet" and arguing with it.
+   */
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  // Bumped by Try again. In the history effect's deps, so a retry re-runs the
+  // fetch without the effect needing to be pulled apart.
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceRecordError, setVoiceRecordError] = useState<string | null>(null);
@@ -1324,9 +1339,9 @@ export function HomeShell({ mode }: HomeShellProps) {
     fetchMessageHistory(selectedConversationId).then((result) => {
       if (cancelled) return;
       setIsMessagesLoading(false);
-      setMessageError(null);
+      setHistoryError(null);
       if (!result.ok) {
-        setMessageError(result.message);
+        setHistoryError(result.message);
         return;
       }
       setLoopMessages((previous) => {
@@ -1344,7 +1359,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId, toUiMessage]);
+  }, [selectedConversationId, toUiMessage, historyReloadToken]);
 
   /**
    * Fetch the page of history before the oldest message on screen.
@@ -3182,6 +3197,16 @@ export function HomeShell({ mode }: HomeShellProps) {
                 // while the first page is in flight, so testing emptiness
                 // first is what produced "No chats yet" on every cold load.
                 <ConversationListSkeleton />
+              ) : conversationsError ? (
+                // And before it again. A failed fetch also leaves the list
+                // empty, so without this the empty state tells somebody with
+                // plenty of chats that they have none - the same wrong
+                // sentence, for a different reason.
+                <LoadFailed
+                  what="your chats"
+                  message={conversationsError}
+                  onRetry={reloadConversations}
+                />
               ) : listedConversations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -3465,6 +3490,18 @@ export function HomeShell({ mode }: HomeShellProps) {
               // history is in flight, so checking emptiness first told the
               // reader "No messages yet" about a conversation that has plenty.
               <MessageThreadSkeleton />
+            ) : historyError && currentMessages.length === 0 ? (
+              // Gated on having nothing cached. If a refresh fails but the
+              // messages from last time are still here, showing them beats
+              // replacing a readable thread with an error about fetching it.
+              <div className="flex h-full items-center justify-center px-4">
+                <LoadFailed
+                  what="this conversation"
+                  message={historyError}
+                  onRetry={() => setHistoryReloadToken((token) => token + 1)}
+                  className="w-full max-w-sm"
+                />
+              </div>
             ) : currentMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">

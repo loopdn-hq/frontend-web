@@ -54,6 +54,17 @@ type AppShellContextType = {
    * rendered the empty state on every cold load before correcting itself.
    */
   isLoadingConversations: boolean;
+  /**
+   * Why the first page did not arrive, or null.
+   *
+   * The FOURTH state, and the one that was missing: a failed fetch left the
+   * list empty and indistinguishable from an account with no chats, so a
+   * dropped connection read as "No chats yet - Create a loop to get started".
+   * Empty and unreachable are different facts and must not share a screen.
+   */
+  conversationsError: string | null;
+  /** Ask for the first page again, after it failed. */
+  reloadConversations: () => void;
   loadMoreConversations: () => void;
   userProfile: UserProfile;
   setUserProfile: Dispatch<SetStateAction<UserProfile>>;
@@ -115,6 +126,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   // Starts true: the fetch below is queued before the first paint, so there is
   // no frame in which nothing is loading and the list is legitimately empty.
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const [conversationsError, setConversationsError] = useState<string | null>(
+    null,
+  );
   const [userProfile, setUserProfile] = useState<UserProfile>(() => ({
     displayName: displayNameForSession(getSession()),
   }));
@@ -126,18 +140,37 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [activityUnread, setActivityUnread] = useState(0);
   const [activityVersion, setActivityVersion] = useState(0);
 
+  // Which load owns the state. A retry started while the first request is
+  // still in the air would otherwise let the slower one land last and
+  // overwrite the newer answer - and it is what makes the initial effect safe
+  // under StrictMode's double mount.
+  const loadGeneration = useRef(0);
+
   // Lives here rather than in HomeShell so the list survives navigating to
   // Settings and back - the provider sits above the route in the (app) layout.
-  useEffect(() => {
-    let cancelled = false;
+  // Not async, and every setState lives inside the `.then`. The effect below
+  // calls this on mount, and state set synchronously in an effect is what
+  // cascades renders - so the only synchronous work here is starting the
+  // request. The "we are loading" half belongs to whoever started it: on mount
+  // that is the initial `true`, on a retry it is the handler, which is an
+  // event and may set state at once.
+  const loadConversations = useCallback(() => {
+    const generation = ++loadGeneration.current;
 
     fetchConversations().then((result) => {
-      if (cancelled) return;
+      if (generation !== loadGeneration.current) return;
+
       // Lowered even when the request FAILED. A refusal is an answer: leaving
       // this true would hold the skeleton on screen for ever and present an
       // error as though it were still loading.
       setIsLoadingConversations(false);
-      if (!result.ok) return;
+      if (!result.ok) {
+        setConversationsError(result.message);
+        return;
+      }
+      // Cleared only on success, so a retry that works puts the list back and
+      // one that fails again leaves the reason on screen.
+      setConversationsError(null);
       setConversations(
         result.conversations.map((conversation, index) => ({
           ...conversation,
@@ -146,11 +179,21 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       );
       setHasMoreConversations(result.hasMore);
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  const reloadConversations = useCallback(() => {
+    setIsLoadingConversations(true);
+    setConversationsError(null);
+    loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    loadConversations();
+    // Bumping the generation on unmount drops whatever is still in flight.
+    return () => {
+      loadGeneration.current += 1;
+    };
+  }, [loadConversations]);
 
   // Seed the activity badge, so it is right before Activity is ever opened.
   useEffect(() => {
@@ -379,6 +422,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       hasMoreConversations,
       isLoadingMoreConversations,
       isLoadingConversations,
+      conversationsError,
+      reloadConversations,
       loadMoreConversations,
       userProfile,
       setUserProfile,
@@ -404,6 +449,8 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       hasMoreConversations,
       isLoadingMoreConversations,
       isLoadingConversations,
+      conversationsError,
+      reloadConversations,
       loadMoreConversations,
       userProfile,
       unreadByMode,
