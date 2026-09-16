@@ -15,6 +15,7 @@ import {
 } from "./session";
 import type { LoginPayload, SignupPayload } from "@/lib/validation/auth";
 import { normalizePhone } from "@/lib/validation/auth";
+import { clearEnterpriseDraft } from "@/lib/enterprise/draft";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -296,10 +297,19 @@ export function clearSession(): void {
     window.localStorage.removeItem(PHONE_VERIFIED_KEY);
     window.localStorage.removeItem(PENDING_PHONE_KEY);
     window.localStorage.removeItem(EMAIL_VERIFIED_KEY);
+    window.localStorage.removeItem(PENDING_EMAIL_KEY);
     notify();
   } catch {
     // ignore
   }
+
+  // Account-scoped data cached outside the session.ts keys above - a second
+  // account signing in on this browser must not see the first account's
+  // saved Enterprise Plan Builder draft. (Device-level preferences - theme,
+  // sidebar collapse, the local Notifications/Privacy/Messaging cache - are
+  // deliberately left alone; see localPreferences.ts's own docstring on why
+  // those are per-browser, not per-account.)
+  clearEnterpriseDraft();
 }
 
 // Signs out the user: notifies the backend to blacklist the refresh token,
