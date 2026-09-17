@@ -48,8 +48,13 @@ export function useBlockedUsers() {
  * Who you have blocked, and a way to undo each one - the view behind
  * Privacy → Blocked users.
  *
- * Nothing here can ADD a block. That happens where you meet somebody, not in
- * a settings list, and the list is the only place it can be undone.
+ * Nothing here can ADD a block. That happens where you meet somebody - the
+ * menu on a one-to-one conversation, in the chat list or in its header - not
+ * in a settings list.
+ *
+ * Undoing one happens in both places. This list is the one that still works
+ * when the conversation it was made from is gone, and the only place a block
+ * on a bare phone number can be reached at all.
  */
 export function BlockedUsersList({
   entries,

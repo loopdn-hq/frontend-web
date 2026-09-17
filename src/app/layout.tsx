@@ -22,6 +22,12 @@ const mono = Space_Mono({
 export const metadata: Metadata = {
   title: "Loopd'n",
   description: "Loopd'n: The group chat where everyone stays connected.",
+  // Installable, which on iPhone and iPad is the ONLY way web notifications
+  // are shown at all: Safari delivers push to a site added to the Home
+  // Screen and to no other. See src/app/manifest.ts.
+  manifest: "/manifest.webmanifest",
+  icons: { apple: "/icons/apple-touch-icon.png" },
+  appleWebApp: { capable: true, title: "Loopd'n", statusBarStyle: "default" },
 };
 
 // Applies the saved theme before hydration to avoid a light/dark flash.

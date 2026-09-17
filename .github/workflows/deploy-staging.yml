@@ -71,12 +71,24 @@ jobs:
         run: |
           aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}" --delete --only-show-errors \
             --exclude "*.html" \
+            --exclude "sw.js" \
+            --exclude "manifest.webmanifest" \
             --cache-control "public,max-age=31536000,immutable"
 
       - name: Publish HTML
         run: |
           aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}" --delete --only-show-errors \
             --exclude "*" --include "*.html" \
+            --cache-control "no-cache"
+
+      # Neither of these is content-hashed, so neither may be cached. A stale
+      # /sw.js keeps handling notifications with last month's code - it is the
+      # one file a browser will happily reuse for a year - and a stale manifest
+      # keeps the old icon and name on somebody's Home Screen.
+      - name: Publish the service worker and the manifest
+        run: |
+          aws s3 sync out/ "s3://${{ vars.S3_BUCKET }}" --only-show-errors \
+            --exclude "*" --include "sw.js" --include "manifest.webmanifest" \
             --cache-control "no-cache"
 
       - name: Invalidate CloudFront

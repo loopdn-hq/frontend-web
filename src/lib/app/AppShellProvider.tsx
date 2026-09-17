@@ -20,6 +20,7 @@ import {
   logout,
   useAccessToken,
 } from "@/lib/auth/client";
+import { syncPush } from "@/lib/app/push";
 import { useWebSocket } from "@/lib/websocket/useWebSocket";
 import {
   conversationMode,
@@ -45,6 +46,25 @@ type AppShellContextType = {
   // The list is paged. Scrolling to the end of it asks for the next page.
   hasMoreConversations: boolean;
   isLoadingMoreConversations: boolean;
+  /**
+   * The FIRST page has not arrived yet.
+   *
+   * Distinct from isLoadingMoreConversations, which is paging. Without this the
+   * list cannot tell "you have no chats" from "we have not looked yet", and it
+   * rendered the empty state on every cold load before correcting itself.
+   */
+  isLoadingConversations: boolean;
+  /**
+   * Why the first page did not arrive, or null.
+   *
+   * The FOURTH state, and the one that was missing: a failed fetch left the
+   * list empty and indistinguishable from an account with no chats, so a
+   * dropped connection read as "No chats yet - Create a loop to get started".
+   * Empty and unreachable are different facts and must not share a screen.
+   */
+  conversationsError: string | null;
+  /** Ask for the first page again, after it failed. */
+  reloadConversations: () => void;
   loadMoreConversations: () => void;
   userProfile: UserProfile;
   setUserProfile: Dispatch<SetStateAction<UserProfile>>;
@@ -96,6 +116,16 @@ const AppShellContext = createContext<AppShellContextType | undefined>(
   undefined,
 );
 
+/**
+ * How often an open socket says it is still there.
+ *
+ * The server marks somebody online while a socket is open, but it disbelieves
+ * a flag nothing has refreshed - otherwise a worker that died would leave a
+ * green dot beside somebody who left hours ago. Must stay comfortably under
+ * the server's staleness window (`user/presence.py:STALE_AFTER`, 3 minutes).
+ */
+const PRESENCE_PING_MS = 60_000;
+
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -103,6 +133,12 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [hasMoreConversations, setHasMoreConversations] = useState(false);
   const [isLoadingMoreConversations, setIsLoadingMoreConversations] =
     useState(false);
+  // Starts true: the fetch below is queued before the first paint, so there is
+  // no frame in which nothing is loading and the list is legitimately empty.
+  const [isLoadingConversations, setIsLoadingConversations] = useState(true);
+  const [conversationsError, setConversationsError] = useState<string | null>(
+    null,
+  );
   const [userProfile, setUserProfile] = useState<UserProfile>(() => ({
     displayName: displayNameForSession(getSession()),
   }));
@@ -114,13 +150,37 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   const [activityUnread, setActivityUnread] = useState(0);
   const [activityVersion, setActivityVersion] = useState(0);
 
+  // Which load owns the state. A retry started while the first request is
+  // still in the air would otherwise let the slower one land last and
+  // overwrite the newer answer - and it is what makes the initial effect safe
+  // under StrictMode's double mount.
+  const loadGeneration = useRef(0);
+
   // Lives here rather than in HomeShell so the list survives navigating to
   // Settings and back - the provider sits above the route in the (app) layout.
-  useEffect(() => {
-    let cancelled = false;
+  // Not async, and every setState lives inside the `.then`. The effect below
+  // calls this on mount, and state set synchronously in an effect is what
+  // cascades renders - so the only synchronous work here is starting the
+  // request. The "we are loading" half belongs to whoever started it: on mount
+  // that is the initial `true`, on a retry it is the handler, which is an
+  // event and may set state at once.
+  const loadConversations = useCallback(() => {
+    const generation = ++loadGeneration.current;
 
     fetchConversations().then((result) => {
-      if (cancelled || !result.ok) return;
+      if (generation !== loadGeneration.current) return;
+
+      // Lowered even when the request FAILED. A refusal is an answer: leaving
+      // this true would hold the skeleton on screen for ever and present an
+      // error as though it were still loading.
+      setIsLoadingConversations(false);
+      if (!result.ok) {
+        setConversationsError(result.message);
+        return;
+      }
+      // Cleared only on success, so a retry that works puts the list back and
+      // one that fails again leaves the reason on screen.
+      setConversationsError(null);
       setConversations(
         result.conversations.map((conversation, index) => ({
           ...conversation,
@@ -129,11 +189,21 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       );
       setHasMoreConversations(result.hasMore);
     });
-
-    return () => {
-      cancelled = true;
-    };
   }, []);
+
+  const reloadConversations = useCallback(() => {
+    setIsLoadingConversations(true);
+    setConversationsError(null);
+    loadConversations();
+  }, [loadConversations]);
+
+  useEffect(() => {
+    loadConversations();
+    // Bumping the generation on unmount drops whatever is still in flight.
+    return () => {
+      loadGeneration.current += 1;
+    };
+  }, [loadConversations]);
 
   // Seed the activity badge, so it is right before Activity is ever opened.
   useEffect(() => {
@@ -239,6 +309,64 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
   // useWebSocket rebuilds its connection whenever onMessage changes identity,
   // so handing it a subscriber that re-creates each render would tear the
   // socket down and open a new one on every keystroke.
+  // Notifications, on every signed-in route. Two things, both of which have
+  // to happen above the routes: the service worker is registered once for the
+  // whole app, and a tap on a notification has to be able to open a
+  // conversation from wherever the reader happens to be.
+  useEffect(() => {
+    // Silent - it never prompts. It re-points an already-allowed browser at
+    // whoever is signed in NOW, which is what stops a shared computer showing
+    // one person's messages to another. See lib/app/push.ts.
+    void syncPush();
+
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+      return;
+    }
+
+    // The service worker cannot change this tab's conversation itself - which
+    // one is open is client state, not a URL - so it asks.
+    const onWorkerMessage = (event: MessageEvent) => {
+      const data = event.data as {
+        type?: string;
+        conversationId?: string | number;
+      } | null;
+      if (!data || data.type !== "loopdn:open-conversation") return;
+      if (data.conversationId === undefined) return;
+
+      requestOpenConversation(data.conversationId);
+      router.push("/chats/");
+    };
+
+    navigator.serviceWorker.addEventListener("message", onWorkerMessage);
+    return () => {
+      navigator.serviceWorker.removeEventListener("message", onWorkerMessage);
+    };
+  }, [requestOpenConversation, router]);
+
+  // The other half: a notification tapped with no Loopd'n window open lands on
+  // /chats/#conversation=<id>, because a fresh page load has no tab to ask.
+  // A hash rather than a query param for the reason given above on
+  // `conversationToOpen`.
+  useEffect(() => {
+    const match = /^#conversation=(\d+)$/.exec(window.location.hash);
+    if (!match) return;
+
+    const conversationId = Number(match[1]);
+    // Out of the URL first, and synchronously: a refresh an hour later must
+    // not yank the reader back to the same conversation.
+    window.history.replaceState(null, "", window.location.pathname);
+
+    // Asked for on the next tick rather than in the effect body. Setting state
+    // synchronously while an effect runs cascades another render before the
+    // first has painted, which is what `react-hooks/set-state-in-effect`
+    // forbids - and this is a one-off handover from the URL, not a
+    // subscription, so there is nothing to keep in sync.
+    const handover = window.setTimeout(() => {
+      requestOpenConversation(conversationId);
+    }, 0);
+    return () => window.clearTimeout(handover);
+  }, [requestOpenConversation]);
+
   const socketListeners = useRef<Set<SocketListener>>(new Set());
 
   const subscribeToSocket = useCallback((listener: SocketListener) => {
@@ -297,12 +425,28 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     onMessage: handleSocketMessage,
   });
 
+  // Keep this account's presence fresh for as long as the app is open. Only
+  // while the socket is actually up: sending into a closed one would log a
+  // warning a minute, forever, and tell the server nothing.
+  useEffect(() => {
+    if (socketStatus !== "connected") return;
+
+    const beat = window.setInterval(() => {
+      sendSocketMessage({ type: "ping" });
+    }, PRESENCE_PING_MS);
+
+    return () => window.clearInterval(beat);
+  }, [socketStatus, sendSocketMessage]);
+
   const value = useMemo(
     () => ({
       conversations,
       setConversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      isLoadingConversations,
+      conversationsError,
+      reloadConversations,
       loadMoreConversations,
       userProfile,
       setUserProfile,
@@ -327,6 +471,9 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
       conversations,
       hasMoreConversations,
       isLoadingMoreConversations,
+      isLoadingConversations,
+      conversationsError,
+      reloadConversations,
       loadMoreConversations,
       userProfile,
       unreadByMode,

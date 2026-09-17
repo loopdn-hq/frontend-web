@@ -101,6 +101,16 @@ src/
   host. Redis configuration such as `REDIS_URL` and `CELERY_BROKER_URL` belongs
   to the backend and must not be exposed to the frontend.
 - Group settings and member moderation intentionally use mocked data.
+- **Web push needs no environment variable.** The VAPID public key is served by
+  the API (`GET /push/key/`), because a `NEXT_PUBLIC_` value would be baked into
+  the static export and could not be rotated without a rebuild.
+- `public/sw.js` is the service worker: it shows notifications and opens the
+  conversation they are about. It is deployed as a file at the site root, and
+  the deploy workflows re-sync it - and `manifest.webmanifest` - with
+  `Cache-Control: no-cache`. Everything else is cached for a year, and a
+  service worker cached for a year is one that never updates.
+- The manifest (`src/app/manifest.ts`) exists so iPhone and iPad can add the
+  site to the Home Screen, which is the only way Safari delivers web push.
 
 ## Scripts
 

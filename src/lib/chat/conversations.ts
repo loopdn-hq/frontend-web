@@ -6,6 +6,7 @@ import {
 } from "@/lib/auth/client";
 import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
+import type { MessageMention } from "@/lib/chat/mentions";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
@@ -122,9 +123,31 @@ export type ConversationParticipant = {
   username?: string;
   email?: string;
   phone?: string;
-  role: "admin" | "moderator" | "member";
+  /**
+   * Admin or member - the only two the server has (`Participant.Role`).
+   *
+   * Narrow on purpose. A third value here is how "Make moderator" came to be
+   * offered in the member menu: the role endpoint is a ChoiceField over these
+   * two, so sending anything else is a 400, and the type now says so at build
+   * time instead of at the request.
+   */
+  role: "admin" | "member";
   joinedAt: string;
   isBlocked?: boolean;
+  /**
+   * Whether the VIEWER has blocked this person.
+   *
+   * One direction, and only ever the viewer's own decision: it is never true
+   * because this person blocked the viewer. That asymmetry is the whole point -
+   * a block has to stay invisible to the person it was made against.
+   *
+   * Distinct from `isBlocked`, which is an ADMIN's ban from one group. This one
+   * is personal, spans the product, and no admin can see it.
+   *
+   * The only participant field whose answer depends on who is asking, which is
+   * what makes it unsafe to read off a broadcast - see `applyConversationUpdate`.
+   */
+  blockedByMe: boolean;
   isOnline?: boolean;
   lastActive?: string;
 };
@@ -214,6 +237,13 @@ export type ConversationMessage = {
   replyTo?: MessageReplyTo;
   /** The card for its first link, when it has one. */
   linkPreview?: LinkPreview;
+  /**
+   * Who this message names. Stored as ids rather than parsed out of the
+   * words, because most members have no handle to parse - see lib/chat/mentions.
+   */
+  mentions: MessageMention[];
+  /** Whether it named the whole Loop, which is a flag rather than a list. */
+  mentionsEveryone: boolean;
 };
 
 type ApiObject = Record<string, unknown>;
@@ -343,8 +373,7 @@ export function normalizeParticipant(
     user.display_label,
     asText(profile.display_label, username ?? "Member"),
   );
-  const role =
-    item.role === "admin" || item.role === "moderator" ? item.role : "member";
+  const role = item.role === "admin" ? "admin" : "member";
 
   return {
     id: String(id),
@@ -356,6 +385,9 @@ export function normalizeParticipant(
     role,
     joinedAt: asText(item.joined_at, "Recently"),
     isBlocked: item.is_blocked === true,
+    // Off the ACCOUNT, not the membership row: a block follows the person
+    // everywhere, and a phone-only member has no account to have blocked.
+    blockedByMe: user.blocked_by_me === true,
     avatarUrl: asText(profile.avatar_url) || undefined,
     lastReadMessageId:
       typeof item.last_read_message === "number"
@@ -364,6 +396,32 @@ export function normalizeParticipant(
     isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
   };
+}
+
+/**
+ * The other person in a one-to-one conversation.
+ *
+ * Null for a group, which is not one person, and null for a direct row that
+ * holds nobody but the viewer - which is what a conversation just started
+ * looks like until its participants arrive.
+ *
+ * Matched on username rather than on position, because the order participants
+ * come back in is the server's and not a promise. Only somebody with an
+ * account can be the answer: the actions that need this one person - blocking
+ * them, unblocking them - name an account, and a direct conversation cannot
+ * hold a phone-only member today anyway.
+ */
+export function directCounterpart(
+  conversation: Pick<Conversation, "kind" | "participants">,
+  viewerUsername: string | null,
+): ConversationParticipant | null {
+  if (conversation.kind === "group") return null;
+  return (
+    conversation.participants.find(
+      (participant) =>
+        participant.username && participant.username !== viewerUsername,
+    ) ?? null
+  );
 }
 
 function isCurrentUserAdmin(item: ApiObject): boolean {
@@ -586,6 +644,24 @@ function normalizeLinkPreview(raw: unknown): LinkPreview | undefined {
   };
 }
 
+function normalizeMentions(value: unknown): MessageMention[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter(isApiObject).flatMap((row) => {
+    const participantId = row.participant_id;
+    if (typeof participantId !== "number") return [];
+
+    return [
+      {
+        participantId,
+        userId: typeof row.user_id === "number" ? row.user_id : null,
+        username: asText(row.username) || null,
+        displayLabel: asText(row.display_label),
+      },
+    ];
+  });
+}
+
 function normalizeMessage(item: ApiObject): ConversationMessage | null {
   const id = item.id;
   const conversationId = item.conversation;
@@ -637,6 +713,8 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
     mine: item.mine === true,
     reactions,
     forwarded: item.forwarded === true,
+    mentions: normalizeMentions(item.mentions),
+    mentionsEveryone: item.mentions_everyone === true,
     editedAt: asText(item.edited_at) || null,
     deletedAt: asText(item.deleted_at) || null,
     ...(linkPreview ? { linkPreview } : {}),
@@ -1765,13 +1843,26 @@ export async function editConversationMessage(
   conversationId: string | number,
   messageId: string | number,
   text: string,
+  /**
+   * The edited words name whoever the edited words name, so an edit re-states
+   * the mentions - taking "@Bob" out of the sentence has to take Bob out of
+   * the mentions. Left off entirely, the message keeps the ones it has.
+   */
+  mentionIds?: number[],
+  mentionEveryone?: boolean,
 ): Promise<MessageResult> {
   return requestMessage(
     MESSAGE_ROUTE(conversationId, messageId),
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: text.trim() }),
+      body: JSON.stringify({
+        text: text.trim(),
+        ...(mentionIds !== undefined ? { mentions: mentionIds } : {}),
+        ...(mentionEveryone !== undefined
+          ? { mention_everyone: mentionEveryone }
+          : {}),
+      }),
     },
     "Unable to edit this message.",
   );
@@ -1866,6 +1957,13 @@ export async function sendConversationMessage(
    * id is refused rather than quoted.
    */
   replyToId?: string | number | null,
+  /**
+   * Membership ids the composer offered and the sender picked. The server
+   * drops any that are not an active member of THIS conversation, so a stale
+   * id costs a highlight rather than the message.
+   */
+  mentionIds: number[] = [],
+  mentionEveryone = false,
 ): Promise<
   { ok: true; message: ConversationMessage } | { ok: false; message: string }
 > {
@@ -1882,11 +1980,18 @@ export async function sendConversationMessage(
             if (replyToId != null) {
               formData.append("reply_to", String(replyToId));
             }
+            // Repeated keys, which is how a ListField reads a multipart body.
+            mentionIds.forEach((id) => {
+              formData.append("mentions", String(id));
+            });
+            if (mentionEveryone) formData.append("mention_everyone", "true");
             return formData;
           })()
         : JSON.stringify({
             text: text.trim(),
             ...(replyToId != null ? { reply_to: replyToId } : {}),
+            ...(mentionIds.length > 0 ? { mentions: mentionIds } : {}),
+            ...(mentionEveryone ? { mention_everyone: true } : {}),
           }),
     };
     if (!hasAttachments) {

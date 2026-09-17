@@ -61,36 +61,39 @@ export type PricedOption<T extends string> = {
 // credible step above Business rather than an arbitrary number. Still a
 // PLACEHOLDER pending finalized Enterprise pricing from product/finance.
 
+// 2026-09: dropped ~70% (kept at roughly 30% of the original placeholder)
+// per product feedback that the scope/feature numbers read too high - only
+// the credit packages below were left untouched.
 /** PLACEHOLDER - recurring monthly base fee before limits/features/credits. */
-export const BASE_FEE_CENTS = 19_900;
+export const BASE_FEE_CENTS = 6_000;
 
 // ---- Limits -----------------------------------------------------------
 
 export const MAX_GROUPS_OPTIONS: PricedOption<string>[] = [
   { value: "50", label: "50 groups", priceCents: 0 },
-  { value: "100", label: "100 groups", priceCents: 9_900 },
-  { value: "300", label: "300 groups", priceCents: 29_900 },
-  { value: "500", label: "500 groups", priceCents: 49_900 },
+  { value: "100", label: "100 groups", priceCents: 3_000 },
+  { value: "300", label: "300 groups", priceCents: 9_000 },
+  { value: "500", label: "500 groups", priceCents: 15_000 },
 ];
 
 export const MAX_MEMBERS_PER_GROUP_OPTIONS: PricedOption<string>[] = [
   { value: "100", label: "100 members / group", priceCents: 0 },
-  { value: "250", label: "250 members / group", priceCents: 7_900 },
-  { value: "500", label: "500 members / group", priceCents: 19_900 },
-  { value: "1000", label: "1,000 members / group", priceCents: 34_900 },
+  { value: "250", label: "250 members / group", priceCents: 2_400 },
+  { value: "500", label: "500 members / group", priceCents: 6_000 },
+  { value: "1000", label: "1,000 members / group", priceCents: 10_500 },
 ];
 
 export const MAX_ADMINS_PER_GROUP_OPTIONS: PricedOption<string>[] = [
   { value: "20", label: "20 admins / group", priceCents: 0 },
-  { value: "50", label: "50 admins / group", priceCents: 5_900 },
-  { value: "100", label: "100 admins / group", priceCents: 12_900 },
+  { value: "50", label: "50 admins / group", priceCents: 1_800 },
+  { value: "100", label: "100 admins / group", priceCents: 3_900 },
 ];
 
 export const STORAGE_GB_OPTIONS: PricedOption<string>[] = [
-  { value: "10", label: "10 GB storage", priceCents: 0 },
-  { value: "25", label: "25 GB storage", priceCents: 4_900 },
-  { value: "50", label: "50 GB storage", priceCents: 9_900 },
-  { value: "100", label: "100 GB storage", priceCents: 17_900 },
+  { value: "50", label: "50 GB storage", priceCents: 0 },
+  { value: "100", label: "100 GB storage", priceCents: 1_500 },
+  { value: "500", label: "500 GB storage", priceCents: 4_500 },
+  { value: "1000", label: "1,000 GB storage", priceCents: 7_500 },
 ];
 
 // ---- Toggleable features ---------------------------------------------
@@ -99,43 +102,45 @@ export const STORAGE_GB_OPTIONS: PricedOption<string>[] = [
 // unbundles them so a customer starting from the base fee only pays for what
 // they turn on.
 
-export const FEATURE_TOGGLES: {
+export type FeatureToggleOption = {
   key: EnterpriseFeatureKey;
   label: string;
   description: string;
   priceCents: number;
-}[] = [
+};
+
+export const FEATURE_TOGGLES: FeatureToggleOption[] = [
   {
     key: "extended_message_history",
     label: "Extended message history",
     description:
       "Keep full message history beyond the standard retention window.",
-    priceCents: 2_900,
+    priceCents: 900,
   },
   {
     key: "search",
     label: "Search",
     description: "Full-text search across messages, files, and members.",
-    priceCents: 2_900,
+    priceCents: 900,
   },
   {
     key: "advanced_notifications",
     label: "Advanced notifications",
     description: "Custom notification rules, digests, and escalation routing.",
-    priceCents: 3_900,
+    priceCents: 1_200,
   },
   {
     key: "moderation_tools",
     label: "Moderation tools",
     description: "Content filters, admin review queues, and audit trails.",
-    priceCents: 5_900,
+    priceCents: 1_800,
   },
 ];
 
 export const ANALYTICS_OPTIONS: PricedOption<AnalyticsTier>[] = [
   { value: "none", label: "None", priceCents: 0 },
-  { value: "basic", label: "Basic", priceCents: 4_900 },
-  { value: "advanced", label: "Advanced", priceCents: 14_900 },
+  { value: "basic", label: "Basic", priceCents: 1_500 },
+  { value: "advanced", label: "Advanced", priceCents: 4_500 },
 ];
 
 // ---- Credits ------------------------------------------------------------
@@ -150,14 +155,16 @@ export const CREDIT_PACKAGE_OPTIONS: PricedOption<string>[] = [
 
 // ---- Billing interval -----------------------------------------------
 
-export const BILLING_INTERVAL_OPTIONS: {
+export type BillingIntervalOption = {
   value: BillingIntervalCode;
   label: string;
   months: number;
   /** PLACEHOLDER discount applied to the period subtotal. */
   discountPercent: number;
   description: string;
-}[] = [
+};
+
+export const BILLING_INTERVAL_OPTIONS: BillingIntervalOption[] = [
   {
     value: "monthly",
     label: "Monthly",
@@ -189,7 +196,7 @@ export const DEFAULT_CONFIGURATION: EnterpriseConfiguration = {
     max_groups: 100,
     max_members_per_group: 250,
     max_admins_per_group: 20,
-    storage_gb: 10,
+    storage_gb: 50,
   },
   features: {
     extended_message_history: false,
@@ -201,6 +208,46 @@ export const DEFAULT_CONFIGURATION: EnterpriseConfiguration = {
   credits: {
     monthly_messages: 10_000,
   },
+};
+
+/**
+ * Everything calculateEnterprisePrice() and the builder's option lists need,
+ * bundled so the live `GET /enterprise/pricing/` response and this file's own
+ * static PLACEHOLDER data are interchangeable - the builder page starts from
+ * DEFAULT_CATALOG (below) for a hydration-safe first paint, then swaps in the
+ * live catalog once fetched. See lib/enterprise/api.ts's
+ * fetchEnterprisePricingCatalog() for the normalization from the wire shape.
+ */
+export type EnterpriseCatalog = {
+  catalogVersion: number | null;
+  currency: string;
+  baseFeeCents: number;
+  limits: {
+    maxGroups: PricedOption<string>[];
+    maxMembersPerGroup: PricedOption<string>[];
+    maxAdminsPerGroup: PricedOption<string>[];
+    storageGb: PricedOption<string>[];
+  };
+  features: FeatureToggleOption[];
+  analytics: PricedOption<AnalyticsTier>[];
+  creditPackages: PricedOption<string>[];
+  billingIntervals: BillingIntervalOption[];
+};
+
+export const DEFAULT_CATALOG: EnterpriseCatalog = {
+  catalogVersion: null,
+  currency: "usd",
+  baseFeeCents: BASE_FEE_CENTS,
+  limits: {
+    maxGroups: MAX_GROUPS_OPTIONS,
+    maxMembersPerGroup: MAX_MEMBERS_PER_GROUP_OPTIONS,
+    maxAdminsPerGroup: MAX_ADMINS_PER_GROUP_OPTIONS,
+    storageGb: STORAGE_GB_OPTIONS,
+  },
+  features: FEATURE_TOGGLES,
+  analytics: ANALYTICS_OPTIONS,
+  creditPackages: CREDIT_PACKAGE_OPTIONS,
+  billingIntervals: BILLING_INTERVAL_OPTIONS,
 };
 
 function findOption<T extends string>(
@@ -236,23 +283,29 @@ export type EnterprisePriceEstimate = {
  * this from the database before anything is billed, and the client must never
  * be trusted to submit an arbitrary total - this function exists purely so
  * the builder UI has a live number to show while configuring.
+ *
+ * Takes a catalog rather than reading the module-level consts directly, so
+ * the builder can pass the live `GET /enterprise/pricing/` catalog once it's
+ * loaded (falling back to DEFAULT_CATALOG - this file's own PLACEHOLDER data
+ * - until then or if that fetch fails).
  */
 export function calculateEnterprisePrice(
   configuration: EnterpriseConfiguration,
+  catalog: EnterpriseCatalog = DEFAULT_CATALOG,
 ): EnterprisePriceEstimate {
   const lines: EnterprisePriceLine[] = [
-    { label: "Enterprise base fee", amountCents: BASE_FEE_CENTS },
+    { label: "Enterprise base fee", amountCents: catalog.baseFeeCents },
   ];
 
   const groups = findOption(
-    MAX_GROUPS_OPTIONS,
+    catalog.limits.maxGroups,
     String(configuration.limits.max_groups),
   );
   if (groups)
     lines.push({ label: groups.label, amountCents: groups.priceCents });
 
   const members = findOption(
-    MAX_MEMBERS_PER_GROUP_OPTIONS,
+    catalog.limits.maxMembersPerGroup,
     String(configuration.limits.max_members_per_group),
   );
   if (members) {
@@ -260,28 +313,28 @@ export function calculateEnterprisePrice(
   }
 
   const admins = findOption(
-    MAX_ADMINS_PER_GROUP_OPTIONS,
+    catalog.limits.maxAdminsPerGroup,
     String(configuration.limits.max_admins_per_group),
   );
   if (admins)
     lines.push({ label: admins.label, amountCents: admins.priceCents });
 
   const storage = findOption(
-    STORAGE_GB_OPTIONS,
+    catalog.limits.storageGb,
     String(configuration.limits.storage_gb),
   );
   if (storage) {
     lines.push({ label: storage.label, amountCents: storage.priceCents });
   }
 
-  for (const feature of FEATURE_TOGGLES) {
+  for (const feature of catalog.features) {
     if (configuration.features[feature.key]) {
       lines.push({ label: feature.label, amountCents: feature.priceCents });
     }
   }
 
   const analytics = findOption(
-    ANALYTICS_OPTIONS,
+    catalog.analytics,
     configuration.features.analytics,
   );
   if (analytics && analytics.priceCents > 0) {
@@ -292,7 +345,7 @@ export function calculateEnterprisePrice(
   }
 
   const credits = findOption(
-    CREDIT_PACKAGE_OPTIONS,
+    catalog.creditPackages,
     String(configuration.credits.monthly_messages),
   );
   if (credits) {
@@ -305,9 +358,9 @@ export function calculateEnterprisePrice(
   );
 
   const interval =
-    BILLING_INTERVAL_OPTIONS.find(
+    catalog.billingIntervals.find(
       (option) => option.value === configuration.billing_interval,
-    ) ?? BILLING_INTERVAL_OPTIONS[0];
+    ) ?? catalog.billingIntervals[0];
 
   const periodSubtotalCents = monthlySubtotalCents * interval.months;
   const discountCents = Math.round(

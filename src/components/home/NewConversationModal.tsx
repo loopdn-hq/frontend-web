@@ -6,6 +6,7 @@ import { Button, Input, Modal } from "@/components/ui";
 import { ChatAvatar } from "./ChatAvatar";
 import { startDirectConversation } from "@/lib/chat/conversations";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
+import { inviteToApp } from "@/lib/user/invites";
 import {
   MIN_USER_SEARCH_LENGTH,
   searchUsers,
@@ -29,6 +30,13 @@ import {
  * OPEN a conversation if it is verified on somebody's account, so a typed
  * address gets a row of its own. That keeps what the previous direct-message
  * box could do.
+ *
+ * WHEN NOBODY MATCHES there is an invitation to offer, because a conversation
+ * needs an account at both ends. An address we can email ourselves; a phone
+ * number we cannot text - see lib/user/invites - so that one becomes a link to
+ * send by hand. The wording never says an email was delivered: the server
+ * answers a hidden address exactly like a free one, and the screen must not
+ * give away what the server is hiding.
  */
 export function NewConversationModal({
   onClose,
@@ -53,6 +61,15 @@ export function NewConversationModal({
 
   const [openingKey, setOpeningKey] = useState<string | null>(null);
   const [openError, setOpenError] = useState<string | null>(null);
+
+  // Kept with the term it belongs to, like the results above: typing on is
+  // what clears a sent invitation, so one address's answer is never shown
+  // under another.
+  const [invite, setInvite] = useState<{
+    term: string;
+    status: "offered" | "sending" | "sent" | "already" | "copied";
+    error?: string;
+  } | null>(null);
 
   const searchable =
     term.length >= MIN_USER_SEARCH_LENGTH && !term.includes("@");
@@ -82,6 +99,30 @@ export function NewConversationModal({
   const current = results && results.term === term ? results : null;
   const isSearching = searchable && current === null && !searchError;
   const looksLikeEmail = term.includes("@") && term.length >= 3;
+  const inviteState = invite && invite.term === term ? invite : null;
+
+  async function sendInvite(email: string) {
+    setInvite({ term: email, status: "sending" });
+
+    const result = await inviteToApp(email);
+    if (!result.ok) {
+      setInvite({ term: email, status: "offered", error: result.message });
+      return;
+    }
+    setInvite({ term: email, status: result.alreadyHere ? "already" : "sent" });
+  }
+
+  async function copyInviteLink() {
+    const link = `${window.location.origin}/signup`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setInvite({ term, status: "copied" });
+    } catch {
+      // A browser that refuses the clipboard - or any page not on https -
+      // still leaves them the link itself, which is all the button was for.
+      setInvite({ term, status: "offered", error: `Copy it by hand: ${link}` });
+    }
+  }
 
   async function open(identifier: string, key: string) {
     setOpenError(null);
@@ -93,6 +134,12 @@ export function NewConversationModal({
       // In the server's own words: it tells the person who made a block
       // something different from everybody else, on purpose.
       setOpenError(result.message);
+      // There is nobody to open a conversation with, so offer the one thing
+      // that can change that. Whether the address is free or merely hidden is
+      // the server's secret, and the invitation endpoint keeps it too.
+      if (key.startsWith("email:")) {
+        setInvite({ term: identifier, status: "offered" });
+      }
       return;
     }
     await onStarted(result.conversationId);
@@ -149,6 +196,39 @@ export function NewConversationModal({
             />
           )}
 
+          {looksLikeEmail && inviteState && (
+            <InviteNote>
+              {inviteState.status === "sent" ? (
+                <p>
+                  If nobody has that address yet, an invitation is on its way.
+                  They can reach you here once they sign up.
+                </p>
+              ) : inviteState.status === "already" ? (
+                <p>They already have an account &mdash; try Message again.</p>
+              ) : (
+                <>
+                  <p>Not on Loopd&apos;n yet? Email them an invitation.</p>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => sendInvite(term)}
+                    disabled={inviteState.status === "sending"}
+                  >
+                    {inviteState.status === "sending"
+                      ? "Sending..."
+                      : "Send invite"}
+                  </Button>
+                </>
+              )}
+              {inviteState.error && (
+                <p className="text-red-600 dark:text-red-400" role="alert">
+                  {inviteState.error}
+                </p>
+              )}
+            </InviteNote>
+          )}
+
           {isSearching && (
             <p className="px-1 py-4 text-center text-sm text-slate-400">
               Searching...
@@ -161,12 +241,35 @@ export function NewConversationModal({
             </p>
           )}
 
-          {current && current.users.length === 0 && (
+          {current && current.users.length === 0 && !term.startsWith("+") && (
             <p className="px-1 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
-              {term.startsWith("+")
-                ? "No account has verified that number."
-                : `No usernames start with “${term}”.`}
+              {`No usernames start with “${term}”.`}
             </p>
+          )}
+
+          {current && current.users.length === 0 && term.startsWith("+") && (
+            <InviteNote>
+              <p>No account has verified that number.</p>
+              <p>
+                Loopd&apos;n cannot text an invitation yet, so send them this
+                link from your own messages.
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={copyInviteLink}
+              >
+                {inviteState?.status === "copied"
+                  ? "Link copied"
+                  : "Copy invite link"}
+              </Button>
+              {inviteState?.error && (
+                <p className="text-red-600 dark:text-red-400" role="alert">
+                  {inviteState.error}
+                </p>
+              )}
+            </InviteNote>
           )}
 
           {current?.users.map((user) => (
@@ -215,6 +318,15 @@ export function NewConversationModal({
         </button>
       </div>
     </Modal>
+  );
+}
+
+/** The dashed box under the rows, where an invitation is offered. */
+function InviteNote({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-2 rounded-xl border border-dashed border-slate-300 p-3 text-sm text-slate-600 dark:border-slate-600 dark:text-slate-300">
+      {children}
+    </div>
   );
 }
 

@@ -3,9 +3,18 @@
  *
  * Saved on the account (`NotificationSettings`, through
  * lib/user/accountSettings), with a copy in this browser (see
- * lib/app/localPreferences) that the screen reads. READ BY NOTHING that
- * decides what is delivered - there are no push notifications, calls or
- * delivery-failure alerts to switch off yet.
+ * lib/app/localPreferences) that the screen reads.
+ *
+ * The five message rows and the two below them are REAL: the backend reads
+ * them in push/rules.py when it decides whether to notify somebody. Mentions &
+ * replies works on its own - a message that names you arrives even with Group
+ * messages off - and muting a Loop silences all of them for that Loop.
+ * Calls and delivery-failure alerts are still saved and still do nothing;
+ * there are no calls, and no alert is raised for a failed text or email.
+ *
+ * Whether this BROWSER may show anything is a separate thing that cannot be
+ * saved on the account - see lib/app/push.ts and the row at the top of the
+ * screen.
  *
  * A new setting: add its row here, then its API name in
  * lib/user/accountSettings. The screen does not change.

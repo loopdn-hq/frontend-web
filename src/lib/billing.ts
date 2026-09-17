@@ -25,6 +25,20 @@ export type CreditPackage = {
   creditCents: number;
 };
 
+/**
+ * The Enterprise messaging-credit balance - a separate pool from `wallet`
+ * below. `wallet` is the PAYG Communication Wallet (SMS/voice, spent as you
+ * go, any plan); this is the fixed monthly allowance a Communication Credit
+ * package grants an Enterprise contract, reset each billing period. Only
+ * present once an Enterprise contract exists - null otherwise.
+ */
+export type EnterpriseCreditsSummary = {
+  contractNumber: string;
+  status: string;
+  balance: number;
+  monthlyAllowance: number;
+};
+
 export type BillingSummary = {
   subscription: {
     plan: BillingPlan;
@@ -37,6 +51,7 @@ export type BillingSummary = {
     autoRechargeEnabled: boolean;
     autoRechargePackage: string | null;
   };
+  enterpriseCredits: EnterpriseCreditsSummary | null;
 };
 
 export type BillingAnalyticsPlanInfo = {
@@ -477,6 +492,10 @@ function normalizeSummary(data: unknown): BillingSummary | null {
     isCustomPricing: false,
   };
 
+  const enterpriseCreditsPayload = isObject(data.enterprise_credits)
+    ? data.enterprise_credits
+    : null;
+
   return {
     subscription: {
       plan: withDefaultPlanLimits(normalizedSummaryPlan ?? fallbackPlan),
@@ -494,6 +513,14 @@ function normalizeSummary(data: unknown): BillingSummary | null {
         ? asText(wallet.auto_recharge_package.name) || null
         : null,
     },
+    enterpriseCredits: enterpriseCreditsPayload
+      ? {
+          contractNumber: asText(enterpriseCreditsPayload.contract_number),
+          status: asText(enterpriseCreditsPayload.status),
+          balance: asCount(enterpriseCreditsPayload.balance),
+          monthlyAllowance: asCount(enterpriseCreditsPayload.monthly_allowance),
+        }
+      : null,
   };
 }
 

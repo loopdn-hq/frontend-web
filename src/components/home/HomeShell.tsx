@@ -10,6 +10,21 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { getSession } from "@/lib/auth/client";
+import { MentionPicker } from "@/components/home/message/MentionPicker";
+import {
+  EVERYONE,
+  filterCandidates,
+  findMentionQuery,
+  insertMention,
+  pruneMentions,
+  toApiMentions,
+  type DraftMention,
+  type MentionCandidate,
+  type MentionQuery,
+} from "@/lib/chat/mentions";
+
+/** Ties the composer input to the mention list for a screen reader. */
+const MENTION_LIST_ID = "composer-mentions";
 import {
   addConversationMembers,
   fetchConversation,
@@ -28,6 +43,7 @@ import {
   setConversationArchived,
   setConversationMuted,
   conversationMode,
+  directCounterpart,
   hasReacted,
   normalizeConversationPayload,
   normalizeMessagePayload,
@@ -60,6 +76,7 @@ import {
   type ContextMenuItem,
   type ContextMenuOrigin,
 } from "@/components/ui/context-menu";
+import { blockUser, unblockUser } from "@/lib/user/blocks";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import {
   ComposerContextBar,
@@ -67,6 +84,7 @@ import {
   ForwardMessageModal,
   MessageBubble,
   MessageInfoModal,
+  MessageThreadSkeleton,
   PinnedMessageBar,
   ReactionBar,
   type ComposerContext,
@@ -78,6 +96,8 @@ import {
   canPinMessage,
   DELETED_MESSAGE_TEXT,
 } from "@/lib/chat/messageActions";
+import { LoadFailed } from "@/components/app/LoadFailed";
+import { ConversationListSkeleton } from "./ConversationListSkeleton";
 import { CreateLoopModal } from "./CreateLoopModal";
 import { JoinLoopModal } from "./JoinLoopModal";
 import { AddMembersModal } from "./AddMembersModal";
@@ -109,6 +129,7 @@ import {
   Bell,
   BellOff,
   LogOut,
+  Ban,
   Trash2,
   ChevronLeft,
   EllipsisVertical,
@@ -279,45 +300,68 @@ const messageEmojis = [
   "🔑",
 ];
 
-// Mock data for admin panel
-const mockMembers = [
-  {
-    id: "1",
-    name: "You",
-    email: "you@example.com",
-    role: "admin" as const,
-    joinedAt: "Jan 15, 2024",
-    isBlocked: false,
-    lastActive: "2 minutes ago",
-  },
-  {
-    id: "2",
-    name: "Sarah",
-    phone: "+1 (555) 123-4567",
-    role: "member" as const,
-    joinedAt: "Jan 20, 2024",
-    isBlocked: false,
-    lastActive: "1 hour ago",
-  },
-  {
-    id: "3",
-    name: "John",
-    email: "john@example.com",
-    role: "moderator" as const,
-    joinedAt: "Jan 18, 2024",
-    isBlocked: false,
-    lastActive: "3 hours ago",
-  },
-  {
-    id: "4",
-    name: "Mike",
-    email: "mike@example.com",
-    role: "member" as const,
-    joinedAt: "Feb 1, 2024",
-    isBlocked: true,
-    lastActive: "1 week ago",
-  },
-];
+/**
+ * Take a broadcast's participants, but keep the viewer's own blocks.
+ *
+ * `blocked_by_me` is answered for whoever asked, and a `conversation.updated`
+ * frame is serialized once for the whole group with nobody asking - so it comes
+ * back false for everybody. Applied as-is, pinning a message in a conversation
+ * would quietly un-block the person in it until the next reload.
+ *
+ * Matched on the membership id, which is what the server keys a participant by.
+ * A participant the viewer has never seen keeps whatever the payload said,
+ * which for this field is the only honest answer available.
+ */
+function keepOwnBlocks(
+  incoming: ConversationParticipant[],
+  existing: ConversationParticipant[],
+): ConversationParticipant[] {
+  const known = new Map(existing.map((person) => [person.id, person]));
+  return incoming.map((person) => {
+    const before = known.get(person.id);
+    return before ? { ...person, blockedByMe: before.blockedByMe } : person;
+  });
+}
+
+/**
+ * What to say before blocking or unblocking somebody. One copy of the words.
+ *
+ * Asked from three places - the row menu's inline confirm, the open
+ * conversation's menu, and the notice over a blocked composer - and the answer
+ * has to be the same in all three, because it is the only place the product
+ * explains what a block does and does not do.
+ */
+function blockConfirmCopy(name: string, blocked: boolean) {
+  return blocked
+    ? {
+        title: `Block ${name}?`,
+        body: `${name} can't send you direct messages or add you to a group. Any group you already share stays as it is - you both stay members and see each other's messages there.`,
+        label: "Block",
+      }
+    : {
+        title: `Unblock ${name}?`,
+        body: `${name} will be able to send you direct messages and add you to groups again.`,
+        label: "Unblock",
+      };
+}
+
+/** Which of the row menu's four destructive-ish actions is asking. */
+type RowConfirmKind = "leave" | "clear" | "block" | "unblock";
+
+/**
+ * One confirm step, as data.
+ *
+ * Four actions share one confirm panel. Branching inside the markup meant a
+ * ternary per line - title, body, button label, button colour and the call
+ * itself - so the panel asks for this instead and renders whatever it gets.
+ */
+type RowConfirmStep = {
+  title: string;
+  body: string;
+  label: string;
+  buttonClassName: string;
+  run: () => Promise<void>;
+};
 
 type HomeShellProps = {
   // Which Loops this instance lists: /chats/ shows chat groups, /broadcast/
@@ -341,6 +385,9 @@ export function HomeShell({ mode }: HomeShellProps) {
     clearConversationToOpen,
     hasMoreConversations,
     isLoadingMoreConversations,
+    isLoadingConversations,
+    conversationsError,
+    reloadConversations,
     loadMoreConversations,
   } = useAppShell();
   const isBroadcast = mode === "broadcast";
@@ -404,7 +451,20 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [rowMenuFor, setRowMenuFor] = useState<string | number | null>(null);
   // Leaving and deleting are not undoable, so the menu asks first rather than
   // acting on the click that opened it.
-  const [rowConfirm, setRowConfirm] = useState<"leave" | "clear" | null>(null);
+  const [rowConfirm, setRowConfirm] = useState<RowConfirmKind | null>(null);
+  // The open conversation's own menu, and the confirm any block goes through.
+  // `blockConfirm` is shared: the menu and the blocked composer's Unblock both
+  // raise the same dialog rather than each growing their own.
+  const [headerMenuOrigin, setHeaderMenuOrigin] =
+    useState<ContextMenuOrigin | null>(null);
+  const [blockConfirm, setBlockConfirm] = useState<{
+    person: ConversationParticipant;
+    blocked: boolean;
+  } | null>(null);
+  const [isBlockConfirmBusy, setIsBlockConfirmBusy] = useState(false);
+  const [blockConfirmError, setBlockConfirmError] = useState<string | null>(
+    null,
+  );
   const [rowActionError, setRowActionError] = useState<string | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<
     string | number | null
@@ -422,7 +482,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     null,
   );
   const [isGroupSettingsLoading, setIsGroupSettingsLoading] = useState(true);
-  const [adminPanelTab, setAdminPanelTab] = useState<AdminTab>("settings");
+  const [adminPanelTab, setAdminPanelTab] = useState<AdminTab>("general");
   // Actual pending join requests per Loop this user administers - the admin
   // panel's worklist. Only shrinks on approve/decline, never on "seen".
   const [pendingRequestsByLoop, setPendingRequestsByLoop] = useState<
@@ -549,6 +609,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     });
   }, [billingPlans]);
 
+  // The backend folds an active Enterprise contract's entitlements directly
+  // into subscription.plan (code becomes the contract number, limits are the
+  // real ones, features list what's enabled) - no separate Enterprise-aware
+  // path needed here, this already reflects it.
   const activePlan = billingSummary?.subscription.plan ?? null;
   const currentPlanCode = activePlan?.code?.toLowerCase() ?? "";
 
@@ -743,6 +807,20 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   // Message input state
   const [messageInput, setMessageInput] = useState("");
+  /**
+   * Who the draft names, as the ids the picker offered.
+   *
+   * Ids rather than the words, because the words are ambiguous: two members
+   * can be called "Mum" and a display name can change after the fact. Pruned
+   * against the text on the way out, so a name deleted from the sentence stops
+   * being a mention - see lib/chat/mentions.
+   */
+  const [composerMentions, setComposerMentions] = useState<DraftMention[]>([]);
+  /** The unfinished "@..." at the caret, or null when there is none. */
+  const [mentionQuery, setMentionQuery] = useState<MentionQuery | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  // Needed to put the caret back after a name is inserted mid-sentence.
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
   // Settings → Messaging → "Press Enter to send", kept in this browser.
   const { enterToSend } = useLocalMessagingPreferences();
   /**
@@ -759,6 +837,18 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [messageError, setMessageError] = useState<string | null>(null);
+  /**
+   * Why the HISTORY would not load, as opposed to why a send failed.
+   *
+   * Two different failures that were sharing one variable, and so one place to
+   * appear: a send error belongs above the composer, where the words that
+   * failed still are, while a history error belongs in the thread - which was
+   * meanwhile displaying "No messages yet" and arguing with it.
+   */
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  // Bumped by Try again. In the history effect's deps, so a retry re-runs the
+  // fetch without the effect needing to be pulled apart.
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [voiceRecordError, setVoiceRecordError] = useState<string | null>(null);
@@ -844,6 +934,8 @@ export function HomeShell({ mode }: HomeShellProps) {
         linkPreview: message.linkPreview,
         reactions: message.reactions,
         forwarded: message.forwarded,
+        mentions: message.mentions,
+        mentionsEveryone: message.mentionsEveryone,
         editedAt: message.editedAt,
         deletedAt: message.deletedAt,
         text: message.text,
@@ -872,6 +964,83 @@ export function HomeShell({ mode }: HomeShellProps) {
   const selectedConversation = selectedConversationId
     ? conversations.find((c) => c.id === selectedConversationId)
     : null;
+
+  /**
+   * Who can be named in this Loop: everyone, then every other active member.
+   *
+   * Read from the participants the shell already loaded for this conversation.
+   * Members with no account are included - they can be named, they simply get
+   * the message by text like always and no notification of their own.
+   */
+  const mentionCandidates = useMemo<MentionCandidate[]>(() => {
+    const rows = selectedConversation?.participants ?? [];
+    return [
+      {
+        id: EVERYONE,
+        label: "everyone",
+        hint: "Everyone in this Loop",
+      },
+      ...rows
+        .filter(
+          (participant) =>
+            !currentUsername || participant.username !== currentUsername,
+        )
+        .map((participant) => ({
+          id: Number(participant.id),
+          label: participant.name,
+          hint: participant.userId ? undefined : "By text",
+        })),
+    ];
+  }, [selectedConversation, currentUsername]);
+
+  const mentionOptions = useMemo(
+    () =>
+      mentionQuery
+        ? filterCandidates(mentionCandidates, mentionQuery.query)
+        : [],
+    [mentionCandidates, mentionQuery],
+  );
+
+  const closeMentionPicker = useCallback(() => {
+    setMentionQuery(null);
+    setMentionIndex(0);
+  }, []);
+
+  const trackMentionQuery = useCallback((value: string, caret: number) => {
+    setMentionQuery(findMentionQuery(value, caret));
+    setMentionIndex(0);
+  }, []);
+
+  const pickMention = useCallback(
+    (option: MentionCandidate) => {
+      if (!mentionQuery) return;
+
+      const input = composerInputRef.current;
+      const caret = input?.selectionStart ?? messageInput.length;
+      const next = insertMention(
+        messageInput,
+        mentionQuery,
+        caret,
+        option.label,
+      );
+
+      setMessageInput(next.text);
+      setComposerMentions((current) => [
+        ...current,
+        { id: option.id, label: option.label },
+      ]);
+      closeMentionPicker();
+
+      // After React has written the new value, or the caret lands wherever the
+      // browser last had it - which for a name inserted mid-sentence is the
+      // wrong place.
+      requestAnimationFrame(() => {
+        input?.focus();
+        input?.setSelectionRange(next.caret, next.caret);
+      });
+    },
+    [mentionQuery, messageInput, closeMentionPicker],
+  );
   // Another screen asked for a specific Loop - Activity's "Open group". Acted
   // on during render rather than in an effect, which is what React prescribes
   // for adjusting state when an input changes, and waits for the list so a
@@ -902,6 +1071,19 @@ export function HomeShell({ mode }: HomeShellProps) {
   // offered Add members on a one-to-one thread - a third person in a
   // conversation that is by definition two.
   const isGroupConversation = selectedConversation?.kind === "group";
+  /**
+   * The other person in the open conversation, when it is one person.
+   *
+   * What the header menu acts on, and what tells the composer whether it is
+   * writing to somebody this account has blocked.
+   */
+  const selectedCounterpart = useMemo(
+    () =>
+      selectedConversation
+        ? directCounterpart(selectedConversation, currentUsername)
+        : null,
+    [selectedConversation, currentUsername],
+  );
   const canAddMembers =
     isGroupConversation &&
     (isSelectedConversationAdmin ||
@@ -1109,12 +1291,21 @@ export function HomeShell({ mode }: HomeShellProps) {
     if (!selectedConversationId) return;
     let cancelled = false;
 
+    // Raised here, and nowhere else. Nothing used to set this true at all - it
+    // was initialised false and only ever set false - so the indicator reading
+    // it was unreachable code and the thread simply sat blank.
+    //
+    // Only when there is nothing cached for this conversation. History is held
+    // per conversation, so re-opening one already read paints instantly, and a
+    // skeleton flashed over it for eighty milliseconds reads as a glitch.
+    setIsMessagesLoading(!loopMessagesRef.current.has(selectedConversationId));
+
     fetchMessageHistory(selectedConversationId).then((result) => {
       if (cancelled) return;
       setIsMessagesLoading(false);
-      setMessageError(null);
+      setHistoryError(null);
       if (!result.ok) {
-        setMessageError(result.message);
+        setHistoryError(result.message);
         return;
       }
       setLoopMessages((previous) => {
@@ -1132,7 +1323,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedConversationId, toUiMessage]);
+  }, [selectedConversationId, toUiMessage, historyReloadToken]);
 
   /**
    * Fetch the page of history before the oldest message on screen.
@@ -1301,11 +1492,17 @@ export function HomeShell({ mode }: HomeShellProps) {
                 }
               : { ...existing, ...updated };
 
+          // Same reasoning as the allow-list above, one level down: a
+          // participant carries one field whose answer depends on who asked,
+          // and a broadcast answered for nobody.
+          const incoming =
+            source === "broadcast"
+              ? keepOwnBlocks(updated.participants, existing.participants)
+              : updated.participants;
+
           return {
             ...merged,
-            participants: updated.participants.length
-              ? updated.participants
-              : existing.participants,
+            participants: incoming.length ? incoming : existing.participants,
           };
         }),
       );
@@ -1561,6 +1758,32 @@ export function HomeShell({ mode }: HomeShellProps) {
             ),
           );
         }
+      } else if (message.type === "presence") {
+        // Somebody in one of these Loops opened or closed the app. Applied to
+        // every conversation they are in, so the dot is right wherever they
+        // appear - the server sends this to each of those Loops once.
+        const userId = message.user_id;
+        if (typeof userId !== "string" && typeof userId !== "number") return;
+        const online = message.online === true;
+        const lastSeen =
+          typeof message.last_seen_at === "string"
+            ? message.last_seen_at
+            : undefined;
+
+        setConversations((prev) =>
+          prev.map((conversation) => ({
+            ...conversation,
+            participants: conversation.participants.map((participant) =>
+              participant.userId === String(userId)
+                ? {
+                    ...participant,
+                    isOnline: online,
+                    lastActive: online ? participant.lastActive : lastSeen,
+                  }
+                : participant,
+            ),
+          })),
+        );
       } else if (message.type === "typing") {
         // Only for the Loop on screen, and only from other people - the
         // server already suppresses the echo to the sender.
@@ -1672,16 +1895,20 @@ export function HomeShell({ mode }: HomeShellProps) {
       if (!text) return;
       setIsSendingMessage(true);
       setMessageError(null);
+      const edited = toApiMentions(pruneMentions(text, composerMentions));
       const result = await editConversationMessage(
         selectedConversationId,
         composerContext.message.id,
         text,
+        edited.mentions,
+        edited.mentionEveryone,
       );
       if (!result.ok) {
         setMessageError(result.message);
       } else {
         applyMessageUpdate(result.message);
         setMessageInput("");
+        setComposerMentions([]);
         setComposerContext(null);
       }
       setIsSendingMessage(false);
@@ -1694,11 +1921,16 @@ export function HomeShell({ mode }: HomeShellProps) {
     stickToBottomRef.current = true;
     setIsSendingMessage(true);
     setMessageError(null);
+    // Only the names still in the words: somebody who picked "@Bob" and then
+    // deleted him from the sentence has not mentioned him.
+    const named = toApiMentions(pruneMentions(messageInput, composerMentions));
     const result = await sendConversationMessage(
       selectedConversationId,
       messageInput,
       messageAttachments,
       composerContext?.kind === "reply" ? composerContext.message.id : null,
+      named.mentions,
+      named.mentionEveryone,
     );
     if (!result.ok) {
       setMessageError(result.message);
@@ -1724,12 +1956,14 @@ export function HomeShell({ mode }: HomeShellProps) {
       );
       setMessageInput("");
       setMessageAttachments([]);
+      setComposerMentions([]);
       setComposerContext(null);
     }
     setIsSendingMessage(false);
   }, [
     messageAttachments,
     messageInput,
+    composerMentions,
     selectedConversationId,
     isSendingMessage,
     toUiMessage,
@@ -1978,6 +2212,54 @@ export function HomeShell({ mode }: HomeShellProps) {
         : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-[#F7FAFC] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
 
     const isMenuOpen = rowMenuFor === conversation.id;
+    // Null unless this row IS one person, which is what decides whether the
+    // menu can offer to block anybody.
+    const counterpart = directCounterpart(conversation, currentUsername);
+
+    /**
+     * What the confirm panel should say and do, for whichever action asked.
+     *
+     * Declared here rather than at module level because every one of them
+     * needs this row's conversation, and two of them need the person in it.
+     */
+    function rowConfirmStep(): RowConfirmStep | null {
+      switch (rowConfirm) {
+        case "leave":
+          return {
+            title: `Leave ${conversation.name}?`,
+            body: "You stop receiving it. Your messages stay in the group.",
+            label: "Leave",
+            buttonClassName: "bg-slate-700 hover:bg-slate-800",
+            run: () => handleLeaveRow(conversation),
+          };
+        case "clear":
+          return {
+            title: `Delete ${conversation.name}?`,
+            body: "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages.",
+            label: "Delete",
+            buttonClassName: "bg-rose-600 hover:bg-rose-700",
+            run: () => handleClearRow(conversation),
+          };
+        case "block":
+          if (!counterpart) return null;
+          return {
+            ...blockConfirmCopy(counterpart.name, true),
+            buttonClassName: "bg-rose-600 hover:bg-rose-700",
+            run: () => handleBlockRow(counterpart, true),
+          };
+        case "unblock":
+          if (!counterpart) return null;
+          return {
+            ...blockConfirmCopy(counterpart.name, false),
+            buttonClassName: "bg-slate-700 hover:bg-slate-800",
+            run: () => handleBlockRow(counterpart, false),
+          };
+        default:
+          return null;
+      }
+    }
+
+    const confirmStep = isMenuOpen ? rowConfirmStep() : null;
 
     return (
       <div key={conversation.id} className="group/row relative">
@@ -2127,14 +2409,34 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {rowConfirm === null ? (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setRowConfirm("clear")}
-                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete chat
-                    </button>
+                    {/* Ordered by what each one costs, cheapest last to undo
+                        FIRST: blocking is one click back, leaving a group may
+                        need somebody to let you in again, and deleting takes
+                        your copy of the thread with it. Delete chat stays at
+                        the bottom for that reason. */}
+                    {/* Blocking names a person, so it is offered where the row
+                        IS one person. In a group the same menu would have to
+                        ask which member, which is a member list and not a
+                        menu. */}
+                    {counterpart && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setRowConfirm(
+                            counterpart.blockedByMe ? "unblock" : "block",
+                          )
+                        }
+                        className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left ${
+                          counterpart.blockedByMe
+                            ? "hover:bg-slate-100 dark:hover:bg-slate-700"
+                            : "text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                        }`}
+                      >
+                        <Ban className="h-4 w-4" />
+                        {counterpart.blockedByMe ? "Unblock" : "Block"}{" "}
+                        {counterpart.name}
+                      </button>
+                    )}
                     {/* Leaving is refused on a one-to-one - there is no way
                         back into one - so it is not offered there. */}
                     {conversation.kind === "group" && (
@@ -2147,54 +2449,52 @@ export function HomeShell({ mode }: HomeShellProps) {
                         Leave group
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setRowConfirm("clear")}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete chat
+                    </button>
                   </>
                 ) : (
-                  <div className="px-3 py-2">
-                    <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-                      {rowConfirm === "leave"
-                        ? `Leave ${conversation.name}?`
-                        : `Delete ${conversation.name}?`}
-                    </p>
-                    <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
-                      {rowConfirm === "leave"
-                        ? "You stop receiving it. Your messages stay in the group."
-                        : "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages."}
-                    </p>
-
-                    {rowActionError && (
-                      <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
-                        {rowActionError}
+                  confirmStep && (
+                    <div className="px-3 py-2">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                        {confirmStep.title}
                       </p>
-                    )}
+                      <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
+                        {confirmStep.body}
+                      </p>
 
-                    <div className="mt-2 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRowConfirm(null);
-                          setRowActionError(null);
-                        }}
-                        className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void (rowConfirm === "leave"
-                            ? handleLeaveRow(conversation)
-                            : handleClearRow(conversation))
-                        }
-                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${
-                          rowConfirm === "leave"
-                            ? "bg-slate-700 hover:bg-slate-800"
-                            : "bg-rose-600 hover:bg-rose-700"
-                        }`}
-                      >
-                        {rowConfirm === "leave" ? "Leave" : "Delete"}
-                      </button>
+                      {rowActionError && (
+                        <p className="mt-2 rounded-lg bg-rose-50 px-2 py-1.5 text-2xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+                          {rowActionError}
+                        </p>
+                      )}
+
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRowConfirm(null);
+                            setRowActionError(null);
+                          }}
+                          className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void confirmStep.run()}
+                          className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-white ${confirmStep.buttonClassName}`}
+                        >
+                          {confirmStep.label}
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )
                 )}
               </>
             </div>
@@ -2296,6 +2596,73 @@ export function HomeShell({ mode }: HomeShellProps) {
     setSelectedConversationId((current) =>
       current === conversation.id ? null : current,
     );
+  }
+
+  /**
+   * Block or unblock one person, and remember the answer everywhere.
+   *
+   * A block is a fact about a PERSON, not about the conversation it was made
+   * from, so every participant row for that account flips - block somebody from
+   * a direct message and the `Blocked` marker beside their name in a shared
+   * group is already right.
+   *
+   * Not optimistic, unlike mute and archive. Those two are the viewer's own
+   * switch and a refusal is close to impossible; this one the server can
+   * genuinely refuse, and showing somebody as blocked when they are not is the
+   * one wrong answer that matters here.
+   */
+  async function setPersonBlocked(
+    person: ConversationParticipant,
+    blocked: boolean,
+  ): Promise<{ ok: true } | { ok: false; message: string }> {
+    const target = { username: person.username ?? null, phoneNumber: null };
+    const result = blocked
+      ? await blockUser(target)
+      : await unblockUser(target);
+    if (!result.ok) return result;
+
+    setConversations((current) =>
+      current.map((row) => ({
+        ...row,
+        participants: row.participants.map((member) =>
+          member.username && member.username === person.username
+            ? { ...member, blockedByMe: blocked }
+            : member,
+        ),
+      })),
+    );
+    return result;
+  }
+
+  async function handleBlockRow(
+    person: ConversationParticipant,
+    blocked: boolean,
+  ) {
+    const result = await setPersonBlocked(person, blocked);
+    if (!result.ok) {
+      setRowActionError(result.message);
+      return;
+    }
+    closeRowMenu();
+  }
+
+  /** The same two calls, from the dialog the header and the composer share. */
+  async function handleConfirmBlock() {
+    if (!blockConfirm || isBlockConfirmBusy) return;
+    setIsBlockConfirmBusy(true);
+    setBlockConfirmError(null);
+
+    const result = await setPersonBlocked(
+      blockConfirm.person,
+      blockConfirm.blocked,
+    );
+    setIsBlockConfirmBusy(false);
+
+    if (!result.ok) {
+      setBlockConfirmError(result.message);
+      return;
+    }
+    setBlockConfirm(null);
   }
 
   async function handleToggleMuted(conversation: Conversation) {
@@ -2519,6 +2886,18 @@ export function HomeShell({ mode }: HomeShellProps) {
   const startEditing = useCallback((message: Message) => {
     setComposerContext({ kind: "edit", message });
     setMessageInput(message.text);
+    // Seeded from the message, so an edit that leaves "@Bob" alone keeps
+    // Bob mentioned - and one that deletes him drops him, because the list is
+    // pruned against the final words on the way out.
+    setComposerMentions([
+      ...(message.mentionsEveryone
+        ? [{ id: EVERYONE as typeof EVERYONE, label: "everyone" }]
+        : []),
+      ...(message.mentions ?? []).map((mention) => ({
+        id: mention.participantId,
+        label: mention.displayLabel,
+      })),
+    ]);
   }, []);
 
   const cancelComposerContext = useCallback(() => {
@@ -2803,7 +3182,22 @@ export function HomeShell({ mode }: HomeShellProps) {
                 })}
               </div>
 
-              {listedConversations.length === 0 ? (
+              {isLoadingConversations ? (
+                // BEFORE the empty state, never after it. The list is empty
+                // while the first page is in flight, so testing emptiness
+                // first is what produced "No chats yet" on every cold load.
+                <ConversationListSkeleton />
+              ) : conversationsError ? (
+                // And before it again. A failed fetch also leaves the list
+                // empty, so without this the empty state tells somebody with
+                // plenty of chats that they have none - the same wrong
+                // sentence, for a different reason.
+                <LoadFailed
+                  what="your chats"
+                  message={conversationsError}
+                  onRetry={reloadConversations}
+                />
+              ) : listedConversations.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {listFilter === "unread"
@@ -2955,7 +3349,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setAdminPanelTab("settings");
+                          setAdminPanelTab("general");
                           setIsAdminPanelOpen(true);
                         }}
                         title="Loop Settings"
@@ -2981,6 +3375,29 @@ export function HomeShell({ mode }: HomeShellProps) {
                             d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
                           />
                         </svg>
+                      </button>
+                    )}
+                    {/* The mirror of that button for a one-to-one: no settings,
+                        but there is a person, and blocking them is the one
+                        thing this screen can do about it. */}
+                    {selectedCounterpart && (
+                      <button
+                        type="button"
+                        data-ignore-click-outside
+                        onClick={(event) => {
+                          const trigger =
+                            event.currentTarget.getBoundingClientRect();
+                          setHeaderMenuOrigin({
+                            x: trigger.right,
+                            y: trigger.bottom,
+                          });
+                        }}
+                        title={`More about ${selectedCounterpart.name}`}
+                        aria-label={`More about ${selectedCounterpart.name}`}
+                        aria-haspopup="menu"
+                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                      >
+                        <EllipsisVertical className="h-5 w-5" />
                       </button>
                     )}
                   </div>
@@ -3058,6 +3475,23 @@ export function HomeShell({ mode }: HomeShellProps) {
                   </p>
                 </div>
               </div>
+            ) : isMessagesLoading ? (
+              // Again BEFORE the empty state. The thread is empty while its
+              // history is in flight, so checking emptiness first told the
+              // reader "No messages yet" about a conversation that has plenty.
+              <MessageThreadSkeleton />
+            ) : historyError && currentMessages.length === 0 ? (
+              // Gated on having nothing cached. If a refresh fails but the
+              // messages from last time are still here, showing them beats
+              // replacing a readable thread with an error about fetching it.
+              <div className="flex h-full items-center justify-center px-4">
+                <LoadFailed
+                  what="this conversation"
+                  message={historyError}
+                  onRetry={() => setHistoryReloadToken((token) => token + 1)}
+                  className="w-full max-w-sm"
+                />
+              </div>
             ) : currentMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
@@ -3115,6 +3549,31 @@ export function HomeShell({ mode }: HomeShellProps) {
                   Select or create a Loop to start chatting
                 </p>
               </div>
+            ) : selectedCounterpart?.blockedByMe ? (
+              // The server refuses this message and says why. Saying it here
+              // instead means nobody writes one first and finds out after -
+              // and the thread above stays exactly where it was, because a
+              // block is not a departure and undoing it brings everything back.
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  You blocked {selectedCounterpart.name}. Unblock them to send a
+                  message.
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => {
+                    setBlockConfirmError(null);
+                    setBlockConfirm({
+                      person: selectedCounterpart,
+                      blocked: false,
+                    });
+                  }}
+                >
+                  Unblock
+                </Button>
+              </div>
             ) : (
               <div className="relative rounded-2xl border border-slate-200 bg-[#eef7ff] p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
                 {messageError && (
@@ -3138,11 +3597,6 @@ export function HomeShell({ mode }: HomeShellProps) {
                     context={composerContext}
                     onCancel={cancelComposerContext}
                   />
-                )}
-                {isMessagesLoading && (
-                  <p className="px-2 pb-2 text-xs text-slate-500">
-                    Loading messages...
-                  </p>
                 )}
                 {messageAttachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-2 pb-2">
@@ -3233,12 +3687,60 @@ export function HomeShell({ mode }: HomeShellProps) {
                       placeholder={
                         isEditing ? "Edit your message..." : "Type a message..."
                       }
+                      ref={composerInputRef}
                       value={messageInput}
+                      role="combobox"
+                      aria-expanded={mentionOptions.length > 0}
+                      aria-controls={MENTION_LIST_ID}
+                      aria-autocomplete="list"
+                      aria-activedescendant={
+                        mentionOptions.length > 0
+                          ? `${MENTION_LIST_ID}-option-${mentionIndex}`
+                          : undefined
+                      }
                       onChange={(e) => {
                         setMessageInput(e.target.value);
+                        // Whether an "@..." is being typed is a question about
+                        // the CARET, not the end of the text - somebody can go
+                        // back and name a person mid-sentence.
+                        trackMentionQuery(
+                          e.target.value,
+                          e.target.selectionStart ?? e.target.value.length,
+                        );
                         notifyTyping();
                       }}
                       onKeyDown={(e) => {
+                        // While the picker is open it owns these keys: the
+                        // arrows move the highlight and Enter takes the name.
+                        // Only with it closed does Enter send the message.
+                        if (mentionOptions.length > 0) {
+                          if (e.key === "ArrowDown") {
+                            e.preventDefault();
+                            setMentionIndex(
+                              (index) => (index + 1) % mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (e.key === "ArrowUp") {
+                            e.preventDefault();
+                            setMentionIndex(
+                              (index) =>
+                                (index - 1 + mentionOptions.length) %
+                                mentionOptions.length,
+                            );
+                            return;
+                          }
+                          if (e.key === "Enter" || e.key === "Tab") {
+                            e.preventDefault();
+                            pickMention(mentionOptions[mentionIndex]);
+                            return;
+                          }
+                          if (e.key === "Escape") {
+                            e.preventDefault();
+                            closeMentionPicker();
+                            return;
+                          }
+                        }
                         // With "Press Enter to send" off, Enter does
                         // nothing - a one-line box has no new line to add -
                         // and Ctrl/Cmd+Enter still sends.
@@ -3290,6 +3792,16 @@ export function HomeShell({ mode }: HomeShellProps) {
                   </div>
                 )}
 
+                {mentionQuery && (
+                  <MentionPicker
+                    id={MENTION_LIST_ID}
+                    options={mentionOptions}
+                    activeIndex={mentionIndex}
+                    onPick={pickMention}
+                    onHover={setMentionIndex}
+                  />
+                )}
+
                 {showEmojiPicker && (
                   <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(30,89,138,0.18)] dark:border-slate-700 dark:bg-slate-800">
                     <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700">
@@ -3325,6 +3837,88 @@ export function HomeShell({ mode }: HomeShellProps) {
           </footer>
         </section>
       </div>
+
+      {/* The open conversation's own menu. One item today - the point of it is
+          that a block is reachable from the conversation you want blocked,
+          rather than only from a settings list that can just undo one. */}
+      <ContextMenu
+        origin={selectedCounterpart ? headerMenuOrigin : null}
+        onClose={() => setHeaderMenuOrigin(null)}
+        label={selectedCounterpart ? selectedCounterpart.name : undefined}
+        items={
+          selectedCounterpart
+            ? [
+                {
+                  id: "block-counterpart",
+                  label: selectedCounterpart.blockedByMe
+                    ? `Unblock ${selectedCounterpart.name}`
+                    : `Block ${selectedCounterpart.name}`,
+                  icon: <Ban className="h-4 w-4" />,
+                  tone: selectedCounterpart.blockedByMe ? "default" : "danger",
+                  onSelect: () => {
+                    setBlockConfirmError(null);
+                    setBlockConfirm({
+                      person: selectedCounterpart,
+                      blocked: !selectedCounterpart.blockedByMe,
+                    });
+                  },
+                },
+              ]
+            : []
+        }
+      />
+
+      {/* Raised from the header menu and from the blocked composer alike. */}
+      <Modal
+        isOpen={blockConfirm !== null}
+        onClose={() => (isBlockConfirmBusy ? undefined : setBlockConfirm(null))}
+        title={
+          blockConfirm
+            ? blockConfirmCopy(blockConfirm.person.name, blockConfirm.blocked)
+                .title
+            : ""
+        }
+        maxWidthClassName="max-w-sm"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setBlockConfirm(null)}
+              disabled={isBlockConfirmBusy}
+            >
+              Cancel
+            </Button>
+            {/* aria-disabled rather than disabled: this button has focus, and
+                disabling it mid-request throws focus out of the dialog. */}
+            <Button
+              onClick={() => void handleConfirmBlock()}
+              aria-disabled={isBlockConfirmBusy}
+              className="aria-disabled:opacity-60"
+            >
+              {isBlockConfirmBusy
+                ? "Working..."
+                : blockConfirm
+                  ? blockConfirmCopy(
+                      blockConfirm.person.name,
+                      blockConfirm.blocked,
+                    ).label
+                  : ""}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          {blockConfirm
+            ? blockConfirmCopy(blockConfirm.person.name, blockConfirm.blocked)
+                .body
+            : ""}
+        </p>
+        {blockConfirmError && (
+          <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700 dark:bg-rose-950/30 dark:text-rose-300">
+            {blockConfirmError}
+          </p>
+        )}
+      </Modal>
 
       {/* Actions the viewer cannot take are LEFT OUT rather than greyed: a
           disabled Delete on somebody else's message still says "you might be
@@ -3512,17 +4106,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         onJoin={handleJoinLoop}
       />
 
-      {selectedConversationId && selectedConversation && (
-        <AddMembersModal
-          isOpen={isAddMembersOpen}
-          groupName={selectedConversation.name}
-          currentMemberCount={selectedConversation.participants.length}
-          onClose={() => setIsAddMembersOpen(false)}
-          onAddMembers={handleAddMembers}
-          onInvitePhone={handleInvitePhone}
-        />
-      )}
-
       {isVerifyPhoneOpen && (
         <VerifyPhoneModal
           onVerified={() => {
@@ -3644,180 +4227,160 @@ export function HomeShell({ mode }: HomeShellProps) {
       )}
 
       {isAdminPanelOpen && selectedConversationId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-start justify-center bg-black/50 p-4">
-            <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white dark:bg-slate-900">
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => setIsAdminPanelOpen(false)}
-                className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+        <LoopAdminPanel
+          isOpen={isAdminPanelOpen}
+          onClose={() => setIsAdminPanelOpen(false)}
+          loopName={selectedConversation?.name ?? "Loop"}
+          settings={groupSettings}
+          isSettingsLoading={isGroupSettingsLoading}
+          canEditSettings={canEditGroupSettings}
+          canModerateMembers={isSelectedConversationAdmin}
+          activeTab={adminPanelTab}
+          onTabChange={handleTabChange}
+          onLeaveLoop={handleLeaveLoop}
+          members={selectedConversation?.participants ?? []}
+          viewerUsername={currentUsername}
+          onAddMembers={canAddMembers ? handleOpenAddMembers : undefined}
+          pendingRequests={(
+            pendingRequestsByLoop.get(selectedConversationId) ?? []
+          ).map((request) => ({
+            id: request.id,
+            name: request.name,
+            username: request.username,
+            phone: request.phone,
+          }))}
+          isPendingRequestsLoading={loadingPendingRequestLoopIds.has(
+            selectedConversationId,
+          )}
+          onApproveRequest={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await respondToJoinRequest(
+              selectedConversationId,
+              participantId,
+              "approve",
+            );
+            if (!result.ok) throw new Error(result.message);
+            setPendingRequestsByLoop((current) => {
+              const next = new Map(current);
+              next.set(
+                selectedConversationId,
+                (next.get(selectedConversationId) ?? []).filter(
+                  (request) => request.id !== participantId,
+                ),
+              );
+              return next;
+            });
+            await refreshConversations();
+          }}
+          onDeclineRequest={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await respondToJoinRequest(
+              selectedConversationId,
+              participantId,
+              "decline",
+            );
+            if (!result.ok) throw new Error(result.message);
+            setPendingRequestsByLoop((current) => {
+              const next = new Map(current);
+              next.set(
+                selectedConversationId,
+                (next.get(selectedConversationId) ?? []).filter(
+                  (request) => request.id !== participantId,
+                ),
+              );
+              return next;
+            });
+          }}
+          onSaveSettings={async (settings) => {
+            if (!selectedConversationId) return;
+            const result = await updateGroupSettings(selectedConversationId, {
+              settings,
+            });
+            if (!result.ok) throw new Error(result.message);
+            setGroupSettings(result.conversation.settings);
+            // The sidebar reads `settings.mode` off the conversations
+            // list, so updating only the admin panel's own state left
+            // the group filed under Chat until a reload.
+            applyConversationUpdate(result.conversation);
+          }}
+          onFetchJoinCode={async () => {
+            if (!selectedConversationId) {
+              throw new Error("No Loop selected.");
+            }
+            const result = await fetchJoinCode(selectedConversationId);
+            if (!result.ok) throw new Error(result.message);
+            return result.code;
+          }}
+          onUpdateMemberRole={async (memberId, role) => {
+            if (!selectedConversationId) return;
+            if (
+              role === "admin" &&
+              typeof maxAdminsPerGroup === "number" &&
+              selectedConversation
+            ) {
+              const targetMember = selectedConversation.participants.find(
+                (participant) => participant.id === memberId,
+              );
+              const isAlreadyAdmin = targetMember?.role === "admin";
+              if (
+                !isAlreadyAdmin &&
+                selectedConversationAdminCount >= maxAdminsPerGroup
+              ) {
+                showUpgradeLimitPrompt(
+                  "Admin limit reached",
+                  `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"}. Upgrade your plan to assign more admins.`,
+                );
+                throw new Error(
+                  `This group is limited to ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"} on your current plan.`,
+                );
+              }
+            }
 
-              {/* Admin Panel Content */}
-              <div className="p-6">
-                <LoopAdminPanel
-                  loopName={selectedConversation?.name ?? "Loop"}
-                  settings={groupSettings}
-                  isSettingsLoading={isGroupSettingsLoading}
-                  canEditSettings={canEditGroupSettings}
-                  canModerateMembers={isSelectedConversationAdmin}
-                  activeTab={adminPanelTab}
-                  onTabChange={handleTabChange}
-                  handleLeaveLoop={handleLeaveLoop}
-                  selectedConversation={
-                    selectedConversation as { id?: string; name?: string }
-                  }
-                  members={selectedConversation?.participants ?? mockMembers}
-                  pendingRequests={(
-                    pendingRequestsByLoop.get(selectedConversationId) ?? []
-                  ).map((request) => ({
-                    id: request.id,
-                    name: request.name,
-                    username: request.username,
-                    phone: request.phone,
-                  }))}
-                  isPendingRequestsLoading={loadingPendingRequestLoopIds.has(
-                    selectedConversationId,
-                  )}
-                  onApproveRequest={async (participantId) => {
-                    if (!selectedConversationId) return;
-                    const result = await respondToJoinRequest(
-                      selectedConversationId,
-                      participantId,
-                      "approve",
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setPendingRequestsByLoop((current) => {
-                      const next = new Map(current);
-                      next.set(
-                        selectedConversationId,
-                        (next.get(selectedConversationId) ?? []).filter(
-                          (request) => request.id !== participantId,
-                        ),
-                      );
-                      return next;
-                    });
-                    await refreshConversations();
-                  }}
-                  onDeclineRequest={async (participantId) => {
-                    if (!selectedConversationId) return;
-                    const result = await respondToJoinRequest(
-                      selectedConversationId,
-                      participantId,
-                      "decline",
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setPendingRequestsByLoop((current) => {
-                      const next = new Map(current);
-                      next.set(
-                        selectedConversationId,
-                        (next.get(selectedConversationId) ?? []).filter(
-                          (request) => request.id !== participantId,
-                        ),
-                      );
-                      return next;
-                    });
-                  }}
-                  onSaveSettings={async (settings) => {
-                    if (!selectedConversationId) return;
-                    const result = await updateGroupSettings(
-                      selectedConversationId,
-                      { settings },
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setGroupSettings(result.conversation.settings);
-                    // The sidebar reads `settings.mode` off the conversations
-                    // list, so updating only the admin panel's own state left
-                    // the group filed under Chat until a reload.
-                    applyConversationUpdate(result.conversation);
-                  }}
-                  onFetchJoinCode={async () => {
-                    if (!selectedConversationId) {
-                      throw new Error("No Loop selected.");
-                    }
-                    const result = await fetchJoinCode(selectedConversationId);
-                    if (!result.ok) throw new Error(result.message);
-                    return result.code;
-                  }}
-                  onUpdateMemberRole={async (memberId, role) => {
-                    if (!selectedConversationId) return;
-                    if (
-                      role === "admin" &&
-                      typeof maxAdminsPerGroup === "number" &&
-                      selectedConversation
-                    ) {
-                      const targetMember =
-                        selectedConversation.participants.find(
-                          (participant) => participant.id === memberId,
-                        );
-                      const isAlreadyAdmin = targetMember?.role === "admin";
-                      if (
-                        !isAlreadyAdmin &&
-                        selectedConversationAdminCount >= maxAdminsPerGroup
-                      ) {
-                        showUpgradeLimitPrompt(
-                          "Admin limit reached",
-                          `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"}. Upgrade your plan to assign more admins.`,
-                        );
-                        throw new Error(
-                          `This group is limited to ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"} on your current plan.`,
-                        );
-                      }
-                    }
+            const result = await updateMemberRole(
+              selectedConversationId,
+              memberId,
+              role,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+          onBlockMember={async (memberId) => {
+            if (!selectedConversationId) return;
+            const result = await removeConversationMember(
+              selectedConversationId,
+              memberId,
+              true,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+          onRemoveMember={async (memberId) => {
+            if (!selectedConversationId) return;
+            const result = await removeConversationMember(
+              selectedConversationId,
+              memberId,
+              false,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+        />
+      )}
 
-                    const result = await updateMemberRole(
-                      selectedConversationId,
-                      memberId,
-                      role,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                  onBlockMember={async (memberId) => {
-                    if (!selectedConversationId) return;
-                    const result = await removeConversationMember(
-                      selectedConversationId,
-                      memberId,
-                      true,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                  onUnblockMember={async () => {
-                    throw new Error(
-                      "Unblocking a member is not supported yet.",
-                    );
-                  }}
-                  onRemoveMember={async (memberId) => {
-                    if (!selectedConversationId) return;
-                    const result = await removeConversationMember(
-                      selectedConversationId,
-                      memberId,
-                      false,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* AFTER the Loop panel on purpose. Both are fixed overlays at the same
+          z-index, so the later one in the DOM paints on top - and this one is
+          opened FROM the panel, by Add members on its Members screen. Rendered
+          before it, it would open behind the panel and look like nothing
+          happened. */}
+      {selectedConversationId && selectedConversation && (
+        <AddMembersModal
+          isOpen={isAddMembersOpen}
+          groupName={selectedConversation.name}
+          currentMemberCount={selectedConversation.participants.length}
+          onClose={() => setIsAddMembersOpen(false)}
+          onAddMembers={handleAddMembers}
+          onInvitePhone={handleInvitePhone}
+        />
       )}
     </>
   );

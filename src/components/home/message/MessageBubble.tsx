@@ -7,6 +7,7 @@ import { ChatAvatar } from "../ChatAvatar";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import { MessageReactions } from "./MessageReactions";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
+import { splitByMentions } from "@/lib/chat/mentions";
 import type { ConversationMessage } from "@/lib/chat/conversations";
 import type { ContextMenuOrigin } from "@/components/ui/context-menu";
 
@@ -49,6 +50,9 @@ export type ThreadMessage = {
   reactions: ConversationMessage["reactions"];
   /** Passed along from another conversation. Never says who from. */
   forwarded: boolean;
+  /** Who it names, for the highlight. The words carry no markup of their own. */
+  mentions: ConversationMessage["mentions"];
+  mentionsEveryone: boolean;
   editedAt: string | null;
   deletedAt: string | null;
 };
@@ -224,7 +228,10 @@ export function MessageBubble({
             ) : (
               message.text && (
                 <p className="min-w-0 text-sm leading-snug break-words">
-                  {message.text}
+                  <MessageText
+                    message={message}
+                    currentUsername={currentUsername}
+                  />
                 </p>
               )
             )}
@@ -412,5 +419,51 @@ function MessageActionsButton({
     >
       <MoreHorizontal className="h-3.5 w-3.5" />
     </button>
+  );
+}
+
+/**
+ * The words, with the names it mentioned picked out.
+ *
+ * Matched against the mentions the SERVER stored rather than by looking for
+ * "@" in the text, so a message that says "email me @ noon" highlights
+ * nothing. Your own name is picked out harder than everybody else's, which is
+ * the whole point of the highlight in a busy Loop.
+ */
+function MessageText({
+  message,
+  currentUsername,
+}: {
+  message: ThreadMessage;
+  // Null, not just absent: the session helper answers null when nobody is
+  // signed in, and the bubble passes that straight through.
+  currentUsername?: string | null;
+}) {
+  const segments = splitByMentions(
+    message.text,
+    message.mentions ?? [],
+    message.mentionsEveryone ?? false,
+    currentUsername,
+  );
+
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.isMention ? (
+          <span
+            key={index}
+            className={
+              segment.isMe
+                ? "rounded bg-amber-100 px-0.5 font-semibold text-amber-900 dark:bg-amber-500/25 dark:text-amber-200"
+                : "font-semibold text-sky-700 dark:text-sky-300"
+            }
+          >
+            {segment.text}
+          </span>
+        ) : (
+          <span key={index}>{segment.text}</span>
+        ),
+      )}
+    </>
   );
 }
