@@ -116,6 +116,16 @@ const AppShellContext = createContext<AppShellContextType | undefined>(
   undefined,
 );
 
+/**
+ * How often an open socket says it is still there.
+ *
+ * The server marks somebody online while a socket is open, but it disbelieves
+ * a flag nothing has refreshed - otherwise a worker that died would leave a
+ * green dot beside somebody who left hours ago. Must stay comfortably under
+ * the server's staleness window (`user/presence.py:STALE_AFTER`, 3 minutes).
+ */
+const PRESENCE_PING_MS = 60_000;
+
 export function AppShellProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -414,6 +424,19 @@ export function AppShellProvider({ children }: { children: ReactNode }) {
     enabled: Boolean(accessToken),
     onMessage: handleSocketMessage,
   });
+
+  // Keep this account's presence fresh for as long as the app is open. Only
+  // while the socket is actually up: sending into a closed one would log a
+  // warning a minute, forever, and tell the server nothing.
+  useEffect(() => {
+    if (socketStatus !== "connected") return;
+
+    const beat = window.setInterval(() => {
+      sendSocketMessage({ type: "ping" });
+    }, PRESENCE_PING_MS);
+
+    return () => window.clearInterval(beat);
+  }, [socketStatus, sendSocketMessage]);
 
   const value = useMemo(
     () => ({

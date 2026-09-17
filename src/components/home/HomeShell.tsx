@@ -1798,6 +1798,32 @@ export function HomeShell({ mode }: HomeShellProps) {
             ),
           );
         }
+      } else if (message.type === "presence") {
+        // Somebody in one of these Loops opened or closed the app. Applied to
+        // every conversation they are in, so the dot is right wherever they
+        // appear - the server sends this to each of those Loops once.
+        const userId = message.user_id;
+        if (typeof userId !== "string" && typeof userId !== "number") return;
+        const online = message.online === true;
+        const lastSeen =
+          typeof message.last_seen_at === "string"
+            ? message.last_seen_at
+            : undefined;
+
+        setConversations((prev) =>
+          prev.map((conversation) => ({
+            ...conversation,
+            participants: conversation.participants.map((participant) =>
+              participant.userId === String(userId)
+                ? {
+                    ...participant,
+                    isOnline: online,
+                    lastActive: online ? participant.lastActive : lastSeen,
+                  }
+                : participant,
+            ),
+          })),
+        );
       } else if (message.type === "typing") {
         // Only for the Loop on screen, and only from other people - the
         // server already suppresses the echo to the sender.
