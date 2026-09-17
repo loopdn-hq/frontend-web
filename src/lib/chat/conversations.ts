@@ -123,7 +123,15 @@ export type ConversationParticipant = {
   username?: string;
   email?: string;
   phone?: string;
-  role: "admin" | "moderator" | "member";
+  /**
+   * Admin or member - the only two the server has (`Participant.Role`).
+   *
+   * Narrow on purpose. A third value here is how "Make moderator" came to be
+   * offered in the member menu: the role endpoint is a ChoiceField over these
+   * two, so sending anything else is a 400, and the type now says so at build
+   * time instead of at the request.
+   */
+  role: "admin" | "member";
   joinedAt: string;
   isBlocked?: boolean;
   /**
@@ -365,8 +373,7 @@ export function normalizeParticipant(
     user.display_label,
     asText(profile.display_label, username ?? "Member"),
   );
-  const role =
-    item.role === "admin" || item.role === "moderator" ? item.role : "member";
+  const role = item.role === "admin" ? "admin" : "member";
 
   return {
     id: String(id),

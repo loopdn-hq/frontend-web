@@ -176,6 +176,7 @@ export function SwitchRow({
   busy,
   disabled,
   onChange,
+  icon,
 }: {
   label: string;
   description?: string;
@@ -183,11 +184,24 @@ export function SwitchRow({
   busy: boolean;
   disabled?: boolean;
   onChange: (on: boolean) => void;
+  /**
+   * A glyph in front of the label, where the design calls for one.
+   *
+   * Decorative and optional: the settings screens have none, the Loop panel's
+   * feature rows do. It is not labelled for a screen reader, because the label
+   * beside it already says the same thing.
+   */
+  icon?: ReactNode;
 }) {
   const id = useId();
 
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-3">
+      {icon && (
+        <span aria-hidden="true" className="shrink-0 text-slate-400">
+          {icon}
+        </span>
+      )}
       <RowText
         controlId={id}
         label={label}

@@ -300,46 +300,6 @@ const messageEmojis = [
   "🔑",
 ];
 
-// Mock data for admin panel
-const mockMembers = [
-  {
-    id: "1",
-    name: "You",
-    email: "you@example.com",
-    role: "admin" as const,
-    joinedAt: "Jan 15, 2024",
-    isBlocked: false,
-    lastActive: "2 minutes ago",
-  },
-  {
-    id: "2",
-    name: "Sarah",
-    phone: "+1 (555) 123-4567",
-    role: "member" as const,
-    joinedAt: "Jan 20, 2024",
-    isBlocked: false,
-    lastActive: "1 hour ago",
-  },
-  {
-    id: "3",
-    name: "John",
-    email: "john@example.com",
-    role: "moderator" as const,
-    joinedAt: "Jan 18, 2024",
-    isBlocked: false,
-    lastActive: "3 hours ago",
-  },
-  {
-    id: "4",
-    name: "Mike",
-    email: "mike@example.com",
-    role: "member" as const,
-    joinedAt: "Feb 1, 2024",
-    isBlocked: true,
-    lastActive: "1 week ago",
-  },
-];
-
 /**
  * Take a broadcast's participants, but keep the viewer's own blocks.
  *
@@ -522,7 +482,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     null,
   );
   const [isGroupSettingsLoading, setIsGroupSettingsLoading] = useState(true);
-  const [adminPanelTab, setAdminPanelTab] = useState<AdminTab>("settings");
+  const [adminPanelTab, setAdminPanelTab] = useState<AdminTab>("general");
   // Actual pending join requests per Loop this user administers - the admin
   // panel's worklist. Only shrinks on approve/decline, never on "seen".
   const [pendingRequestsByLoop, setPendingRequestsByLoop] = useState<
@@ -3389,7 +3349,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <button
                         type="button"
                         onClick={() => {
-                          setAdminPanelTab("settings");
+                          setAdminPanelTab("general");
                           setIsAdminPanelOpen(true);
                         }}
                         title="Loop Settings"
@@ -4146,17 +4106,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         onJoin={handleJoinLoop}
       />
 
-      {selectedConversationId && selectedConversation && (
-        <AddMembersModal
-          isOpen={isAddMembersOpen}
-          groupName={selectedConversation.name}
-          currentMemberCount={selectedConversation.participants.length}
-          onClose={() => setIsAddMembersOpen(false)}
-          onAddMembers={handleAddMembers}
-          onInvitePhone={handleInvitePhone}
-        />
-      )}
-
       {isVerifyPhoneOpen && (
         <VerifyPhoneModal
           onVerified={() => {
@@ -4278,180 +4227,160 @@ export function HomeShell({ mode }: HomeShellProps) {
       )}
 
       {isAdminPanelOpen && selectedConversationId && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex min-h-screen items-start justify-center bg-black/50 p-4">
-            <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white dark:bg-slate-900">
-              {/* Close Button */}
-              <button
-                type="button"
-                onClick={() => setIsAdminPanelOpen(false)}
-                className="sticky top-4 right-4 z-10 float-right rounded-lg bg-white p-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-slate-100"
-              >
-                <svg
-                  className="h-6 w-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M6 18L18 6M6 6l12 12"
-                  />
-                </svg>
-              </button>
+        <LoopAdminPanel
+          isOpen={isAdminPanelOpen}
+          onClose={() => setIsAdminPanelOpen(false)}
+          loopName={selectedConversation?.name ?? "Loop"}
+          settings={groupSettings}
+          isSettingsLoading={isGroupSettingsLoading}
+          canEditSettings={canEditGroupSettings}
+          canModerateMembers={isSelectedConversationAdmin}
+          activeTab={adminPanelTab}
+          onTabChange={handleTabChange}
+          onLeaveLoop={handleLeaveLoop}
+          members={selectedConversation?.participants ?? []}
+          viewerUsername={currentUsername}
+          onAddMembers={canAddMembers ? handleOpenAddMembers : undefined}
+          pendingRequests={(
+            pendingRequestsByLoop.get(selectedConversationId) ?? []
+          ).map((request) => ({
+            id: request.id,
+            name: request.name,
+            username: request.username,
+            phone: request.phone,
+          }))}
+          isPendingRequestsLoading={loadingPendingRequestLoopIds.has(
+            selectedConversationId,
+          )}
+          onApproveRequest={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await respondToJoinRequest(
+              selectedConversationId,
+              participantId,
+              "approve",
+            );
+            if (!result.ok) throw new Error(result.message);
+            setPendingRequestsByLoop((current) => {
+              const next = new Map(current);
+              next.set(
+                selectedConversationId,
+                (next.get(selectedConversationId) ?? []).filter(
+                  (request) => request.id !== participantId,
+                ),
+              );
+              return next;
+            });
+            await refreshConversations();
+          }}
+          onDeclineRequest={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await respondToJoinRequest(
+              selectedConversationId,
+              participantId,
+              "decline",
+            );
+            if (!result.ok) throw new Error(result.message);
+            setPendingRequestsByLoop((current) => {
+              const next = new Map(current);
+              next.set(
+                selectedConversationId,
+                (next.get(selectedConversationId) ?? []).filter(
+                  (request) => request.id !== participantId,
+                ),
+              );
+              return next;
+            });
+          }}
+          onSaveSettings={async (settings) => {
+            if (!selectedConversationId) return;
+            const result = await updateGroupSettings(selectedConversationId, {
+              settings,
+            });
+            if (!result.ok) throw new Error(result.message);
+            setGroupSettings(result.conversation.settings);
+            // The sidebar reads `settings.mode` off the conversations
+            // list, so updating only the admin panel's own state left
+            // the group filed under Chat until a reload.
+            applyConversationUpdate(result.conversation);
+          }}
+          onFetchJoinCode={async () => {
+            if (!selectedConversationId) {
+              throw new Error("No Loop selected.");
+            }
+            const result = await fetchJoinCode(selectedConversationId);
+            if (!result.ok) throw new Error(result.message);
+            return result.code;
+          }}
+          onUpdateMemberRole={async (memberId, role) => {
+            if (!selectedConversationId) return;
+            if (
+              role === "admin" &&
+              typeof maxAdminsPerGroup === "number" &&
+              selectedConversation
+            ) {
+              const targetMember = selectedConversation.participants.find(
+                (participant) => participant.id === memberId,
+              );
+              const isAlreadyAdmin = targetMember?.role === "admin";
+              if (
+                !isAlreadyAdmin &&
+                selectedConversationAdminCount >= maxAdminsPerGroup
+              ) {
+                showUpgradeLimitPrompt(
+                  "Admin limit reached",
+                  `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"}. Upgrade your plan to assign more admins.`,
+                );
+                throw new Error(
+                  `This group is limited to ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"} on your current plan.`,
+                );
+              }
+            }
 
-              {/* Admin Panel Content */}
-              <div className="p-6">
-                <LoopAdminPanel
-                  loopName={selectedConversation?.name ?? "Loop"}
-                  settings={groupSettings}
-                  isSettingsLoading={isGroupSettingsLoading}
-                  canEditSettings={canEditGroupSettings}
-                  canModerateMembers={isSelectedConversationAdmin}
-                  activeTab={adminPanelTab}
-                  onTabChange={handleTabChange}
-                  handleLeaveLoop={handleLeaveLoop}
-                  selectedConversation={
-                    selectedConversation as { id?: string; name?: string }
-                  }
-                  members={selectedConversation?.participants ?? mockMembers}
-                  pendingRequests={(
-                    pendingRequestsByLoop.get(selectedConversationId) ?? []
-                  ).map((request) => ({
-                    id: request.id,
-                    name: request.name,
-                    username: request.username,
-                    phone: request.phone,
-                  }))}
-                  isPendingRequestsLoading={loadingPendingRequestLoopIds.has(
-                    selectedConversationId,
-                  )}
-                  onApproveRequest={async (participantId) => {
-                    if (!selectedConversationId) return;
-                    const result = await respondToJoinRequest(
-                      selectedConversationId,
-                      participantId,
-                      "approve",
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setPendingRequestsByLoop((current) => {
-                      const next = new Map(current);
-                      next.set(
-                        selectedConversationId,
-                        (next.get(selectedConversationId) ?? []).filter(
-                          (request) => request.id !== participantId,
-                        ),
-                      );
-                      return next;
-                    });
-                    await refreshConversations();
-                  }}
-                  onDeclineRequest={async (participantId) => {
-                    if (!selectedConversationId) return;
-                    const result = await respondToJoinRequest(
-                      selectedConversationId,
-                      participantId,
-                      "decline",
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setPendingRequestsByLoop((current) => {
-                      const next = new Map(current);
-                      next.set(
-                        selectedConversationId,
-                        (next.get(selectedConversationId) ?? []).filter(
-                          (request) => request.id !== participantId,
-                        ),
-                      );
-                      return next;
-                    });
-                  }}
-                  onSaveSettings={async (settings) => {
-                    if (!selectedConversationId) return;
-                    const result = await updateGroupSettings(
-                      selectedConversationId,
-                      { settings },
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    setGroupSettings(result.conversation.settings);
-                    // The sidebar reads `settings.mode` off the conversations
-                    // list, so updating only the admin panel's own state left
-                    // the group filed under Chat until a reload.
-                    applyConversationUpdate(result.conversation);
-                  }}
-                  onFetchJoinCode={async () => {
-                    if (!selectedConversationId) {
-                      throw new Error("No Loop selected.");
-                    }
-                    const result = await fetchJoinCode(selectedConversationId);
-                    if (!result.ok) throw new Error(result.message);
-                    return result.code;
-                  }}
-                  onUpdateMemberRole={async (memberId, role) => {
-                    if (!selectedConversationId) return;
-                    if (
-                      role === "admin" &&
-                      typeof maxAdminsPerGroup === "number" &&
-                      selectedConversation
-                    ) {
-                      const targetMember =
-                        selectedConversation.participants.find(
-                          (participant) => participant.id === memberId,
-                        );
-                      const isAlreadyAdmin = targetMember?.role === "admin";
-                      if (
-                        !isAlreadyAdmin &&
-                        selectedConversationAdminCount >= maxAdminsPerGroup
-                      ) {
-                        showUpgradeLimitPrompt(
-                          "Admin limit reached",
-                          `This group has reached your ${activePlan?.name ?? "current"} plan limit of ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"}. Upgrade your plan to assign more admins.`,
-                        );
-                        throw new Error(
-                          `This group is limited to ${maxAdminsPerGroup} admin${maxAdminsPerGroup === 1 ? "" : "s"} on your current plan.`,
-                        );
-                      }
-                    }
+            const result = await updateMemberRole(
+              selectedConversationId,
+              memberId,
+              role,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+          onBlockMember={async (memberId) => {
+            if (!selectedConversationId) return;
+            const result = await removeConversationMember(
+              selectedConversationId,
+              memberId,
+              true,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+          onRemoveMember={async (memberId) => {
+            if (!selectedConversationId) return;
+            const result = await removeConversationMember(
+              selectedConversationId,
+              memberId,
+              false,
+            );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+        />
+      )}
 
-                    const result = await updateMemberRole(
-                      selectedConversationId,
-                      memberId,
-                      role,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                  onBlockMember={async (memberId) => {
-                    if (!selectedConversationId) return;
-                    const result = await removeConversationMember(
-                      selectedConversationId,
-                      memberId,
-                      true,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                  onUnblockMember={async () => {
-                    throw new Error(
-                      "Unblocking a member is not supported yet.",
-                    );
-                  }}
-                  onRemoveMember={async (memberId) => {
-                    if (!selectedConversationId) return;
-                    const result = await removeConversationMember(
-                      selectedConversationId,
-                      memberId,
-                      false,
-                    );
-                    if (!result.ok) throw new Error(result.message);
-                    await refreshConversations();
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+      {/* AFTER the Loop panel on purpose. Both are fixed overlays at the same
+          z-index, so the later one in the DOM paints on top - and this one is
+          opened FROM the panel, by Add members on its Members screen. Rendered
+          before it, it would open behind the panel and look like nothing
+          happened. */}
+      {selectedConversationId && selectedConversation && (
+        <AddMembersModal
+          isOpen={isAddMembersOpen}
+          groupName={selectedConversation.name}
+          currentMemberCount={selectedConversation.participants.length}
+          onClose={() => setIsAddMembersOpen(false)}
+          onAddMembers={handleAddMembers}
+          onInvitePhone={handleInvitePhone}
+        />
       )}
     </>
   );
