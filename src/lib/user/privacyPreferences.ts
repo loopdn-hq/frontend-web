@@ -3,8 +3,7 @@
  *
  * Saved on the account (`PrivacySettings`, through lib/user/accountSettings),
  * with a copy in this browser that the screen reads. The backend enforces all
- * of them (`user/privacy.py`) except **Online status**, which has nothing to
- * hide yet: nothing sets presence, so everybody reads as offline.
+ * of them (`user/privacy.py`).
  *
  * - "Who can send me direct messages" refuses at the start of a thread, with
  *   "This person doesn't accept direct messages." A thread the two already
@@ -16,6 +15,9 @@
  *   `find_user` and from search. Neither hides a @username.
  * - "Read receipts" is a two-way bargain: with it off, nobody sees your reads
  *   and you see nobody else's. Your own row still shows your own.
+ * - "Online status" hides the dot and "last seen" from other members, and
+ *   stops your presence being broadcast at all. Unlike read receipts it is not
+ *   two-way: you still see everybody else's.
  *
  * Blocking is NOT here. It is real (lib/user/blocks) and already enforced.
  *
