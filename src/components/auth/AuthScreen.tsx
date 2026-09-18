@@ -504,13 +504,15 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     labelClassName="text-xs font-normal text-slate-600 dark:text-slate-600"
                     label={
                       <>
-                        By providing your number, you agree to receive SMS
-                        messages from Loopd&apos;n, including account
-                        verification codes, account notifications, and customer
-                        care messages. Msg &amp; data rates may apply. Msg
-                        frequency may vary. Reply HELP for help and STOP to opt
-                        out. We will not share mobile information with third
-                        parties for promotional or marketing purposes. Read our{" "}
+                        By providing your number and checking this box, you
+                        agree to receive SMS messages from Loopd&apos;n,
+                        including account verification codes, account
+                        notifications, customer care messages, and messages from
+                        Loopd&apos;n groups you join or subscribe to. Msg &amp;
+                        data rates may apply. Msg frequency may vary. Reply HELP
+                        for help and STOP to opt out. We will not share mobile
+                        information with third parties for promotional or
+                        marketing purposes. Read our{" "}
                         <Link href="/terms/" className="underline">
                           Terms
                         </Link>{" "}
