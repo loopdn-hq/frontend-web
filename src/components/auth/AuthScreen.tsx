@@ -392,17 +392,38 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                     </p>
                   )}
 
-                  <label className="block">
-                    <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
-                      Password
-                    </span>
+                  {/* Not a <label> wrapper like the field above it: the
+                      "Forgot password?" link shares this row, and an anchor
+                      inside a label is both an accessibility smell and a
+                      click-target fight. The label keeps its association
+                      through htmlFor instead. */}
+                  <div>
+                    <div className="mb-[14px] flex items-baseline justify-between gap-3">
+                      <label
+                        htmlFor="login-password"
+                        className="text-[16px] leading-[150%] font-normal text-[#05205A]"
+                      >
+                        Password
+                      </label>
+                      <Link
+                        href="/forgot-password/"
+                        className={`text-[15px] leading-[150%] font-normal text-[#1883C6] transition hover:underline ${
+                          isSubmitting
+                            ? "pointer-events-none cursor-not-allowed opacity-50"
+                            : ""
+                        }`}
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
                     <div className="relative">
                       <input
+                        id="login-password"
                         type={showLoginPassword ? "text" : "password"}
                         placeholder="Enter your password"
                         {...registerLogin("password")}
                         disabled={isSubmitting}
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 pr-11 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-500 focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        className="h-[56px] w-full rounded-[12px] border border-[#D7D7D7] px-[23px] pr-11 text-[16px] leading-[150%] text-[#05205A] outline-none transition placeholder:text-[#D7D7D7] focus:border-[#3CB3FD] focus:ring-4 focus:ring-sky-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                       />
                       <button
                         type="button"
@@ -420,7 +441,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                         )}
                       </button>
                     </div>
-                  </label>
+                  </div>
 
                   {loginErrors.password && (
                     <p className="text-xs text-rose-600">
