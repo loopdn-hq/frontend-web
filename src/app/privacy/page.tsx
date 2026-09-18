@@ -100,10 +100,50 @@ export default function PrivacyPage() {
           or creating a full app account.
         </p>
         <p>
-          SMS interactions may include commands such as <code>JOIN</code>,
-          <code> HELP</code>, <code>MUTE</code>/<code>UNMUTE</code>, and
-          <code> LEAVE</code>/<code>STOP</code>, depending on the finalized
-          service configuration.
+          SMS interactions may include group commands such as <code>JOIN</code>,
+          <code> YES</code>/<code>NO</code>, and <code>MUTE</code>/
+          <code>UNMUTE</code>, alongside the standard <code>HELP</code> and
+          <code> STOP</code> keywords described below.
+        </p>
+
+        <h3 className="pt-2 text-lg font-semibold text-[#1d3f7f] dark:text-[#bfe2ff]">
+          How you opt in
+        </h3>
+        <p>
+          You consent to receive SMS from Loopd&apos;n in one of two ways: by
+          providing your mobile number and checking the consent box when you
+          create an account, or by replying <code>YES</code> to an invitation
+          text after someone adds you to a group. If you are invited to a group
+          and do not reply <code>YES</code>, that group sends you nothing.
+        </p>
+
+        <h3 className="pt-2 text-lg font-semibold text-[#1d3f7f] dark:text-[#bfe2ff]">
+          How to stop messages
+        </h3>
+        <p>
+          Reply <code>STOP</code>, <code>STOPALL</code>,{" "}
+          <code>UNSUBSCRIBE</code>, <code>CANCEL</code>, <code>END</code> or{" "}
+          <code>QUIT</code> to any Loopd&apos;n message to stop receiving texts.
+          Reply <code>START</code> or <code>UNSTOP</code> to begin again. Reply{" "}
+          <code>HELP</code> or <code>INFO</code> at any time for assistance and
+          contact details. You can also turn texts off per group, or for your
+          whole account, in the app.
+        </p>
+        <p>
+          Message and data rates may apply, and message frequency varies with
+          how active your groups are.
+        </p>
+
+        <h3 className="pt-2 text-lg font-semibold text-[#1d3f7f] dark:text-[#bfe2ff]">
+          How your SMS information is used
+        </h3>
+        <p>
+          SMS consent data and related phone messaging preferences are not
+          shared with third parties for promotional or marketing purposes. Your
+          mobile number is used to deliver the Loopd&apos;n messages you have
+          opted in to and to operate the service. We share it only with the
+          telecommunications providers needed to deliver those messages, never
+          for their own marketing.
         </p>
       </section>
 
