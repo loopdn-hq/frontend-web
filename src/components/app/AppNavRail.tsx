@@ -43,6 +43,7 @@ import {
 import { useUserSettingsProps } from "@/components/settings/useUserSettingsProps";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
+import { platform } from "@/lib/platform";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
 import type { SettingsTab } from "@/components/settings/UserSettingsPanel";
 
@@ -225,7 +226,9 @@ export function AppNavRail() {
       // link to yet, and pointing this at /contact/ would be worse than
       // nothing: that page is an enterprise SALES form.
       onSelect: () => {
-        window.location.href = SUPPORT_MAILTO;
+        // Setting location does nothing in a Tauri webview; the adapter
+        // hands mailto: to the OS there.
+        void platform.openExternal(SUPPORT_MAILTO);
       },
     },
     { kind: "separator", id: "account-separator" },

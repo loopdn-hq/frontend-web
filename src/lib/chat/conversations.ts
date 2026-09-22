@@ -8,7 +8,8 @@ import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
 import type { MessageMention } from "@/lib/chat/mentions";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE_URL } from "@/lib/config/env";
+import { http as fetch } from "@/lib/config/http";
 
 export type JoinMode = "open" | "code" | "approval" | "invite";
 export type ConversationMode = "chat" | "broadcast";

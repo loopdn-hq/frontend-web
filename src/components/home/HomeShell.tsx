@@ -139,6 +139,8 @@ import {
 } from "lucide-react";
 import { NewConversationModal } from "./NewConversationModal";
 import { useLocalMessagingPreferences } from "@/lib/user/messagingPreferences";
+import { publicOrigin } from "@/lib/config/origin";
+import { platform } from "@/lib/platform";
 
 // One definition, owned by the component that renders it. The alias keeps the
 // ~40 existing references in this file reading as they did.
@@ -639,7 +641,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       setUpgradeCheckoutError(null);
       setUpgradeCheckoutPlanCode(planCode);
       try {
-        const origin = window.location.origin;
+        const origin = publicOrigin();
         const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const result = await createPlanCheckoutSession(
@@ -653,7 +655,7 @@ export function HomeShell({ mode }: HomeShellProps) {
           return;
         }
 
-        window.location.assign(result.data.checkoutUrl);
+        void platform.openExternal(result.data.checkoutUrl);
       } finally {
         setUpgradeCheckoutPlanCode(null);
       }

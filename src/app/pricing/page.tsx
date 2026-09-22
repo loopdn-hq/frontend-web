@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPlanCheckoutSession, fetchBillingSummary } from "@/lib/billing";
 import { useAuth } from "@/lib/auth/client";
+import { API_BASE_URL } from "@/lib/config/env";
+import { publicOrigin } from "@/lib/config/origin";
+import { platform } from "@/lib/platform";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteTopNav } from "@/components/site/SiteTopNav";
 
@@ -285,7 +288,7 @@ export default function PricingPage() {
     setIsLoadingPlans(true);
     setPlansError(null);
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+    const baseUrl = API_BASE_URL;
     if (!baseUrl) {
       setPlans([]);
       setPlansError("Pricing API URL is not configured.");
@@ -365,7 +368,7 @@ export default function PricingPage() {
       setCheckoutError(null);
       setCheckoutPlanCode(planCode);
       try {
-        const origin = window.location.origin;
+        const origin = publicOrigin();
         const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const result = await createPlanCheckoutSession(
@@ -378,7 +381,7 @@ export default function PricingPage() {
           return;
         }
 
-        window.location.assign(result.data.checkoutUrl);
+        void platform.openExternal(result.data.checkoutUrl);
       } finally {
         setCheckoutPlanCode(null);
       }
