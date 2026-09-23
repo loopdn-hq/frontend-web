@@ -28,6 +28,37 @@
   --accent: #2de2a9;
 }
 
+/* Chart colours (Analytics).
+ *
+ * Categorical slots, assigned in this fixed order and never cycled, so the
+ * same series keeps the same hue across every chart on the page. Held here
+ * rather than as Tailwind classes because a chart sets them on inline styles
+ * for computed widths and heights anyway, and because both modes then live
+ * side by side.
+ *
+ * The dark steps are CHOSEN for the dark surface, not an automatic lightening
+ * of the light ones. Both pairs were checked against the surfaces they are
+ * actually drawn on - white and slate-900 - for the lightness band, chroma,
+ * contrast, and separation under protanopia, deuteranopia and tritanopia; the
+ * worst pair is comfortably clear on all of them. Re-check before changing a
+ * hex: a pair that looks distinct to us can be one colour to somebody else,
+ * which is also why every chart carries a legend and a data table.
+ *
+ * --viz-grid is one step off the surface: enough to read a value against,
+ * recessive enough to stay behind the data.
+ */
+:root {
+  --viz-series-1: #2a78d6;
+  --viz-series-2: #eb6834;
+  --viz-grid: #e2e8f0;
+}
+
+.dark {
+  --viz-series-1: #3987e5;
+  --viz-series-2: #d95926;
+  --viz-grid: #1e293b;
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

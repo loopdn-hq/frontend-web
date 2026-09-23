@@ -4,13 +4,63 @@ import { useEffect, useMemo, useState } from "react";
 import { BarChart3, Wallet } from "lucide-react";
 import { AnalyticsSkeleton } from "@/components/app/AnalyticsSkeleton";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
-import { fetchBillingAnalytics, type BillingAnalytics } from "@/lib/billing";
+import { ColumnChart } from "@/components/charts/ColumnChart";
+import { DonutChart, type DonutSlice } from "@/components/charts/DonutChart";
+import { ShareBar, type ShareSegment } from "@/components/charts/ShareBar";
+import {
+  fetchBillingAnalytics,
+  type BillingAnalytics,
+  type BillingAnalyticsAdvanced,
+} from "@/lib/billing";
 
 function formatCurrency(cents: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
   }).format(cents / 100);
+}
+
+/**
+ * The three group counts the API sends are NOT three separate groups of
+ * groups, and adding them together is meaningless:
+ *
+ *   member_groups     every group you are an active member of - the TOTAL
+ *   admin_groups      the ones where your role is admin - a SUBSET of it
+ *   broadcast_groups  the ones in broadcast mode - a subset of it too, cutting
+ *                     across the first two
+ *
+ * A chart of the three as they arrive would sum past 100% and double-count the
+ * same group up to three times. So each chart splits the one total along ONE
+ * dimension, which is what makes the parts add up to the whole.
+ *
+ * Both clamp with Math.max: a subset larger than its total can only be a
+ * backend disagreement, and a negative width would draw as a broken bar
+ * rather than showing that something is wrong.
+ */
+function groupsByRole(advanced: BillingAnalyticsAdvanced): DonutSlice[] {
+  const total = advanced.groupAdminStats.memberGroups;
+  const admin = Math.min(advanced.groupAdminStats.adminGroups, total);
+  return [
+    { label: "You're an admin", value: admin, tone: "series-1" },
+    {
+      label: "You're a member",
+      value: Math.max(0, total - admin),
+      tone: "series-2",
+    },
+  ];
+}
+
+function groupsByType(advanced: BillingAnalyticsAdvanced): ShareSegment[] {
+  const total = advanced.groupAdminStats.memberGroups;
+  const broadcast = Math.min(advanced.groupAdminStats.broadcastGroups, total);
+  return [
+    { label: "Broadcast", value: broadcast, tone: "series-1" },
+    {
+      label: "Group chat",
+      value: Math.max(0, total - broadcast),
+      tone: "series-2",
+    },
+  ];
 }
 
 function statLabel(value: number, singular: string, plural: string): string {
@@ -181,8 +231,13 @@ export default function AnalyticsPage() {
                       analytics.advanced.groupAdminStats.adminGroups,
                     )}
                   />
+                  {/* `member_groups` is every group you are an active member
+                      of, admin ones included - not the ones where you are only
+                      a member. It was labelled "Member groups", which read as
+                      the second thing and made the three counts look like
+                      three separate groups of groups. */}
                   <Card
-                    title="Member groups"
+                    title="Groups in total"
                     value={String(
                       analytics.advanced.groupAdminStats.memberGroups,
                     )}
@@ -203,9 +258,77 @@ export default function AnalyticsPage() {
                   />
                 </div>
 
-                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                  Average active members per group:{" "}
-                  {analytics.advanced.groupSize.averageActiveMembers.toFixed(1)}
+                <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  <DonutChart
+                    title="Your groups, by your role"
+                    unit="groups"
+                    slices={groupsByRole(analytics.advanced)}
+                    emptyMessage="You're not a member of any groups yet."
+                  />
+                  <ShareBar
+                    title="Your groups, by type"
+                    unit="groups"
+                    segments={groupsByType(analytics.advanced)}
+                    emptyMessage="You're not a member of any groups yet."
+                  />
+                  <ColumnChart
+                    title="Wallet movement"
+                    subtitle="Last 30 days"
+                    data={[
+                      {
+                        label: "Purchased",
+                        value:
+                          analytics.advanced.wallet.usageLast30Days
+                            .purchasedCents,
+                        display: formatCurrency(
+                          analytics.advanced.wallet.usageLast30Days
+                            .purchasedCents,
+                        ),
+                        tone: "series-1",
+                      },
+                      {
+                        label: "Used",
+                        value:
+                          analytics.advanced.wallet.usageLast30Days.usedCents,
+                        display: formatCurrency(
+                          analytics.advanced.wallet.usageLast30Days.usedCents,
+                        ),
+                        tone: "series-2",
+                      },
+                    ]}
+                    formatTick={formatCurrency}
+                    emptyMessage="No credit was bought or spent in the last 30 days."
+                  />
+                  {/* One hue, and so no legend: both bars measure the same
+                      thing - active members - and the title says so. */}
+                  <ColumnChart
+                    title="Active members per group"
+                    subtitle="Across the groups you are in"
+                    data={[
+                      {
+                        label: "Average",
+                        value:
+                          analytics.advanced.groupSize.averageActiveMembers,
+                        display:
+                          analytics.advanced.groupSize.averageActiveMembers.toFixed(
+                            1,
+                          ),
+                        tone: "series-1",
+                      },
+                      {
+                        label: "Largest group",
+                        value:
+                          analytics.advanced.groupSize
+                            .largestGroupActiveMembers,
+                        display: String(
+                          analytics.advanced.groupSize
+                            .largestGroupActiveMembers,
+                        ),
+                        tone: "series-1",
+                      },
+                    ]}
+                    emptyMessage="No group has an active member count yet."
+                  />
                 </div>
               </section>
             )}
