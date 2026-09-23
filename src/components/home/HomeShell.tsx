@@ -113,6 +113,7 @@ import {
 } from "@/lib/chat/preview";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
 import {
@@ -3320,6 +3321,10 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {selectedConversationId && (
                   <div className="flex items-center gap-2">
+                    <ConversationCallButtons
+                      conversationId={selectedConversationId}
+                      canStart={canPostMessage}
+                    />
                     {canAddMembers && (
                       <button
                         type="button"
