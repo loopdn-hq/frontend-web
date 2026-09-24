@@ -1,6 +1,13 @@
 "use client";
 
-import { Maximize2, Mic, MicOff, Minimize2, PhoneOff } from "lucide-react";
+import {
+  Maximize2,
+  Mic,
+  MicOff,
+  Minimize2,
+  PhoneOff,
+  ScreenShare,
+} from "lucide-react";
 import { Alert } from "@/components/ui";
 import { CallControls } from "@/components/calls/CallControls";
 import { ParticipantTile } from "@/components/calls/ParticipantTile";
@@ -174,6 +181,25 @@ export function ActiveCallView() {
         {media.state === "reconnecting" && (
           <Alert variant="info">Connection interrupted. Reconnecting...</Alert>
         )}
+        {/* Sharing your screen is the one control worth stating outright: it is
+            easy to forget it is on, and what leaks when you forget is whatever
+            else is on your screen. The way to stop is in the banner, not only
+            back in the control bar. */}
+        {media.isScreenSharing && (
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-emerald-500/15 px-3 py-2 text-sm text-emerald-200">
+            <span className="flex items-center gap-2">
+              <ScreenShare className="h-4 w-4 shrink-0" />
+              You&apos;re sharing your screen
+            </span>
+            <button
+              type="button"
+              onClick={() => void media.toggleScreenShare()}
+              className="shrink-0 font-semibold text-emerald-100 hover:underline"
+            >
+              Stop sharing
+            </button>
+          </div>
+        )}
       </div>
 
       <main className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
@@ -188,6 +214,21 @@ export function ActiveCallView() {
 
       <footer className="px-4 pt-2 pb-6">
         <CallControls />
+        {/* The disabled button carries this as a tooltip, which a touch device
+            never shows. The plan that decides is the GROUP OWNER's, not the
+            viewer's (calls/services.py `plan_for_call`), so the wording does
+            not call it yours. */}
+        {media.screenShareSupport === "not-in-plan" && (
+          <p className="mt-3 text-center text-2xs text-slate-400">
+            Screen sharing isn&apos;t included in the plan for this call.
+          </p>
+        )}
+        {media.screenShareSupport === "unsupported" && (
+          <p className="mt-3 text-center text-2xs text-slate-400">
+            This browser can&apos;t share a screen. Try Loopd&apos;n on a
+            desktop browser.
+          </p>
+        )}
       </footer>
     </div>
   );
@@ -204,6 +245,9 @@ export function MinimizedCallBar() {
     canAdministerActiveCall,
   } = useCalls();
   const { title, status, isDirect } = useCallSummary();
+  const someoneIsSharing = media.participants.some(
+    (participant) => participant.screenTrack,
+  );
 
   return (
     <div
@@ -226,7 +270,18 @@ export function MinimizedCallBar() {
           )}
           <span className="truncate">{title}</span>
         </p>
-        <p className="text-xs text-slate-400 tabular-nums">{status}</p>
+        <p className="flex items-center gap-1.5 text-xs text-slate-400 tabular-nums">
+          {status}
+          {/* Somebody is sharing and this bar is all that is on screen -
+              which is worth saying, because the thing being shared is the
+              part of the call you cannot hear. */}
+          {someoneIsSharing && (
+            <span className="flex items-center gap-1 text-emerald-400">
+              <ScreenShare className="h-3 w-3" />
+              Screen
+            </span>
+          )}
+        </p>
       </button>
       <button
         type="button"

@@ -52,6 +52,18 @@ export type CallMediaParticipant = {
 
 export type DeviceErrorKind = "microphone" | "camera" | "screen";
 
+/**
+ * Whether this person can share their screen at all, and if not, why.
+ *
+ * Three states rather than a boolean because the two "no"s need different
+ * words. The plan's `has_screen_share` decides what Django writes into the
+ * token (calls/services.py `_sources_for`), and the Free plan does not include
+ * it - so a control that simply disappeared read as a missing feature rather
+ * than a plan limit. The other "no" is the browser: iOS Safari has no
+ * getDisplayMedia at all, and no plan can buy one.
+ */
+export type ScreenShareSupport = "ready" | "not-in-plan" | "unsupported";
+
 export type DeviceError = {
   kind: DeviceErrorKind;
   /** Blocked in the browser or OS, as opposed to missing or busy. */
@@ -178,7 +190,7 @@ export function useLiveKitRoom({ onDisconnected }: UseLiveKitRoomOptions = {}) {
   const [participants, setParticipants] = useState<CallMediaParticipant[]>([]);
   const [deviceError, setDeviceError] = useState<DeviceError | null>(null);
   const [audioBlocked, setAudioBlocked] = useState(false);
-  const [canScreenShare, setCanScreenShare] = useState(false);
+  const [isPermittedToShare, setIsPermittedToShare] = useState(false);
 
   // The live Room, for the actions. State is for rendering; a ref is what an
   // async action started before a re-render can still reach.
@@ -194,7 +206,7 @@ export function useLiveKitRoom({ onDisconnected }: UseLiveKitRoomOptions = {}) {
 
     const sources = target.localParticipant.permissions?.canPublishSources;
     // An empty list means "anything"; Django always sends an explicit one.
-    setCanScreenShare(
+    setIsPermittedToShare(
       !sources ||
         sources.length === 0 ||
         sources.includes(PROTO_SOURCE_SCREEN_SHARE),
@@ -377,6 +389,16 @@ export function useLiveKitRoom({ onDisconnected }: UseLiveKitRoomOptions = {}) {
   const isMicrophoneEnabled = local?.isMicrophoneEnabled ?? false;
   const isCameraEnabled = Boolean(local?.cameraTrack);
   const isScreenSharing = Boolean(local?.screenTrack);
+  // Checked at render rather than once at module load: it is a capability of
+  // the browser this component is running in, and a secure context is part of
+  // it - getDisplayMedia is absent over plain http on anything but localhost.
+  const screenShareSupport: ScreenShareSupport =
+    typeof navigator === "undefined" ||
+    typeof navigator.mediaDevices?.getDisplayMedia !== "function"
+      ? "unsupported"
+      : isPermittedToShare
+        ? "ready"
+        : "not-in-plan";
 
   return useMemo(
     () => ({
@@ -386,7 +408,7 @@ export function useLiveKitRoom({ onDisconnected }: UseLiveKitRoomOptions = {}) {
       clearDeviceError,
       audioBlocked,
       startAudio,
-      canScreenShare,
+      screenShareSupport,
       isMicrophoneEnabled,
       isCameraEnabled,
       isScreenSharing,
@@ -403,7 +425,7 @@ export function useLiveKitRoom({ onDisconnected }: UseLiveKitRoomOptions = {}) {
       clearDeviceError,
       audioBlocked,
       startAudio,
-      canScreenShare,
+      screenShareSupport,
       isMicrophoneEnabled,
       isCameraEnabled,
       isScreenSharing,

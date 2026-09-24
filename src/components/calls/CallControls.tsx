@@ -108,21 +108,29 @@ export function CallControls() {
         </ControlButton>
       )}
 
-      {/* Plan-gated on the server, and the token says whether it was granted. */}
-      {media.canScreenShare && (
-        <ControlButton
-          label={media.isScreenSharing ? "Stop sharing" : "Share your screen"}
-          active={!media.isScreenSharing}
-          onClick={() => void media.toggleScreenShare()}
-          disabled={!connected}
-        >
-          {media.isScreenSharing ? (
-            <ScreenShareOff className="h-5 w-5" />
-          ) : (
-            <ScreenShare className="h-5 w-5" />
-          )}
-        </ControlButton>
-      )}
+      {/* Shown even when it cannot be used, and saying why. Hiding it was
+          worse than disabling it: a plan limit and a missing feature look
+          identical when the control is simply not there. */}
+      <ControlButton
+        label={
+          media.screenShareSupport === "unsupported"
+            ? "This browser can't share a screen"
+            : media.screenShareSupport === "not-in-plan"
+              ? "Screen sharing isn't included in this plan"
+              : media.isScreenSharing
+                ? "Stop sharing"
+                : "Share your screen"
+        }
+        active={!media.isScreenSharing}
+        onClick={() => void media.toggleScreenShare()}
+        disabled={!connected || media.screenShareSupport !== "ready"}
+      >
+        {media.isScreenSharing ? (
+          <ScreenShareOff className="h-5 w-5" />
+        ) : (
+          <ScreenShare className="h-5 w-5" />
+        )}
+      </ControlButton>
 
       {canAdministerActiveCall && (
         <ControlButton
