@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createPlanCheckoutSession, fetchBillingSummary } from "@/lib/billing";
+import {
+  comparePlansByPrice,
+  createPlanCheckoutSession,
+  fetchBillingSummary,
+} from "@/lib/billing";
 import { useAuth } from "@/lib/auth/client";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteTopNav } from "@/components/site/SiteTopNav";
@@ -212,36 +216,31 @@ function mapApiPlanToUi(plan: ApiPlan): Plan {
   };
 }
 
-function sortPlans(plans: Plan[]): Plan[] {
-  const rank: Record<string, number> = {
-    free: 0,
-    premium: 1,
-    business: 2,
-    enterprise: 3,
-  };
-
-  return [...plans].sort((a, b) => {
-    const aCode = a.code.toLowerCase();
-    const bCode = b.code.toLowerCase();
-
-    if (aCode === "enterprise" && bCode !== "enterprise") return 1;
-    if (bCode === "enterprise" && aCode !== "enterprise") return -1;
-
-    const aRank =
-      aCode.startsWith("premium") || aCode.startsWith("business")
-        ? 1
-        : (rank[aCode] ?? 50);
-    const bRank =
-      bCode.startsWith("premium") || bCode.startsWith("business")
-        ? 1
-        : (rank[bCode] ?? 50);
-
-    if (aRank !== bRank) return aRank - bRank;
-
-    const aPrice = typeof a.price === "string" ? a.price : "";
-    const bPrice = typeof b.price === "string" ? b.price : "";
-    return aPrice.localeCompare(bPrice);
-  });
+/**
+ * Plans cheapest first, sorted while they are still the API shape - that is
+ * where the price is still a NUMBER. The view model carries `price` only as
+ * the string it is displayed as, and the sort this replaces compared those:
+ * "$100.00/mo" sorts before "$20.00/mo" as text, so the dearest plan led the
+ * page. It also ranked by a fixed list of plan codes, which put any plan the
+ * list had not been taught about after Enterprise.
+ *
+ * comparePlansByPrice is the same ordering the signed-in plan lists use.
+ */
+function sortApiPlans(plans: ApiPlan[]): ApiPlan[] {
+  return [...plans].sort((a, b) =>
+    comparePlansByPrice(
+      {
+        monthlyPriceCents: a.monthly_price_cents,
+        isCustomPricing: a.is_custom_pricing,
+        name: a.name,
+      },
+      {
+        monthlyPriceCents: b.monthly_price_cents,
+        isCustomPricing: b.is_custom_pricing,
+        name: b.name,
+      },
+    ),
+  );
 }
 
 function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
@@ -307,7 +306,9 @@ export default function PricingPage() {
         throw new Error(message);
       }
 
-      const mapped = prependDefaultPlans(payload.data).map(mapApiPlanToUi);
+      const mapped = sortApiPlans(prependDefaultPlans(payload.data)).map(
+        mapApiPlanToUi,
+      );
 
       if (mapped.length === 0) {
         setPlans([]);
@@ -317,7 +318,7 @@ export default function PricingPage() {
         return;
       }
 
-      setPlans(sortPlans(mapped));
+      setPlans(mapped);
       setPlansError(null);
     } catch (error: unknown) {
       setPlans([]);

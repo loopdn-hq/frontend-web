@@ -21,33 +21,76 @@ import { fetchCalls, isCallLive, type Call } from "@/lib/calls/api";
 import { parseCallEvent } from "@/lib/calls/events";
 import { formatCallDuration } from "@/lib/calls/format";
 
-type Direction = "outgoing" | "incoming" | "missed" | "live";
+/** Which way the call went - the arrow on the icon. */
+type Direction = "outgoing" | "incoming" | "live";
+
+/**
+ * How it turned out - the colour.
+ *
+ * Kept apart from the direction because they answer different questions, and
+ * colouring by direction alone hid the one case a call list exists to show: an
+ * outgoing call nobody picked up was drawn exactly like one that connected.
+ */
+type Outcome = "answered" | "missed" | "live";
+
+function isMine(call: Call, username: string | undefined): boolean {
+  return Boolean(username) && call.createdBy?.username === username;
+}
+
+function joinedByMe(call: Call, username: string | undefined): boolean {
+  return (
+    Boolean(username) &&
+    call.participants.some((stay) => stay.user.username === username)
+  );
+}
+
+/**
+ * Whether anybody actually picked up.
+ *
+ * `started_at` is the server's own answer to that: it is stamped when somebody
+ * OTHER than the caller joins, which is the moment a call stops ringing (see
+ * calls/services.py, join_call). A call that rang out, or was declined, never
+ * gets one - so this is true of connected calls only, whatever ended them.
+ */
+function wasAnswered(call: Call): boolean {
+  return call.startedAt !== null;
+}
 
 function directionOf(call: Call, username: string | undefined): Direction {
   if (isCallLive(call)) return "live";
-  if (username && call.createdBy?.username === username) return "outgoing";
-  if (
-    username &&
-    call.participants.some((stay) => stay.user.username === username)
-  ) {
-    return "incoming";
-  }
-  return "missed";
+  return isMine(call, username) ? "outgoing" : "incoming";
 }
 
-const DIRECTION_ICON = {
-  outgoing: PhoneOutgoing,
-  incoming: PhoneIncoming,
-  missed: PhoneMissed,
-  live: Phone,
-} as const;
+/**
+ * Green once the call was answered AND this account was on it; red when it was
+ * not. Being in the conversation is not the same as having been on the call: a
+ * group call that went ahead without you is one you missed, which is the same
+ * rule a phone uses.
+ */
+function outcomeOf(call: Call, username: string | undefined): Outcome {
+  if (isCallLive(call)) return "live";
+  if (!wasAnswered(call)) return "missed";
+  return joinedByMe(call, username) ? "answered" : "missed";
+}
 
-const DIRECTION_TONE: Record<Direction, string> = {
-  outgoing: "text-slate-500 dark:text-slate-400",
-  incoming: "text-slate-500 dark:text-slate-400",
+function iconFor(direction: Direction, outcome: Outcome) {
+  if (direction === "live") return Phone;
+  if (outcome === "missed") return PhoneMissed;
+  return direction === "outgoing" ? PhoneOutgoing : PhoneIncoming;
+}
+
+const OUTCOME_TONE: Record<Outcome, string> = {
+  answered: "text-emerald-600 dark:text-emerald-400",
   missed: "text-rose-500",
   live: "text-emerald-500",
 };
+
+/** What the second line says when there is no duration to show. */
+function outcomeLabel(call: Call, outcome: Outcome): string {
+  if (outcome === "live") return "In progress";
+  if (call.endReason === "declined") return "Declined";
+  return wasAnswered(call) ? "Missed" : "No answer";
+}
 
 export default function CallsPage() {
   const { conversations, userProfile, subscribeToSocket } = useAppShell();
@@ -194,7 +237,8 @@ export default function CallsPage() {
                   <div className="space-y-1">
                     {group.rows.map((call) => {
                       const direction = directionOf(call, userProfile.username);
-                      const Icon = DIRECTION_ICON[direction];
+                      const outcome = outcomeOf(call, userProfile.username);
+                      const Icon = iconFor(direction, outcome);
                       const duration = callDurationSeconds(call);
                       return (
                         <button
@@ -208,14 +252,24 @@ export default function CallsPage() {
                               : "hover:bg-slate-50 dark:hover:bg-slate-800/60"
                           }`}
                         >
+                          {/* The colour is the outcome, the arrow is the
+                              direction, and the label says both - so the
+                              answered/missed distinction is never carried by
+                              colour alone. */}
                           <Icon
-                            className={`h-4 w-4 shrink-0 ${DIRECTION_TONE[direction]}`}
-                            aria-label={direction}
+                            className={`h-4 w-4 shrink-0 ${OUTCOME_TONE[outcome]}`}
+                            aria-label={
+                              outcome === "live"
+                                ? "In progress"
+                                : outcome === "missed"
+                                  ? outcomeLabel(call, outcome)
+                                  : `Answered, ${direction}`
+                            }
                           />
                           <div className="min-w-0 flex-1">
                             <p
                               className={`truncate text-sm font-semibold ${
-                                direction === "missed"
+                                outcome === "missed"
                                   ? "text-rose-600 dark:text-rose-400"
                                   : "text-slate-900 dark:text-slate-100"
                               }`}
@@ -228,13 +282,13 @@ export default function CallsPage() {
                               ) : (
                                 <Phone className="h-3 w-3" />
                               )}
-                              {direction === "live"
-                                ? "In progress"
-                                : duration !== null
-                                  ? formatCallDuration(duration)
-                                  : direction === "missed"
-                                    ? "Missed"
-                                    : "Not answered"}
+                              {/* A duration is only shown for a call this
+                                  account was actually on; for one that went
+                                  ahead without you, how long it ran is not
+                                  the answer to "did I miss it". */}
+                              {outcome === "answered" && duration !== null
+                                ? formatCallDuration(duration)
+                                : outcomeLabel(call, outcome)}
                             </p>
                           </div>
                           <span className="shrink-0 text-2xs text-slate-400">

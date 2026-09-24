@@ -533,6 +533,40 @@ function prependDefaultPlans(plans: BillingPlan[]): BillingPlan[] {
   return [...defaultsToPrepend, ...plans];
 }
 
+/** The fields an ordering needs, so a caller holding the raw API shape can sort too. */
+export type PlanPriceOrder = {
+  monthlyPriceCents: number | null;
+  isCustomPricing: boolean;
+  name: string;
+};
+
+/**
+ * Plans cheapest first, the way a price list is read.
+ *
+ * By the NUMBER, not by plan code and not by the price as it is displayed.
+ * Both of those were being used, and both were wrong: a code ladder puts every
+ * plan it has not been taught about in one undifferentiated bucket at the end,
+ * and "$100.00/mo" sorts before "$20.00/mo" as text, because "1" is before "2".
+ *
+ * A custom-priced plan goes last whatever its cents say. "Custom" is not a
+ * smaller number than $9 - it is the end of the ladder, the tier you talk to
+ * somebody about - and a null price must never read as free. Equal prices fall
+ * back to the name, so the order is at least stable between loads.
+ */
+export function comparePlansByPrice(
+  a: PlanPriceOrder,
+  b: PlanPriceOrder,
+): number {
+  const aCustom = a.isCustomPricing || a.monthlyPriceCents === null;
+  const bCustom = b.isCustomPricing || b.monthlyPriceCents === null;
+
+  if (aCustom !== bCustom) return aCustom ? 1 : -1;
+  if (aCustom && bCustom) return a.name.localeCompare(b.name);
+
+  const difference = (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0);
+  return difference !== 0 ? difference : a.name.localeCompare(b.name);
+}
+
 export async function fetchBillingPlans(): Promise<
   EnvelopeResult<BillingPlan[]>
 > {
@@ -540,13 +574,16 @@ export async function fetchBillingPlans(): Promise<
   if (!result.ok) return result;
 
   const rows = Array.isArray(result.data) ? result.data : [];
+  // Ordered here rather than by each screen that shows a price list. Three of
+  // them did it themselves, and the three disagreed - the ladder a person
+  // compares plans on should not depend on which screen they opened.
   return {
     ok: true,
     data: prependDefaultPlans(
       rows
         .map(normalizePlan)
         .filter((plan): plan is BillingPlan => plan !== null),
-    ),
+    ).sort(comparePlansByPrice),
   };
 }
 
