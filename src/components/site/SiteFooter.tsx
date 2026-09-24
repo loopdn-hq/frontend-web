@@ -30,9 +30,6 @@ export function SiteFooter() {
             <Link href="/pricing/" className="block hover:underline">
               Pricing
             </Link>
-            <Link href="/#groupme-alt" className="block hover:underline">
-              GroupMe Alternative
-            </Link>
           </div>
         </div>
 

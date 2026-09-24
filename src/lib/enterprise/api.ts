@@ -211,6 +211,8 @@ function normalizeConfiguration(
       search: Boolean(features.search),
       advanced_notifications: Boolean(features.advanced_notifications),
       moderation_tools: Boolean(features.moderation_tools),
+      calls: Boolean(features.calls),
+      call_recording: Boolean(features.call_recording),
       analytics: asText(features.analytics, "none") as AnalyticsTier,
     },
     credits: {

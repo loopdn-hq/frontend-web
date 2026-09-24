@@ -1,16 +1,17 @@
 // Enterprise Plan Builder pricing catalog.
 //
-// Per the Loopd'n Enterprise Plan Builder PRD, pricing must ultimately be
-// database-driven and revalidated by the backend - the frontend estimate is
-// UX only, never the trusted price. That backend catalog API doesn't exist
-// yet, so this file is the local stand-in: every *_CENTS value below is a
-// PLACEHOLDER pending real numbers from product/finance. Swap them here and
-// the whole builder (estimate, summary, breakdown) picks them up - nothing
-// else needs to change.
+// Per the Loopd'n Enterprise Plan Builder PRD, pricing must be database-driven
+// and revalidated by the backend - the frontend estimate is UX only, never the
+// trusted price.
 //
-// Structure mirrors the PRD's configuration JSON (section 5) so this catalog
-// can be replaced by a `GET /enterprise/pricing/`-style response later
-// without reshaping the builder UI.
+// `GET /enterprise/pricing/` IS live and is what the builder actually prices
+// against (see lib/enterprise/api.ts, fetchEnterprisePricingCatalog). What is
+// left here is the FALLBACK: DEFAULT_CATALOG, used for a hydration-safe first
+// paint and if that fetch fails. Its numbers mirror the backend's own seeded
+// placeholders line for line, so the two cannot disagree while both are
+// waiting on real figures from product/finance.
+//
+// Structure mirrors the PRD's configuration JSON (section 5).
 
 export type BillingIntervalCode = "monthly" | "quarterly" | "annual";
 export type AnalyticsTier = "none" | "basic" | "advanced";
@@ -22,11 +23,18 @@ export type EnterpriseLimits = {
   storage_gb: number;
 };
 
+/**
+ * Every key `POST /enterprise/drafts/` requires - all of them, on every save.
+ * Mirrors enterprise/services.py FEATURE_KEYS; a missing one is a 400 with
+ * field errors, not a silently defaulted false.
+ */
 export type EnterpriseFeatureKey =
   | "extended_message_history"
   | "search"
   | "advanced_notifications"
-  | "moderation_tools";
+  | "moderation_tools"
+  | "calls"
+  | "call_recording";
 
 export type EnterpriseFeatures = Record<EnterpriseFeatureKey, boolean> & {
   analytics: AnalyticsTier;
@@ -98,9 +106,8 @@ export const STORAGE_GB_OPTIONS: PricedOption<string>[] = [
 
 // ---- Toggleable features ---------------------------------------------
 //
-// These same four features ship bundled into Premium/Business; Enterprise
-// unbundles them so a customer starting from the base fee only pays for what
-// they turn on.
+// These features ship bundled into Premium/Business; Enterprise unbundles them
+// so a customer starting from the base fee only pays for what they turn on.
 
 export type FeatureToggleOption = {
   key: EnterpriseFeatureKey;
@@ -134,6 +141,24 @@ export const FEATURE_TOGGLES: FeatureToggleOption[] = [
     label: "Moderation tools",
     description: "Content filters, admin review queues, and audit trails.",
     priceCents: 1_800,
+  },
+  // ONE line for calling, covering audio and video together: billing.Plan
+  // has a single `has_calls` flag that grants both, so there is nothing a
+  // custom plan could buy separately. Screen sharing rides the same flag and
+  // is likewise not priced on its own.
+  {
+    key: "calls",
+    label: "Calls",
+    description: "Voice and video calls, one-to-one and in groups, on LiveKit.",
+    priceCents: 2_500,
+  },
+  // Flat, not tiered: retention comes with the add-on (90 days today, set by
+  // the backend), so there are no retention lengths to choose between.
+  {
+    key: "call_recording",
+    label: "Call recording",
+    description: "Record calls to a private, downloadable file. Kept 90 days.",
+    priceCents: 2_000,
   },
 ];
 
@@ -203,6 +228,8 @@ export const DEFAULT_CONFIGURATION: EnterpriseConfiguration = {
     search: false,
     advanced_notifications: false,
     moderation_tools: false,
+    calls: false,
+    call_recording: false,
     analytics: "none",
   },
   credits: {

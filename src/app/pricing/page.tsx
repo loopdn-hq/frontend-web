@@ -33,6 +33,14 @@ type ApiPlan = {
   storage_gb: number | null;
   has_whatsapp: boolean;
   has_telegram: boolean;
+  /** One flag for audio AND video - the backend does not split them. */
+  has_calls: boolean;
+  /** Null means unlimited. */
+  max_call_participants: number | null;
+  has_screen_share: boolean;
+  has_call_recording: boolean;
+  /** Null means kept until somebody deletes it. */
+  call_recording_retention_days: number | null;
   features: string[];
   is_custom_pricing: boolean;
 };
@@ -55,6 +63,14 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
     storage_gb: 1,
     has_whatsapp: false,
     has_telegram: false,
+    // Mirrors the backend seed (billing 0006_seed_call_limits): calling is on
+    // for every plan, four to a call here; screen share and recording are
+    // what the paid tiers add.
+    has_calls: true,
+    max_call_participants: 4,
+    has_screen_share: false,
+    has_call_recording: false,
+    call_recording_retention_days: null,
     features: [
       "Web messaging",
       "Basic message history",
@@ -77,6 +93,11 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
     storage_gb: null,
     has_whatsapp: true,
     has_telegram: true,
+    has_calls: true,
+    max_call_participants: null,
+    has_screen_share: true,
+    has_call_recording: true,
+    call_recording_retention_days: null,
     features: [
       "Workspaces",
       "SSO",
@@ -181,6 +202,52 @@ function planSummaryFromCode(code: string): string {
   return "For large organizations requiring custom contracts and limits.";
 }
 
+/**
+ * Calling, as rows for the card's existing limits list.
+ *
+ * Words rather than ticks and crosses, in the same shape as the other limits:
+ * "Not included" is a thing a pricing page has to be able to SAY, and a row
+ * that says it survives colour blindness, a screenshot and a screen reader,
+ * none of which a red cross does on its own.
+ *
+ * Audio and video are one row because they are one flag on the server -
+ * there is no plan where a visitor gets one and not the other. Screen sharing
+ * is its own row: it rides `has_calls` in the token but is gated separately by
+ * plan, so it is the one calling capability a paid tier actually adds.
+ */
+function callingLimits(plan: ApiPlan): Array<{ label: string; value: string }> {
+  if (!plan.has_calls) {
+    return [
+      { label: "Voice & video calls", value: "Not included" },
+      { label: "Screen sharing", value: "Not included" },
+      { label: "Call recording", value: "Not included" },
+    ];
+  }
+
+  return [
+    { label: "Voice & video calls", value: "Included" },
+    {
+      label: "Call participants",
+      value:
+        plan.max_call_participants === null
+          ? "Unlimited"
+          : `Up to ${plan.max_call_participants}`,
+    },
+    {
+      label: "Screen sharing",
+      value: plan.has_screen_share ? "Included" : "Not included",
+    },
+    {
+      label: "Call recording",
+      value: !plan.has_call_recording
+        ? "Not included"
+        : plan.call_recording_retention_days === null
+          ? "Kept until deleted"
+          : `Kept ${plan.call_recording_retention_days} days`,
+    },
+  ];
+}
+
 function normalizePlanValue(value: number | null, unit?: string): string {
   if (value === null) return "Custom";
   return unit ? `${value} ${unit}` : String(value);
@@ -211,6 +278,7 @@ function mapApiPlanToUi(plan: ApiPlan): Plan {
             ? "Custom"
             : normalizePlanValue(plan.storage_gb, "GB"),
       },
+      ...callingLimits(plan),
     ],
     features: plan.features,
   };

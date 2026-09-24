@@ -14,6 +14,15 @@ export type BillingPlan = {
   storageGb: number | null;
   hasWhatsApp: boolean;
   hasTelegram: boolean;
+  /** Audio AND video together - the backend has one flag, not two. */
+  hasCalls: boolean;
+  /** Null means unlimited. */
+  maxCallParticipants: number | null;
+  /** Rides `hasCalls` on the server; not sold separately. */
+  hasScreenShare: boolean;
+  hasCallRecording: boolean;
+  /** Null means kept until somebody deletes it. */
+  callRecordingRetentionDays: number | null;
   features: string[];
   isCustomPricing: boolean;
 };
@@ -137,6 +146,14 @@ const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     storageGb: 1,
     hasWhatsApp: false,
     hasTelegram: false,
+    // Mirrors the backend's own seed (billing 0006_seed_call_limits): calling
+    // is on for every plan, capped at four here, and screen share and
+    // recording are what the paid tiers add.
+    hasCalls: true,
+    maxCallParticipants: 4,
+    hasScreenShare: false,
+    hasCallRecording: false,
+    callRecordingRetentionDays: null,
     features: [
       "Web messaging",
       "Basic message history",
@@ -160,6 +177,11 @@ const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     storageGb: null,
     hasWhatsApp: true,
     hasTelegram: true,
+    hasCalls: true,
+    maxCallParticipants: null,
+    hasScreenShare: true,
+    hasCallRecording: true,
+    callRecordingRetentionDays: null,
     features: [
       "Workspaces",
       "SSO",
@@ -263,6 +285,14 @@ function normalizePlan(item: unknown): BillingPlan | null {
     storageGb: asNumber(item.storage_gb),
     hasWhatsApp: asBoolean(item.has_whatsapp, asBoolean(item.whatsapp_enabled)),
     hasTelegram: asBoolean(item.has_telegram, asBoolean(item.telegram_enabled)),
+    // All four default to OFF when the field is absent. The server's own
+    // default for has_calls is on, but absent here means an API that did not
+    // say - and a pricing page must not promise a capability nobody claimed.
+    hasCalls: asBoolean(item.has_calls),
+    maxCallParticipants: asNumber(item.max_call_participants),
+    hasScreenShare: asBoolean(item.has_screen_share),
+    hasCallRecording: asBoolean(item.has_call_recording),
+    callRecordingRetentionDays: asNumber(item.call_recording_retention_days),
     features,
     isCustomPricing: asBoolean(item.is_custom_pricing),
   };
@@ -476,6 +506,8 @@ function normalizeSummary(data: unknown): BillingSummary | null {
   const normalizedSummaryPlan = summaryPlanPayload
     ? normalizePlan(summaryPlanPayload)
     : null;
+  // Reached only when the summary carried no plan object - so nothing is known
+  // beyond the code, and nothing is claimed.
   const fallbackPlan: BillingPlan = {
     id: asText(subscription.plan_code, "free"),
     code: asText(subscription.plan_code, "free"),
@@ -488,6 +520,11 @@ function normalizeSummary(data: unknown): BillingSummary | null {
     storageGb: null,
     hasWhatsApp: false,
     hasTelegram: false,
+    hasCalls: false,
+    maxCallParticipants: null,
+    hasScreenShare: false,
+    hasCallRecording: false,
+    callRecordingRetentionDays: null,
     features: [],
     isCustomPricing: false,
   };
