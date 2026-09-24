@@ -11,8 +11,9 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "tauri:build": "tauri build",
+    "tauri:build:staging": "tauri build --config src-tauri/tauri.staging.conf.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",
