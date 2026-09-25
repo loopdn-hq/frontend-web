@@ -5,7 +5,7 @@
   "identifier": "com.loopdn.desktop",
   "build": {
     "frontendDist": "../out",
-    "devUrl": "http://localhost:3002",
+    "devUrl": "http://localhost:3000",
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build"
   },
