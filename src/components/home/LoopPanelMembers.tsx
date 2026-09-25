@@ -27,6 +27,7 @@ import {
   type ContextMenuOrigin,
 } from "@/components/ui";
 import { LinkRow } from "@/components/settings/SettingsRows";
+import { MemberChannelConsent } from "./MemberChannelConsent";
 import { ChatAvatar } from "./ChatAvatar";
 import type { ConversationParticipant } from "@/lib/chat/conversations";
 
@@ -321,6 +322,7 @@ export function LoopPanelMembers({
                     {member.email || member.phone || "No contact info"} · Joined{" "}
                     {joinedLabel(member.joinedAt)}
                   </p>
+                  <MemberChannelConsent channels={member.channels} />
                 </div>
 
                 <RolePill role={member.role} />

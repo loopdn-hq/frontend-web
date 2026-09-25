@@ -68,6 +68,20 @@ export type CreateConversationPayload = {
 
 export type ConversationKind = "group" | "direct";
 
+/**
+ * A group's phone number, as the API sends it.
+ *
+ * An object rather than a bare string because "the number exists" and "the
+ * number works" are different questions - `status` answers the second, and
+ * `provider` is what tells a support conversation where to go looking.
+ */
+export type GroupNumber = {
+  number: string;
+  country: string;
+  status: string;
+  provider: string;
+};
+
 export type Conversation = {
   id: string | number;
   // Leaving and deleting are both refused on a one-to-one, so the client has
@@ -105,6 +119,17 @@ export type Conversation = {
    * pinning is an admin thing in a group and not in a DM.
    */
   features: string[];
+  /**
+   * The group's own phone number, or null while it has not got one.
+   *
+   * The API has always sent this; nothing read it. Without it the product's
+   * central promise - text this number to reach your group - is unreachable,
+   * because a member has no way to learn the number.
+   *
+   * Null is a real state, not a missing field: a group whose provisioning
+   * failed has no number at all, and nothing ever invents a stand-in.
+   */
+  smsNumber: GroupNumber | null;
   createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
@@ -116,6 +141,17 @@ export type Conversation = {
    * instead of needing a socket event of its own.
    */
   pinnedMessage: ConversationMessage | null;
+};
+
+/** One member's answer about one delivery channel. */
+export type ChannelConsentState = {
+  /** null when they have never been asked about this channel. */
+  status: "pending" | "opted_in" | "declined" | "opted_out" | null;
+  /** What the fan-out actually decides, so the UI never re-derives it. */
+  allowsDelivery: boolean;
+  askedAt: string | null;
+  consentedAt: string | null;
+  optedOutAt: string | null;
 };
 
 export type ConversationParticipant = {
@@ -146,6 +182,15 @@ export type ConversationParticipant = {
    */
   role: "admin" | "member";
   joinedAt: string;
+  /**
+   * Where this member stands on each delivery channel.
+   *
+   * Keyed by channel name rather than typed per channel, so a channel added
+   * on the server appears here without a frontend change. `status` is null
+   * when they were never asked, which is a different thing from having said
+   * no - the two look identical as a boolean and are not.
+   */
+  channels: Record<string, ChannelConsentState>;
   isBlocked?: boolean;
   /**
    * Whether the VIEWER has blocked this person.
@@ -324,11 +369,27 @@ export function mergeConversations(
   current: Conversation[],
   incoming: Conversation[],
 ): Conversation[] {
+  const existing = new Map(current.map((row) => [String(row.id), row]));
+
+  const folded = incoming.map((row) => {
+    const previous = existing.get(String(row.id));
+    if (!previous) return row;
+
+    return {
+      ...row,
+      // The list endpoint deliberately carries NO participants - the roster is
+      // unbounded and lives on its own paginated endpoint - so an incoming row
+      // always arrives with an empty one. Taking it at its word emptied the
+      // members panel on every refresh, and it only came back on a reload,
+      // when the roster is fetched again.
+      participants: row.participants.length
+        ? row.participants
+        : previous.participants,
+    };
+  });
+
   const replaced = new Set(incoming.map((row) => String(row.id)));
-  return [
-    ...incoming,
-    ...current.filter((row) => !replaced.has(String(row.id))),
-  ];
+  return [...folded, ...current.filter((row) => !replaced.has(String(row.id)))];
 }
 
 /**
@@ -408,7 +469,32 @@ export function normalizeParticipant(
         : undefined,
     isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
+    channels: normalizeChannelConsents(item.channels),
   };
+}
+
+const CONSENT_STATUSES = ["pending", "opted_in", "declined", "opted_out"];
+
+function normalizeChannelConsents(
+  raw: unknown,
+): Record<string, ChannelConsentState> {
+  if (!isApiObject(raw)) return {};
+
+  const out: Record<string, ChannelConsentState> = {};
+  for (const [channel, value] of Object.entries(raw)) {
+    if (!isApiObject(value)) continue;
+    const status = asText(value.status);
+    out[channel] = {
+      status: CONSENT_STATUSES.includes(status)
+        ? (status as ChannelConsentState["status"])
+        : null,
+      allowsDelivery: value.allows_delivery === true,
+      askedAt: asText(value.asked_at) || null,
+      consentedAt: asText(value.consented_at) || null,
+      optedOutAt: asText(value.opted_out_at) || null,
+    };
+  }
+  return out;
 }
 
 /**
@@ -473,6 +559,21 @@ function senderLabelFrom(sender: unknown): string {
       asText(senderObject.username, "Unknown"),
     ),
   );
+}
+
+function normalizeGroupNumber(value: unknown): GroupNumber | null {
+  if (!isApiObject(value)) return null;
+  const number = asText(value.number);
+  // No number, no object: an empty string here would render as a blank the
+  // reader cannot text.
+  if (!number) return null;
+
+  return {
+    number,
+    country: asText(value.country),
+    status: asText(value.status),
+    provider: asText(value.provider),
+  };
 }
 
 function normalizeConversation(item: ApiObject): Conversation | null {
@@ -557,6 +658,7 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     muted: item.muted === true,
     archived: item.archived === true,
     cleared: item.cleared === true,
+    smsNumber: normalizeGroupNumber(item.sms_number),
     isAdmin: isCurrentUserAdmin(item),
     features: Array.isArray(item.features)
       ? item.features.filter((key): key is string => typeof key === "string")
@@ -1678,6 +1780,44 @@ export async function leaveConversation(
       return {
         ok: false,
         message: getErrorMessage(data) ?? "Unable to leave this Loop.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Delete a group for EVERYONE, and release its phone number.
+ *
+ * Not the same thing as the "Delete chat" row action, which clears your own
+ * view and leaves the group standing. This is the admin-only one the server
+ * guards: a group is deleted for every member, and a pre_delete signal gives
+ * the number back - a number that outlives its group is one nobody is watching
+ * and everybody is still paying for.
+ *
+ * Answers 204 with no body, so there is nothing to parse on success.
+ */
+export async function deleteConversation(
+  conversationId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to delete this Loop.",
       };
     }
     return { ok: true };

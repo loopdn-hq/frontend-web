@@ -39,6 +39,7 @@ import {
   joinConversation,
   joinConversationWithCode,
   clearConversationHistory,
+  deleteConversation,
   leaveConversation,
   markConversationRead,
   setConversationArchived,
@@ -349,7 +350,7 @@ function blockConfirmCopy(name: string, blocked: boolean) {
 }
 
 /** Which of the row menu's four destructive-ish actions is asking. */
-type RowConfirmKind = "leave" | "clear" | "block" | "unblock";
+type RowConfirmKind = "leave" | "clear" | "delete-group" | "block" | "unblock";
 
 /**
  * One confirm step, as data.
@@ -1265,28 +1266,40 @@ export function HomeShell({ mode }: HomeShellProps) {
   // Refresh the full participant list (and this user's admin status) for the
   // Loop that's currently open - the list endpoint's participants can be
   // stale or paginated, and the admin panel needs the authoritative roster.
-  useEffect(() => {
-    if (!selectedConversationId) return;
-    let cancelled = false;
-
-    // Members only. `isAdmin` and `features` both come from the server on the
-    // conversation itself, so recomputing them from a page of participants
-    // would be a second, staler answer to a question already answered.
-    fetchConversationParticipants(selectedConversationId).then((result) => {
-      if (cancelled || !result.ok) return;
+  /**
+   * Re-read one Loop's roster from the endpoint that actually has it.
+   *
+   * Members only. `isAdmin` and `features` both come from the server on the
+   * conversation itself, so recomputing them from a page of participants would
+   * be a second, staler answer to a question already answered.
+   *
+   * Used by the effect below AND after anything that changes membership -
+   * adding, inviting, removing, blocking, changing a role. Those all refresh
+   * the conversation list, which carries no participants at all, so without
+   * this the panel would show the roster as it was before the change.
+   */
+  const reloadParticipants = useCallback(
+    async (conversationId: string | number) => {
+      const result = await fetchConversationParticipants(conversationId);
+      if (!result.ok) return;
       setConversations((current) =>
         current.map((conversation) =>
-          conversation.id === selectedConversationId
+          conversation.id === conversationId
             ? { ...conversation, participants: result.participants }
             : conversation,
         ),
       );
-    });
+    },
+    [setConversations],
+  );
 
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedConversationId, currentUsername, setConversations]);
+  // Refresh the open Loop's roster when it changes: the list endpoint's
+  // participants can be stale or paginated, and the admin panel needs the
+  // authoritative one.
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    void reloadParticipants(selectedConversationId);
+  }, [selectedConversationId, currentUsername, reloadParticipants]);
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -2096,13 +2109,24 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   async function refreshConversations() {
     const refreshed = await fetchConversations();
-    if (refreshed.ok) {
-      setConversations(
-        refreshed.conversations.map((conversation) => ({
+    if (!refreshed.ok) return;
+
+    // Merged, not replaced: the incoming rows carry no participants, and
+    // replacing wholesale emptied the members panel until the next reload.
+    setConversations((current) =>
+      mergeConversations(current, refreshed.conversations).map(
+        (conversation) => ({
           ...conversation,
           active: conversation.id === selectedConversationId,
-        })),
-      );
+        }),
+      ),
+    );
+
+    // Everything that calls this is reporting something that just changed, and
+    // a good share of those are membership changes - so the roster is re-read
+    // here rather than at each call site.
+    if (selectedConversationId) {
+      await reloadParticipants(selectedConversationId);
     }
   }
 
@@ -2235,11 +2259,19 @@ export function HomeShell({ mode }: HomeShellProps) {
           };
         case "clear":
           return {
-            title: `Delete ${conversation.name}?`,
+            title: `Delete this chat?`,
             body: "Clears it for you only. You stay in the group, and it comes back if somebody posts - with just the new messages.",
-            label: "Delete",
+            label: "Delete chat",
             buttonClassName: "bg-rose-600 hover:bg-rose-700",
             run: () => handleClearRow(conversation),
+          };
+        case "delete-group":
+          return {
+            title: `Delete ${conversation.name} for everyone?`,
+            body: "Deletes it for every member and gives up its phone number. Nobody can undo this, and the number cannot be got back.",
+            label: "Delete group",
+            buttonClassName: "bg-rose-600 hover:bg-rose-700",
+            run: () => handleDeleteGroupRow(conversation),
           };
         case "block":
           if (!counterpart) return null;
@@ -2458,6 +2490,21 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <Trash2 className="h-4 w-4" />
                       Delete chat
                     </button>
+                    {/* Last, and admins only: this is the one action in the
+                        menu nobody can undo. It ends the group for every
+                        member and gives up its phone number, which is also
+                        why it is worth offering - a group nobody deletes is a
+                        number everybody keeps paying for. */}
+                    {conversation.kind === "group" && conversation.isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => setRowConfirm("delete-group")}
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete group for everyone
+                      </button>
+                    )}
                   </>
                 ) : (
                   confirmStep && (
@@ -2575,6 +2622,28 @@ export function HomeShell({ mode }: HomeShellProps) {
     }
     closeRowMenu();
     dropConversation(conversation.id);
+  }
+
+  /**
+   * End a group for everybody. Admins only, and the server checks that again.
+   *
+   * The row goes for good rather than being marked cleared: there is nothing
+   * to come back to, and the websocket tells every other member's client the
+   * same thing.
+   */
+  async function handleDeleteGroupRow(conversation: Conversation) {
+    const result = await deleteConversation(conversation.id);
+    if (!result.ok) {
+      setRowActionError(result.message);
+      return;
+    }
+    closeRowMenu();
+    setConversations((current) =>
+      current.filter((row) => row.id !== conversation.id),
+    );
+    setSelectedConversationId((current) =>
+      current === conversation.id ? null : current,
+    );
   }
 
   async function handleClearRow(conversation: Conversation) {
@@ -4233,12 +4302,10 @@ export function HomeShell({ mode }: HomeShellProps) {
           onClose={() => setIsAdminPanelOpen(false)}
           loopName={selectedConversation?.name ?? "Loop"}
           settings={groupSettings}
+          smsNumber={selectedConversation?.smsNumber ?? null}
           isSettingsLoading={isGroupSettingsLoading}
           canEditSettings={canEditGroupSettings}
-          canModerateMembers={allows(
-            selectedConversation,
-            GROUP.removeMembers,
-          )}
+          canModerateMembers={allows(selectedConversation, GROUP.removeMembers)}
           activeTab={adminPanelTab}
           onTabChange={handleTabChange}
           onLeaveLoop={handleLeaveLoop}

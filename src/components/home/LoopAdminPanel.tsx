@@ -23,6 +23,7 @@ import { LoopPanelGeneral } from "./LoopPanelGeneral";
 import { LoopPanelMembers } from "./LoopPanelMembers";
 import type {
   ConversationParticipant,
+  GroupNumber,
   GroupSettings,
 } from "@/lib/chat/conversations";
 
@@ -47,6 +48,8 @@ type LoopAdminPanelProps = {
   onClose: () => void;
   loopName: string;
   settings: GroupSettings | null;
+  /** This Loop's own phone number, shown on General. Null until it has one. */
+  smsNumber?: GroupNumber | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
   canModerateMembers?: boolean;
@@ -73,6 +76,7 @@ export function LoopAdminPanel({
   onClose,
   loopName,
   settings,
+  smsNumber = null,
   isSettingsLoading = false,
   canEditSettings = true,
   canModerateMembers = false,
@@ -182,6 +186,7 @@ export function LoopAdminPanel({
                 onSave={onSaveSettings}
                 canEdit={canEditSettings}
                 onFetchJoinCode={onFetchJoinCode}
+                smsNumber={smsNumber}
               />
             ) : (
               <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
