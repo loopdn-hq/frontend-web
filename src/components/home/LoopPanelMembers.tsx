@@ -79,6 +79,7 @@ type LoopPanelMembersProps = {
   onUpdateMemberRole?: (memberId: string, role: MemberRole) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
+  onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
 };
 
 export function LoopPanelMembers({
@@ -93,6 +94,7 @@ export function LoopPanelMembers({
   onUpdateMemberRole,
   onRemoveMember,
   onBlockMember,
+  onNudgeMember,
 }: LoopPanelMembersProps) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -173,6 +175,21 @@ export function LoopPanelMembers({
         label: role === "member" ? "Make a member" : `Make ${role}`,
         onSelect: () =>
           void run(member.id, () => onUpdateMemberRole?.(member.id, role)),
+      });
+    }
+
+    // One entry per channel they were asked about and never answered. Anybody
+    // who agreed, declined or sent STOP is absent rather than disabled: the
+    // server refuses those outright, and offering a button that cannot work is
+    // worse than not offering it.
+    for (const [channel, state] of Object.entries(member.channels)) {
+      if (state.status !== "pending") continue;
+      items.push({
+        id: `nudge-${channel}`,
+        label: `Nudge about ${channel.toUpperCase()}`,
+        description: "Asks again. Once a day at most.",
+        onSelect: () =>
+          void run(member.id, () => onNudgeMember?.(member.id, channel)),
       });
     }
 

@@ -1582,6 +1582,52 @@ export async function updateMemberRole(
   }
 }
 
+/**
+ * Ask a member again about an invitation they never answered.
+ *
+ * Admin-only and rate limited server-side to once a day per channel. The
+ * server refuses anybody who has already answered - agreed, declined, or sent
+ * STOP - so the refusal message is worth showing verbatim rather than
+ * flattening to "that did not work".
+ */
+export async function nudgeConversationMember(
+  conversationId: string | number,
+  participantId: string | number,
+  channel: "sms" | "email" | "voice" = "sms",
+): Promise<
+  | { ok: true; participant: ConversationParticipant }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/nudge/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId, channel }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const participant = payload ? normalizeParticipant(payload) : null;
+    if (!response.ok || !participant) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to send that reminder.",
+      };
+    }
+    return { ok: true, participant };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function removeConversationMember(
   conversationId: string | number,
   participantId: string | number,

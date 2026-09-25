@@ -50,6 +50,7 @@ import {
   normalizeConversationPayload,
   normalizeMessagePayload,
   normalizeParticipant,
+  nudgeConversationMember,
   removeConversationMember,
   respondToJoinRequest,
   sendConversationMessage,
@@ -4403,6 +4404,19 @@ export function HomeShell({ mode }: HomeShellProps) {
               memberId,
               role,
             );
+            if (!result.ok) throw new Error(result.message);
+            await refreshConversations();
+          }}
+          onNudgeMember={async (memberId, channel) => {
+            if (!selectedConversationId) return;
+            const result = await nudgeConversationMember(
+              selectedConversationId,
+              memberId,
+              channel as "sms" | "email" | "voice",
+            );
+            // The server's refusal is specific - "they declined", "you can
+            // nudge again in about 5h" - so it is surfaced verbatim rather
+            // than flattened into a generic failure.
             if (!result.ok) throw new Error(result.message);
             await refreshConversations();
           }}

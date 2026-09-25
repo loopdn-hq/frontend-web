@@ -66,6 +66,7 @@ type LoopAdminPanelProps = {
   onAddMembers?: () => void;
   onUpdateMemberRole?: (memberId: string, newRole: MemberRole) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
+  onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
   onLeaveLoop?: () => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -93,6 +94,7 @@ export function LoopAdminPanel({
   onAddMembers,
   onUpdateMemberRole,
   onBlockMember,
+  onNudgeMember,
   onRemoveMember,
   isLoading = false,
   onLeaveLoop,
@@ -208,6 +210,7 @@ export function LoopAdminPanel({
               onUpdateMemberRole={onUpdateMemberRole}
               onRemoveMember={onRemoveMember}
               onBlockMember={onBlockMember}
+              onNudgeMember={onNudgeMember}
             />
           )}
         </div>
