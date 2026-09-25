@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useState,
   type MouseEvent as ReactMouseEvent,
 } from "react";
@@ -23,6 +24,7 @@ import {
   RadioTower,
   Search,
   Settings,
+  ShieldCheck,
   Sparkles,
   User,
   Users,
@@ -45,6 +47,7 @@ import { useAppShell } from "@/lib/app/AppShellProvider";
 import { fetchBillingSummary } from "@/lib/billing";
 import { platform } from "@/lib/platform";
 import { readNavCollapsed, writeNavCollapsed } from "@/lib/app/navCollapse";
+import { meets, useFeatures, type Requirement } from "@/lib/rbac";
 import type { SettingsTab } from "@/components/settings/UserSettingsPanel";
 
 const SUPPORT_MAILTO = "mailto:support@loopdn.com?subject=Loopd%27n%20support";
@@ -55,6 +58,9 @@ type NavItem = {
   icon: LucideIcon;
   // Rendered as the small pill on the right of the row, e.g. "NEW".
   tag?: string;
+  // What the viewer needs before this is offered. One shape for every reason
+  // a row is hidden - a missing feature, or a route that is not ready yet.
+  requires?: Requirement;
 };
 
 type NavSection = {
@@ -62,44 +68,98 @@ type NavSection = {
   items: NavItem[];
 };
 
-// Destinations that exist but are not ready to be offered yet. Kept in
-// NAV_SECTIONS rather than deleted so bringing one back is removing one line,
-// and so the href, icon and label stay in step with the route that serves it.
-// The routes themselves still resolve - this hides the door, not the room.
-const HIDDEN_DESTINATIONS = new Set([
-  "/communities/",
-  "/media/",
-  "/contacts/",
-  "/ai-assistant/",
-]);
-
 // Creating a group is still reachable from the Chats screen; this is only the
 // nav rail's shortcut to it.
 const SHOW_CREATE_GROUP = false;
 
+// `requires` replaces three different mechanisms that did not know about each
+// other: a hardcoded hidden-route set, a plan check, and role booleans passed
+// down through props. `unreleased` still hides the door rather than the room -
+// the routes themselves resolve - and bringing one back is still one line.
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
-      { href: "/chats/", label: "Chats", icon: MessageCircle },
-      { href: "/broadcast/", label: "Broadcast", icon: RadioTower },
-      { href: "/activity/", label: "Activity", icon: Bell },
-      { href: "/communities/", label: "Communities", icon: Users },
-      { href: "/calls/", label: "Calls", icon: Phone },
-      { href: "/media/", label: "Media", icon: ImageIcon },
-      { href: "/contacts/", label: "Contacts", icon: Contact },
+      {
+        href: "/chats/",
+        label: "Chats",
+        icon: MessageCircle,
+        requires: { account: "chat.access" },
+      },
+      {
+        href: "/broadcast/",
+        label: "Broadcast",
+        icon: RadioTower,
+        requires: { account: "broadcast.access" },
+      },
+      {
+        href: "/activity/",
+        label: "Activity",
+        icon: Bell,
+        requires: { account: "activity.access" },
+      },
+      {
+        href: "/communities/",
+        label: "Communities",
+        icon: Users,
+        requires: { unreleased: true },
+      },
+      {
+        href: "/calls/",
+        label: "Calls",
+        icon: Phone,
+        // Real route, but the page itself is a ComingSoon placeholder, so
+        // there is no server-side feature to gate it on yet.
+      },
+      {
+        href: "/media/",
+        label: "Media",
+        icon: ImageIcon,
+        requires: { unreleased: true },
+      },
+      {
+        href: "/contacts/",
+        label: "Contacts",
+        icon: Contact,
+        requires: { unreleased: true },
+      },
       {
         href: "/ai-assistant/",
         label: "AI Assistant",
         icon: Sparkles,
         tag: "NEW",
+        requires: { unreleased: true },
       },
     ],
   },
   {
     heading: "Discover",
     items: [
-      { href: "/find-groups/", label: "Find groups", icon: Search },
-      { href: "/analytics/", label: "Analytics", icon: BarChart3 },
+      {
+        href: "/find-groups/",
+        label: "Find groups",
+        icon: Search,
+        requires: { account: "find_groups.access" },
+      },
+      {
+        href: "/analytics/",
+        label: "Analytics",
+        icon: BarChart3,
+        requires: { account: "analytics.access" },
+      },
+    ],
+  },
+  {
+    // Loopd'n's own team. The whole section disappears for everybody else -
+    // `platform.permissions.view` is granted to the account admin role alone,
+    // and the server refuses the page regardless of what is rendered here.
+    heading: "Platform",
+    items: [
+      {
+        href: "/admin/permissions/",
+        label: "Permissions",
+        icon: ShieldCheck,
+        requires: { account: "platform.permissions.view" },
+      },
     ],
   },
 ];
@@ -127,6 +187,7 @@ export function AppNavRail() {
     closeNavDrawer,
   } = useAppShell();
   const [collapsed, setCollapsed] = useState(readNavCollapsed);
+  const { features, loading: featuresLoading } = useFeatures();
   const [hasAnalyticsAccess, setHasAnalyticsAccess] = useState(false);
   const [accountMenu, setAccountMenu] = useState<ContextMenuOrigin | null>(
     null,
@@ -155,6 +216,26 @@ export function AppNavRail() {
       cancelled = true;
     };
   }, []);
+
+  // Filtered once, so a section whose every row is hidden renders nothing at
+  // all - otherwise "Platform" would sit there as a heading over emptiness for
+  // everybody who is not an account admin.
+  const visibleSections = useMemo(
+    () =>
+      NAV_SECTIONS.map((section) => ({
+        ...section,
+        items: section.items.filter(
+          (item) =>
+            meets(item.requires, { features, loading: featuresLoading }) &&
+            // Analytics needs the plan as well as the role: the role says
+            // whether the area exists for this person, the plan says whether
+            // they have paid for it. Two questions, and billing is out of
+            // scope for rbac - see docs/rbac_plan.md.
+            (item.href !== "/analytics/" || hasAnalyticsAccess),
+        ),
+      })).filter((section) => section.items.length > 0),
+    [features, featuresLoading, hasAnalyticsAccess],
+  );
 
   const toggleCollapsed = useCallback(() => {
     setCollapsed((current) => {
@@ -308,7 +389,7 @@ export function AppNavRail() {
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-          {NAV_SECTIONS.map((section, index) => (
+          {visibleSections.map((section, index) => (
             <div key={section.heading ?? `section-${index}`} className="mb-2">
               {section.heading && !collapsed && (
                 <p className="px-3 pt-4 pb-2 text-2xs font-semibold tracking-[0.15em] text-slate-500 uppercase">
@@ -319,67 +400,61 @@ export function AppNavRail() {
                 <div className="my-2 border-t border-slate-800" />
               )}
 
-              {section.items
-                .filter(
-                  (item) =>
-                    !HIDDEN_DESTINATIONS.has(item.href) &&
-                    (item.href !== "/analytics/" || hasAnalyticsAccess),
-                )
-                .map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.href);
-                  const badge =
-                    item.href === "/chats/"
-                      ? unreadByMode.chat
-                      : item.href === "/broadcast/"
-                        ? unreadByMode.broadcast
-                        : item.href === "/activity/"
-                          ? activityUnread
-                          : 0;
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.href);
+                const badge =
+                  item.href === "/chats/"
+                    ? unreadByMode.chat
+                    : item.href === "/broadcast/"
+                      ? unreadByMode.broadcast
+                      : item.href === "/activity/"
+                        ? activityUnread
+                        : 0;
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={closeNavDrawer}
-                      aria-current={active ? "page" : undefined}
-                      title={collapsed ? item.label : undefined}
-                      className={`relative mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                        collapsed ? "md:justify-center md:px-0" : ""
-                      } ${
-                        active
-                          ? "bg-slate-700/70 text-white"
-                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                      }`}
-                    >
-                      <Icon className="h-5 w-5 shrink-0" />
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={closeNavDrawer}
+                    aria-current={active ? "page" : undefined}
+                    title={collapsed ? item.label : undefined}
+                    className={`relative mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                      collapsed ? "md:justify-center md:px-0" : ""
+                    } ${
+                      active
+                        ? "bg-slate-700/70 text-white"
+                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5 shrink-0" />
 
-                      {!collapsed && (
-                        <>
-                          <span className="min-w-0 flex-1 truncate">
-                            {item.label}
-                          </span>
-                          {item.tag && (
-                            <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-3xs font-bold text-white">
-                              {item.tag}
-                            </span>
-                          )}
-                          {badge > 0 && (
-                            <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-2xs font-bold text-white">
-                              {badge}
-                            </span>
-                          )}
-                        </>
-                      )}
-
-                      {collapsed && badge > 0 && (
-                        <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-3xs font-bold text-white">
-                          {badge}
+                    {!collapsed && (
+                      <>
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
                         </span>
-                      )}
-                    </Link>
-                  );
-                })}
+                        {item.tag && (
+                          <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-3xs font-bold text-white">
+                            {item.tag}
+                          </span>
+                        )}
+                        {badge > 0 && (
+                          <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-2xs font-bold text-white">
+                            {badge}
+                          </span>
+                        )}
+                      </>
+                    )}
+
+                    {collapsed && badge > 0 && (
+                      <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-3xs font-bold text-white">
+                        {badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
 
               {/* Create group opens the existing modal on the Chats route, so
                   it is an action rather than a destination of its own. */}

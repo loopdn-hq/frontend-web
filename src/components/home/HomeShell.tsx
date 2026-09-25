@@ -1,5 +1,6 @@
 "use client";
 
+import { allows, GROUP } from "@/lib/rbac";
 import {
   useState,
   useCallback,
@@ -1067,7 +1068,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     typingState.conversationId === selectedConversationId
       ? typingState.users
       : EMPTY_TYPING_USERS;
-  const isSelectedConversationAdmin = selectedConversation?.isAdmin === true;
+  // Resolved by the server: the role grant AND the group's own setting. These
+  // used to be restated here as `isAdmin || setting !== "admins"`, which also
+  // read TRUE while `groupSettings` was still loading - offering a control
+  // that the API would then refuse.
   // Group controls are for groups. A direct conversation has no settings, so
   // `groupSettings?.add_member_permission !== "admins"` came out TRUE and
   // offered Add members on a one-to-one thread - a third person in a
@@ -1087,13 +1091,9 @@ export function HomeShell({ mode }: HomeShellProps) {
     [selectedConversation, currentUsername],
   );
   const canAddMembers =
-    isGroupConversation &&
-    (isSelectedConversationAdmin ||
-      groupSettings?.add_member_permission !== "admins");
+    isGroupConversation && allows(selectedConversation, GROUP.addMembers);
   const canEditGroupSettings =
-    isGroupConversation &&
-    (isSelectedConversationAdmin ||
-      groupSettings?.edit_group_permission !== "admins");
+    isGroupConversation && allows(selectedConversation, GROUP.editSettings);
 
   // Get messages for selected loop
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
@@ -1218,7 +1218,8 @@ export function HomeShell({ mode }: HomeShellProps) {
   useEffect(() => {
     const adminApprovalLoops = conversations.filter(
       (conversation) =>
-        conversation.isAdmin && conversation.joinMode === "approval",
+        allows(conversation, GROUP.reviewJoinRequests) &&
+        conversation.joinMode === "approval",
     );
     const toFetch = adminApprovalLoops.filter(
       (loop) => !seededPendingRequestLoopIds.current.has(loop.id),
@@ -1268,17 +1269,15 @@ export function HomeShell({ mode }: HomeShellProps) {
     if (!selectedConversationId) return;
     let cancelled = false;
 
+    // Members only. `isAdmin` and `features` both come from the server on the
+    // conversation itself, so recomputing them from a page of participants
+    // would be a second, staler answer to a question already answered.
     fetchConversationParticipants(selectedConversationId).then((result) => {
       if (cancelled || !result.ok) return;
-      const isAdmin = result.participants.some(
-        (participant) =>
-          participant.role === "admin" &&
-          participant.username === currentUsername,
-      );
       setConversations((current) =>
         current.map((conversation) =>
           conversation.id === selectedConversationId
-            ? { ...conversation, participants: result.participants, isAdmin }
+            ? { ...conversation, participants: result.participants }
             : conversation,
         ),
       );
@@ -3001,10 +3000,10 @@ export function HomeShell({ mode }: HomeShellProps) {
             ? `${namedTyping[0]} and ${namedTyping[1]} are typing...`
             : "Several people are typing...";
 
+  // Broadcast mode is applied by the server when it builds `features`, so
+  // this reads the answer instead of restating the rule.
   const canPostMessage =
-    !selectedConversation ||
-    conversationMode(selectedConversation) !== "broadcast" ||
-    selectedConversation.isAdmin;
+    !selectedConversation || allows(selectedConversation, GROUP.send);
   const showConversationPanelOnMobile = Boolean(
     selectedConversation || pendingConversation,
   );
@@ -4012,7 +4011,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 },
                 ...(canDeleteMessage(
                   menuMessage,
-                  selectedConversation?.isAdmin ?? false,
+                  allows(selectedConversation, GROUP.deleteAny),
                 )
                   ? [
                       {
@@ -4236,7 +4235,10 @@ export function HomeShell({ mode }: HomeShellProps) {
           settings={groupSettings}
           isSettingsLoading={isGroupSettingsLoading}
           canEditSettings={canEditGroupSettings}
-          canModerateMembers={isSelectedConversationAdmin}
+          canModerateMembers={allows(
+            selectedConversation,
+            GROUP.removeMembers,
+          )}
           activeTab={adminPanelTab}
           onTabChange={handleTabChange}
           onLeaveLoop={handleLeaveLoop}

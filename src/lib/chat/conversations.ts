@@ -93,6 +93,18 @@ export type Conversation = {
   // brings the conversation back holding only what came after.
   cleared: boolean;
   isAdmin: boolean;
+  /**
+   * What the viewer may do in THIS conversation, straight from the server.
+   *
+   * Decides what to SHOW. Every write is re-checked server-side, and the
+   * queryset there is what decides whether the conversation is reachable at
+   * all - see backend rbac/resolver.py.
+   *
+   * `isAdmin` stays beside it until the last screen has moved across; the two
+   * agree, but this one can say "may pin" without a client having to know that
+   * pinning is an admin thing in a group and not in a DM.
+   */
+  features: string[];
   createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
@@ -546,6 +558,9 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     archived: item.archived === true,
     cleared: item.cleared === true,
     isAdmin: isCurrentUserAdmin(item),
+    features: Array.isArray(item.features)
+      ? item.features.filter((key): key is string => typeof key === "string")
+      : [],
     createdByUsername: isApiObject(item.created_by)
       ? asText((item.created_by as ApiObject).username) || undefined
       : undefined,
@@ -1299,27 +1314,28 @@ export async function joinConversationWithCode(
   }
 }
 
-// Loops can have well over 100 participants, and the API paginates this
-// endpoint, so a single page is not enough to build either the full member
-// list or an accurate isAdmin check for the requesting user. Walk pages
-// until the API returns a short (or empty) page, with a hard cap so a
-// misbehaving backend (e.g. one that never returns a short page) can't spin
+// Loops can have well over 100 participants and the API paginates this
+// endpoint, so a single page is not enough to build the full member list.
+// Walk pages until the API returns a short (or empty) page, with a hard cap so
+// a misbehaving backend (e.g. one that never returns a short page) can't spin
 // this into an unbounded loop.
+//
+// This used to derive `isAdmin` on the way past, because no single response
+// carried it. The server answers that now - `is_admin` and `features` both
+// ride on the conversation itself - so the walk is only about members.
 const MAX_PARTICIPANT_PAGES = 50;
 
 export async function fetchConversationParticipants(
   conversationId: string | number,
   options: { size?: number } = {},
 ): Promise<
-  | { ok: true; participants: ConversationParticipant[]; isAdmin: boolean }
+  | { ok: true; participants: ConversationParticipant[] }
   | { ok: false; message: string }
 > {
   try {
     const size = options.size ?? 100;
-    const currentUsername = getSession();
 
     const participants: ConversationParticipant[] = [];
-    let isAdmin = false;
     let page = 1;
 
     for (; page <= MAX_PARTICIPANT_PAGES; page++) {
@@ -1345,18 +1361,10 @@ export async function fetchConversationParticipants(
           ),
       );
 
-      if (!isAdmin && currentUsername != null) {
-        isAdmin = items.some((item) => {
-          if (!isApiObject(item) || item.role !== "admin") return false;
-          const user = isApiObject(item.user) ? item.user : item;
-          return asText(user.username) === currentUsername;
-        });
-      }
-
       if (items.length < size) break;
     }
 
-    return { ok: true, participants, isAdmin };
+    return { ok: true, participants };
   } catch (error) {
     return {
       ok: false,

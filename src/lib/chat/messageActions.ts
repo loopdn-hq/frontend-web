@@ -1,3 +1,4 @@
+import { allows, GROUP } from "@/lib/rbac";
 import type { Conversation, ConversationMessage } from "./conversations";
 
 /**
@@ -33,25 +34,36 @@ export function canEditMessage(message: MessageLike): boolean {
   return message.mine && message.deletedAt === null && message.source === "app";
 }
 
-/** The sender may delete their own; an admin may delete anybody's. */
+/**
+ * The sender may delete their own; moderation covers anybody's.
+ *
+ * `canDeleteAny` comes from the conversation's `features`
+ * (`group.message.delete.any`) rather than from an isAdmin boolean, so this
+ * does not have to know which roles moderate - and picks up a new one for
+ * free.
+ */
 export function canDeleteMessage(
   message: MessageLike,
-  isAdmin: boolean,
+  canDeleteAny: boolean,
 ): boolean {
-  return message.deletedAt === null && (message.mine || isAdmin);
+  return message.deletedAt === null && (message.mine || canDeleteAny);
 }
 
 /**
  * Pinning is an admin's call in a group - it is the one thing every member sees
  * above the thread. A one-to-one has no admins, so either person may pin;
  * refusing both would make the feature unreachable in half the app.
+ *
+ * Both halves of that come from the server now. This used to read
+ * `kind === "direct" || isAdmin`, which was the same rule written twice - and
+ * the DM half is the subtle one, so it was the half most likely to drift.
  */
 export function canPinMessage(
-  conversation: Pick<Conversation, "kind" | "isAdmin">,
+  conversation: Pick<Conversation, "features">,
   message: MessageLike,
 ): boolean {
   if (message.deletedAt !== null) return false;
-  return conversation.kind === "direct" || conversation.isAdmin;
+  return allows(conversation, GROUP.pin);
 }
 
 /** A deleted message has nothing to copy, forward, quote or react to. */
