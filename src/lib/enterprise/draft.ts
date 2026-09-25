@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { EnterpriseConfiguration } from "./catalog";
+import { DEFAULT_CONFIGURATION, type EnterpriseConfiguration } from "./catalog";
 
 // Local draft persistence for the Enterprise Plan Builder.
 //
@@ -41,6 +41,30 @@ function generateDraftId(): string {
   return `ent_draft_${random}`;
 }
 
+/**
+ * Fills in feature keys a stored draft predates.
+ *
+ * This JSON was written by whichever build the person last used, and the draft
+ * endpoint requires EVERY feature key on every save - so a draft saved before
+ * calling was added would post without `calls`/`call_recording` and come back
+ * 400, with nothing on screen to explain why. Missing keys default to off,
+ * which is what they would have been.
+ *
+ * Only the keys are backfilled, never a saved choice: the parsed features
+ * spread LAST so anything the person actually picked wins.
+ */
+function withEveryFeatureKey(
+  configuration: EnterpriseConfiguration,
+): EnterpriseConfiguration {
+  return {
+    ...configuration,
+    features: {
+      ...DEFAULT_CONFIGURATION.features,
+      ...configuration.features,
+    },
+  };
+}
+
 function notify(): void {
   window.dispatchEvent(new Event(DRAFT_EVENT));
 }
@@ -76,7 +100,10 @@ export function loadEnterpriseDraft(): EnterpriseDraft | null {
     const parsed = JSON.parse(raw) as EnterpriseDraft;
     cachedDraft =
       parsed && typeof parsed === "object" && parsed.configuration
-        ? parsed
+        ? {
+            ...parsed,
+            configuration: withEveryFeatureKey(parsed.configuration),
+          }
         : null;
   } catch {
     cachedDraft = null;

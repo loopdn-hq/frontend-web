@@ -115,6 +115,7 @@ import {
 } from "@/lib/chat/preview";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
 import {
@@ -573,24 +574,10 @@ export function HomeShell({ mode }: HomeShellProps) {
   }, []);
 
   const modalPlans = useMemo(() => {
-    const rankByCode: Record<string, number> = {
-      free: 0,
-      premium: 1,
-      business: 2,
-      enterprise: 3,
-    };
-
-    const sorted = [...billingPlans].sort((a, b) => {
-      const aCode = a.code.toLowerCase();
-      const bCode = b.code.toLowerCase();
-      if (aCode === "enterprise" && bCode !== "enterprise") return 1;
-      if (bCode === "enterprise" && aCode !== "enterprise") return -1;
-      const aRank = rankByCode[aCode] ?? 50;
-      const bRank = rankByCode[bCode] ?? 50;
-      return aRank - bRank;
-    });
-
-    return sorted.map((plan) => {
+    // Cheapest first, and by price rather than by a list of codes: a plan this
+    // ladder had never been told about used to land in one bucket at the end,
+    // below Enterprise. fetchBillingPlans already returns them in order.
+    return billingPlans.map((plan) => {
       const code = plan.code.toLowerCase();
       const summary =
         code === "free"
@@ -3390,6 +3377,10 @@ export function HomeShell({ mode }: HomeShellProps) {
 
                 {selectedConversationId && (
                   <div className="flex items-center gap-2">
+                    <ConversationCallButtons
+                      conversationId={selectedConversationId}
+                      canStart={canPostMessage}
+                    />
                     {canAddMembers && (
                       <button
                         type="button"

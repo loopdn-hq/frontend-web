@@ -368,16 +368,15 @@ function BillingSettings() {
 
   const activePlanCode = activePlan?.code.toLowerCase() ?? "";
 
+  // Already cheapest first from fetchBillingPlans. The sort that used to live
+  // here read a null price as 0, so any custom-priced plan that was not
+  // literally coded "enterprise" sorted in front of the cheapest real one.
   const upgradablePlans = useMemo(
     () =>
-      plans
-        .filter((plan) => {
-          const code = plan.code.toLowerCase();
-          return code !== "free" && code !== "enterprise";
-        })
-        .sort(
-          (a, b) => (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0),
-        ),
+      plans.filter((plan) => {
+        const code = plan.code.toLowerCase();
+        return code !== "free" && code !== "enterprise";
+      }),
     [plans],
   );
 
