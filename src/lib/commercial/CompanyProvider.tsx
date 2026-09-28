@@ -5,7 +5,7 @@
  *
  * One person can own several companies (two shops, an agency with clients),
  * so every page needs to know which one it is about. That answer lives here,
- * once, instead of in a `?advertiser=` on every URL.
+ * once, instead of in a `?company=` on every URL.
  *
  * The dashboard never waits for it. The provider loads the list in the
  * background, and `company` is null until one is there - while loading, when

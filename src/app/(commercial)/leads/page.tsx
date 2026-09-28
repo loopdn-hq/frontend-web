@@ -23,7 +23,7 @@ export default function CommercialLeadsPage() {
         <CompanyNotice />
         <NotBuiltYet
           title="Calls and texts"
-          endpoint="GET /promote/advertisers/{id}/leads/"
+          endpoint="GET /commercial/companies/{id}/leads/"
         >
           Calls and texts to each campaign&apos;s tracking number: when, which
           campaign, and for a call how long it lasted.

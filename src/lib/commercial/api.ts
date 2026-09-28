@@ -1,13 +1,10 @@
-// The commercial area's calls to /api/v1/promote/.
+// The commercial area's calls to /api/v1/commercial/.
 //
-// The pages are the commercial site's (/, /campaigns/, ...) but the API is the
-// backend's, and it is /promote/:
-// "promote", never "ads" or "advert", because ad blockers drop request paths
-// that contain either - which would break this dashboard for exactly the
-// people most likely to run one. Neither side may ever use those words in a
-// path.
+// Never "ads" or "advert" in a path: ad blockers drop requests that contain
+// either, which would break this dashboard for exactly the people most likely
+// to run one. That is why a company is /companies/, never /advertisers/.
 //
-// THE BACKEND ROUTES DO NOT EXIST YET (ads/viewsets/ is empty). The paths
+// THE BACKEND ROUTES DO NOT EXIST YET (commercial/viewsets/ is empty). The paths
 // below are the contract proposed in docs/commercial-dashboard.md. Every call
 // resolves to { ok: false } on a 404 or a network error rather than throwing,
 // so the dashboard shows LoadFailed until the API ships instead of a blank page.
@@ -72,7 +69,7 @@ async function request(
   fallback: string,
 ): Promise<CompanyResult<unknown>> {
   try {
-    const response = await authorizedRequest(`/promote${path}`, init);
+    const response = await authorizedRequest(`/commercial${path}`, init);
     const payload: unknown = await response.json().catch(() => null);
 
     if (!response.ok || !isObject(payload)) {
@@ -115,7 +112,7 @@ function normalizeCampaign(row: unknown): Campaign | null {
   if (!isObject(row) || typeof row.id !== "number") return null;
   return {
     id: row.id,
-    companyId: asNumber(row.advertiser),
+    companyId: asNumber(row.company),
     name: asText(row.name),
     objective: asText(row.objective, "website") as CampaignObjective,
     status: asText(row.status, "draft") as CampaignStatus,
@@ -137,7 +134,7 @@ function isPresent<T>(value: T | null): value is T {
 /** Every company the signed-in person owns. Usually one. */
 export async function fetchCompanies(): Promise<CompanyResult<Company[]>> {
   const result = await request(
-    "/advertisers/",
+    "/companies/",
     {},
     "Couldn't load your company.",
   );
@@ -154,7 +151,7 @@ export async function createCompany(input: {
   contactEmail: string;
 }): Promise<CompanyResult<Company>> {
   const result = await request(
-    "/advertisers/",
+    "/companies/",
     {
       method: "POST",
       ...jsonBody({
@@ -178,7 +175,7 @@ export async function fetchCampaigns(
   companyId: number,
 ): Promise<CompanyResult<Campaign[]>> {
   const result = await request(
-    `/campaigns/?advertiser=${companyId}`,
+    `/campaigns/?company=${companyId}`,
     {},
     "Couldn't load your campaigns.",
   );

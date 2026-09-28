@@ -58,7 +58,7 @@ export function CommercialOverview() {
 
         <NotBuiltYet
           title="Performance, last 30 days"
-          endpoint="GET /promote/advertisers/{id}/report/"
+          endpoint="GET /commercial/companies/{id}/report/"
         >
           Delivered, reach, clicks, calls, texts and cost per result, summed
           across this company&apos;s campaigns. Aggregates only; small

@@ -23,14 +23,14 @@ export default function CommercialReportsPage() {
         <CompanyNotice />
         <NotBuiltYet
           title="Performance over time"
-          endpoint="GET /promote/advertisers/{id}/report/"
+          endpoint="GET /commercial/companies/{id}/report/"
         >
           Delivered, reach, clicks, calls, texts and conversions, day by day,
           across every campaign.
         </NotBuiltYet>
         <NotBuiltYet
           title="By campaign"
-          endpoint="GET /promote/campaigns/{id}/report/"
+          endpoint="GET /commercial/campaigns/{id}/report/"
         >
           Spend and cost per result for each campaign, side by side.
         </NotBuiltYet>

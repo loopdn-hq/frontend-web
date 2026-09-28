@@ -19,7 +19,7 @@ export default function CommercialCompanyPage() {
       <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
         <NotBuiltYet
           title="Company profile"
-          endpoint="POST /promote/advertisers/ · PATCH /promote/advertisers/{id}/"
+          endpoint="POST /commercial/companies/ · PATCH /commercial/companies/{id}/"
         >
           Name (shown as &ldquo;Sponsored · Name&rdquo; on every ad), website
           and contact email. The first time, this is where the company is
@@ -27,7 +27,7 @@ export default function CommercialCompanyPage() {
         </NotBuiltYet>
         <NotBuiltYet
           title="Your companies"
-          endpoint="GET /promote/advertisers/"
+          endpoint="GET /commercial/companies/"
         >
           One person can run several - two shops, or an agency with clients. Add
           another here; each has its own campaigns, balance and billing, and the

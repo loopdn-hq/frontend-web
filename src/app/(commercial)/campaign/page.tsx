@@ -118,7 +118,7 @@ function CampaignDetail({ campaignId }: { campaignId: number }) {
 
         <NotBuiltYet
           title="Results"
-          endpoint="GET /promote/campaigns/{id}/report/"
+          endpoint="GET /commercial/campaigns/{id}/report/"
         >
           Delivered, reach, clicks, calls, texts, conversions and cost per
           result, broken down by group category and region.
@@ -126,7 +126,7 @@ function CampaignDetail({ campaignId }: { campaignId: number }) {
 
         <NotBuiltYet
           title="Creatives"
-          endpoint="GET/POST /promote/campaigns/{id}/creatives/"
+          endpoint="GET/POST /commercial/campaigns/{id}/creatives/"
         >
           Headline, body, image and call to action, each with its own review
           status and the reviewer&apos;s notes when one is rejected.
@@ -134,7 +134,7 @@ function CampaignDetail({ campaignId }: { campaignId: number }) {
 
         <NotBuiltYet
           title="Targeting"
-          endpoint="PUT /promote/campaigns/{id}/targeting/"
+          endpoint="PUT /commercial/campaigns/{id}/targeting/"
         >
           Group categories, country or state, and group size. Never anything
           finer, and never a list of groups.
@@ -142,7 +142,7 @@ function CampaignDetail({ campaignId }: { campaignId: number }) {
 
         <NotBuiltYet
           title="Actions"
-          endpoint="POST /promote/campaigns/{id}/submit/ · /pause/ · /resume/"
+          endpoint="POST /commercial/campaigns/{id}/submit/ · /pause/ · /resume/"
         >
           Submit for review, pause and resume. Every way of stopping a campaign
           is a status change on the server.

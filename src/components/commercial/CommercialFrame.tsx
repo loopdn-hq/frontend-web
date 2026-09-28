@@ -12,7 +12,7 @@ import { chatSiteUrl, useIsCommercialSite } from "@/lib/config/site";
 import { meets, useFeatures } from "@/lib/rbac";
 
 // The account-axis feature backend/rbac/registry.py grants to the `commercial`
-// role. Decides what to SHOW; every /promote/ endpoint re-checks.
+// role. Decides what to SHOW; every /commercial/ API endpoint re-checks.
 const ADS_ACCESS = { account: "ads.access" };
 
 /**

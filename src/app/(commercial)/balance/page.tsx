@@ -12,7 +12,7 @@ import { formatCents } from "@/lib/commercial/format";
  *
  * This is NOT /settings/#billing. That page is the person's plan and their
  * Communication Wallet (prepaid SMS/voice credit, billing.Wallet). This is
- * the company's ad money (ads.Advertiser.balance_cents). Two meanings of
+ * the company's ad money (commercial.Company.balance_cents). Two meanings of
  * "wallet" is how a refund ends up paying for somebody's SMS, so the two
  * never share a component, a type or a word on screen.
  */
@@ -33,14 +33,14 @@ export default function CommercialBalancePage() {
         <CompanyNotice />
         <NotBuiltYet
           title="Add funds"
-          endpoint="POST /promote/advertisers/{id}/checkout/"
+          endpoint="POST /commercial/companies/{id}/checkout/"
         >
           Stripe checkout on the company&apos;s own Stripe customer, so receipts
           carry the company&apos;s name. Returns to /balance/?checkout=success.
         </NotBuiltYet>
         <NotBuiltYet
           title="Transactions"
-          endpoint="GET /promote/advertisers/{id}/transactions/"
+          endpoint="GET /commercial/companies/{id}/transactions/"
         >
           Every credit purchase, spend per campaign, refund and adjustment, with
           the balance after each.

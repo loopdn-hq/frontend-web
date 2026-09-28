@@ -15,7 +15,7 @@ export function NotBuiltYet({
   title: string;
   /** What this section will do, in a sentence or a short list. */
   children: ReactNode;
-  /** The API route it depends on, e.g. "GET /promote/campaigns/{id}/report/". */
+  /** The API route it depends on, e.g. "GET /commercial/campaigns/{id}/report/". */
   endpoint?: string;
 }) {
   return (

@@ -20,7 +20,7 @@ export default function CommercialNewCampaignPage() {
       <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
         <NotBuiltYet
           title="Campaign builder"
-          endpoint="POST /promote/campaigns/"
+          endpoint="POST /commercial/campaigns/"
         >
           <ol className="list-decimal space-y-0.5 pl-5">
             <li>

@@ -1,9 +1,9 @@
 /**
  * The commercial area's data, as the frontend holds it.
  *
- * `Company` here; `ads.Advertiser` on the backend, which is why the API still
- * says `advertiser` - in its paths and in the field on a campaign. api.ts is
- * the one place that turns one name into the other. The subscription tier
+ * `Company` here and on the backend (`commercial.Company` - what the product
+ * plan calls "the advertiser"), so nothing translates one name into another;
+ * api.ts only turns snake_case into camelCase. The subscription tier
  * called "Business" (billing.Plan) is a different thing: that is a `plan`, and
  * nothing about it lives in this folder.
  *
