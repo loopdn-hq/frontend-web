@@ -152,6 +152,12 @@ export type ChannelConsentState = {
   askedAt: string | null;
   consentedAt: string | null;
   optedOutAt: string | null;
+  /**
+   * Whether a nudge can go out on this channel at all, as the server decides
+   * it. The once-a-day floor is not part of it: that refusal comes back when
+   * the nudge is pressed, saying how long to wait.
+   */
+  canNudge: boolean;
 };
 
 export type ConversationParticipant = {
@@ -492,6 +498,7 @@ function normalizeChannelConsents(
       askedAt: asText(value.asked_at) || null,
       consentedAt: asText(value.consented_at) || null,
       optedOutAt: asText(value.opted_out_at) || null,
+      canNudge: value.can_nudge === true,
     };
   }
   return out;

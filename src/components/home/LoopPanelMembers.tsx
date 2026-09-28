@@ -178,12 +178,13 @@ export function LoopPanelMembers({
       });
     }
 
-    // One entry per channel they were asked about and never answered. Anybody
-    // who agreed, declined or sent STOP is absent rather than disabled: the
-    // server refuses those outright, and offering a button that cannot work is
-    // worse than not offering it.
+    // One entry per channel the server says a nudge can go out on. Anybody who
+    // answered, was never asked, or has nowhere to receive it is absent rather
+    // than disabled: offering a button that cannot work is worse than not
+    // offering it. Read from the server rather than from `status`, which
+    // offered a member added by phone a nudge about email.
     for (const [channel, state] of Object.entries(member.channels)) {
-      if (state.status !== "pending") continue;
+      if (!state.canNudge) continue;
       items.push({
         id: `nudge-${channel}`,
         label: `Nudge about ${channel.toUpperCase()}`,
