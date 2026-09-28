@@ -42,6 +42,8 @@ import {
   type BillingSummary,
   type CreditPackage,
 } from "@/lib/billing";
+import { publicOrigin } from "@/lib/config/origin";
+import { platform } from "@/lib/platform";
 import {
   Alert,
   Button,
@@ -366,16 +368,15 @@ function BillingSettings() {
 
   const activePlanCode = activePlan?.code.toLowerCase() ?? "";
 
+  // Already cheapest first from fetchBillingPlans. The sort that used to live
+  // here read a null price as 0, so any custom-priced plan that was not
+  // literally coded "enterprise" sorted in front of the cheapest real one.
   const upgradablePlans = useMemo(
     () =>
-      plans
-        .filter((plan) => {
-          const code = plan.code.toLowerCase();
-          return code !== "free" && code !== "enterprise";
-        })
-        .sort(
-          (a, b) => (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0),
-        ),
+      plans.filter((plan) => {
+        const code = plan.code.toLowerCase();
+        return code !== "free" && code !== "enterprise";
+      }),
     [plans],
   );
 
@@ -388,14 +389,17 @@ function BillingSettings() {
   const isLowWalletBalance = walletBalanceCents > 0 && walletBalanceCents < 500;
 
   async function redirectTo(url: string) {
-    window.location.assign(url);
+    // Stripe checkout and the billing portal live outside the app. On the web
+    // this navigates the page; in the desktop build it opens the system
+    // browser.
+    await platform.openExternal(url);
   }
 
   async function handleUpgrade(planCode: string) {
     setBusyAction("plan");
     setError("");
     try {
-      const origin = window.location.origin;
+      const origin = publicOrigin();
       const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
       const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
       const result = await createPlanCheckoutSession(
@@ -422,7 +426,7 @@ function BillingSettings() {
     setBusyAction("credits");
     setError("");
     try {
-      const origin = window.location.origin;
+      const origin = publicOrigin();
       const successUrl = `${origin}/billing/success/?flow=credits&package=${encodeURIComponent(creditPackage.id)}`;
       const cancelUrl = `${origin}/billing/cancel/?flow=credits&package=${encodeURIComponent(creditPackage.id)}`;
       const result = await createCreditCheckoutSession(

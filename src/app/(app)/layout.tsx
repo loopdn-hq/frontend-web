@@ -4,7 +4,9 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { ActivityToasts } from "@/components/app/ActivityToasts";
 import { AppNavRail } from "@/components/app/AppNavRail";
+import { CallLayer } from "@/components/calls/CallLayer";
 import { AppShellProvider } from "@/lib/app/AppShellProvider";
+import { CallProvider } from "@/lib/calls/CallProvider";
 import { fetchCurrentUser, useAuth } from "@/lib/auth/client";
 
 /**
@@ -33,13 +35,18 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AppShellProvider>
-      {/* Full-bleed: the shell fills the viewport rather than floating as an
-          inset card, so there is no gutter around the app. */}
-      <main className="flex h-screen w-full overflow-hidden bg-[#f7fbff] dark:bg-slate-900">
-        <AppNavRail />
-        <div className="min-h-0 min-w-0 flex-1">{children}</div>
-        <ActivityToasts />
-      </main>
+      {/* Inside the shell for its socket; above the routes so a call
+          survives navigating between them. */}
+      <CallProvider>
+        {/* Full-bleed: the shell fills the viewport rather than floating as an
+            inset card, so there is no gutter around the app. */}
+        <main className="flex h-screen w-full overflow-hidden bg-[#f7fbff] dark:bg-slate-900">
+          <AppNavRail />
+          <div className="min-h-0 min-w-0 flex-1">{children}</div>
+          <ActivityToasts />
+          <CallLayer />
+        </main>
+      </CallProvider>
     </AppShellProvider>
   );
 }

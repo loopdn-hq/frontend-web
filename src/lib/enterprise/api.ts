@@ -16,7 +16,8 @@ import {
 // at a backend that hasn't shipped one of these yet degrades instead of
 // throwing.
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE_URL } from "@/lib/config/env";
+import { http as fetch } from "@/lib/config/http";
 
 type ApiObject = Record<string, unknown>;
 
@@ -211,6 +212,8 @@ function normalizeConfiguration(
       search: Boolean(features.search),
       advanced_notifications: Boolean(features.advanced_notifications),
       moderation_tools: Boolean(features.moderation_tools),
+      calls: Boolean(features.calls),
+      call_recording: Boolean(features.call_recording),
       analytics: asText(features.analytics, "none") as AnalyticsTier,
     },
     credits: {

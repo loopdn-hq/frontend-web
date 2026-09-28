@@ -8,7 +8,8 @@ import { composePreview, describeMessageBody } from "@/lib/chat/preview";
 import { DELETED_MESSAGE_TEXT } from "@/lib/chat/messageActions";
 import type { MessageMention } from "@/lib/chat/mentions";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE_URL } from "@/lib/config/env";
+import { http as fetch } from "@/lib/config/http";
 
 export type JoinMode = "open" | "code" | "approval" | "invite";
 export type ConversationMode = "chat" | "broadcast";
@@ -67,6 +68,20 @@ export type CreateConversationPayload = {
 
 export type ConversationKind = "group" | "direct";
 
+/**
+ * A group's phone number, as the API sends it.
+ *
+ * An object rather than a bare string because "the number exists" and "the
+ * number works" are different questions - `status` answers the second, and
+ * `provider` is what tells a support conversation where to go looking.
+ */
+export type GroupNumber = {
+  number: string;
+  country: string;
+  status: string;
+  provider: string;
+};
+
 export type Conversation = {
   id: string | number;
   // Leaving and deleting are both refused on a one-to-one, so the client has
@@ -92,6 +107,29 @@ export type Conversation = {
   // brings the conversation back holding only what came after.
   cleared: boolean;
   isAdmin: boolean;
+  /**
+   * What the viewer may do in THIS conversation, straight from the server.
+   *
+   * Decides what to SHOW. Every write is re-checked server-side, and the
+   * queryset there is what decides whether the conversation is reachable at
+   * all - see backend rbac/resolver.py.
+   *
+   * `isAdmin` stays beside it until the last screen has moved across; the two
+   * agree, but this one can say "may pin" without a client having to know that
+   * pinning is an admin thing in a group and not in a DM.
+   */
+  features: string[];
+  /**
+   * The group's own phone number, or null while it has not got one.
+   *
+   * The API has always sent this; nothing read it. Without it the product's
+   * central promise - text this number to reach your group - is unreachable,
+   * because a member has no way to learn the number.
+   *
+   * Null is a real state, not a missing field: a group whose provisioning
+   * failed has no number at all, and nothing ever invents a stand-in.
+   */
+  smsNumber: GroupNumber | null;
   createdByUsername?: string;
   active?: boolean;
   participants: ConversationParticipant[];
@@ -103,6 +141,23 @@ export type Conversation = {
    * instead of needing a socket event of its own.
    */
   pinnedMessage: ConversationMessage | null;
+};
+
+/** One member's answer about one delivery channel. */
+export type ChannelConsentState = {
+  /** null when they have never been asked about this channel. */
+  status: "pending" | "opted_in" | "declined" | "opted_out" | null;
+  /** What the fan-out actually decides, so the UI never re-derives it. */
+  allowsDelivery: boolean;
+  askedAt: string | null;
+  consentedAt: string | null;
+  optedOutAt: string | null;
+  /**
+   * Whether a nudge can go out on this channel at all, as the server decides
+   * it. The once-a-day floor is not part of it: that refusal comes back when
+   * the nudge is pressed, saying how long to wait.
+   */
+  canNudge: boolean;
 };
 
 export type ConversationParticipant = {
@@ -133,6 +188,15 @@ export type ConversationParticipant = {
    */
   role: "admin" | "member";
   joinedAt: string;
+  /**
+   * Where this member stands on each delivery channel.
+   *
+   * Keyed by channel name rather than typed per channel, so a channel added
+   * on the server appears here without a frontend change. `status` is null
+   * when they were never asked, which is a different thing from having said
+   * no - the two look identical as a boolean and are not.
+   */
+  channels: Record<string, ChannelConsentState>;
   isBlocked?: boolean;
   /**
    * Whether the VIEWER has blocked this person.
@@ -311,11 +375,27 @@ export function mergeConversations(
   current: Conversation[],
   incoming: Conversation[],
 ): Conversation[] {
+  const existing = new Map(current.map((row) => [String(row.id), row]));
+
+  const folded = incoming.map((row) => {
+    const previous = existing.get(String(row.id));
+    if (!previous) return row;
+
+    return {
+      ...row,
+      // The list endpoint deliberately carries NO participants - the roster is
+      // unbounded and lives on its own paginated endpoint - so an incoming row
+      // always arrives with an empty one. Taking it at its word emptied the
+      // members panel on every refresh, and it only came back on a reload,
+      // when the roster is fetched again.
+      participants: row.participants.length
+        ? row.participants
+        : previous.participants,
+    };
+  });
+
   const replaced = new Set(incoming.map((row) => String(row.id)));
-  return [
-    ...incoming,
-    ...current.filter((row) => !replaced.has(String(row.id))),
-  ];
+  return [...folded, ...current.filter((row) => !replaced.has(String(row.id)))];
 }
 
 /**
@@ -395,7 +475,33 @@ export function normalizeParticipant(
         : undefined,
     isOnline: profile.is_online === true,
     lastActive: asText(profile.last_seen_at) || undefined,
+    channels: normalizeChannelConsents(item.channels),
   };
+}
+
+const CONSENT_STATUSES = ["pending", "opted_in", "declined", "opted_out"];
+
+function normalizeChannelConsents(
+  raw: unknown,
+): Record<string, ChannelConsentState> {
+  if (!isApiObject(raw)) return {};
+
+  const out: Record<string, ChannelConsentState> = {};
+  for (const [channel, value] of Object.entries(raw)) {
+    if (!isApiObject(value)) continue;
+    const status = asText(value.status);
+    out[channel] = {
+      status: CONSENT_STATUSES.includes(status)
+        ? (status as ChannelConsentState["status"])
+        : null,
+      allowsDelivery: value.allows_delivery === true,
+      askedAt: asText(value.asked_at) || null,
+      consentedAt: asText(value.consented_at) || null,
+      optedOutAt: asText(value.opted_out_at) || null,
+      canNudge: value.can_nudge === true,
+    };
+  }
+  return out;
 }
 
 /**
@@ -460,6 +566,21 @@ function senderLabelFrom(sender: unknown): string {
       asText(senderObject.username, "Unknown"),
     ),
   );
+}
+
+function normalizeGroupNumber(value: unknown): GroupNumber | null {
+  if (!isApiObject(value)) return null;
+  const number = asText(value.number);
+  // No number, no object: an empty string here would render as a blank the
+  // reader cannot text.
+  if (!number) return null;
+
+  return {
+    number,
+    country: asText(value.country),
+    status: asText(value.status),
+    provider: asText(value.provider),
+  };
 }
 
 function normalizeConversation(item: ApiObject): Conversation | null {
@@ -544,7 +665,11 @@ function normalizeConversation(item: ApiObject): Conversation | null {
     muted: item.muted === true,
     archived: item.archived === true,
     cleared: item.cleared === true,
+    smsNumber: normalizeGroupNumber(item.sms_number),
     isAdmin: isCurrentUserAdmin(item),
+    features: Array.isArray(item.features)
+      ? item.features.filter((key): key is string => typeof key === "string")
+      : [],
     createdByUsername: isApiObject(item.created_by)
       ? asText((item.created_by as ApiObject).username) || undefined
       : undefined,
@@ -1172,9 +1297,14 @@ export async function updateGroupSettings(
   }
 }
 
+/**
+ * Add accounts, and invite addresses that have none, in one all-or-nothing
+ * request. `inviteEmails` get an invitation to reply YES or sign up.
+ */
 export async function addConversationMembers(
   conversationId: string | number,
   members: string[],
+  inviteEmails: string[] = [],
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const response = await authorizedRequest(
@@ -1182,7 +1312,7 @@ export async function addConversationMembers(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members }),
+        body: JSON.stringify({ members, invite_email: inviteEmails }),
       },
     );
     const data = await response.json().catch(() => null);
@@ -1298,27 +1428,28 @@ export async function joinConversationWithCode(
   }
 }
 
-// Loops can have well over 100 participants, and the API paginates this
-// endpoint, so a single page is not enough to build either the full member
-// list or an accurate isAdmin check for the requesting user. Walk pages
-// until the API returns a short (or empty) page, with a hard cap so a
-// misbehaving backend (e.g. one that never returns a short page) can't spin
+// Loops can have well over 100 participants and the API paginates this
+// endpoint, so a single page is not enough to build the full member list.
+// Walk pages until the API returns a short (or empty) page, with a hard cap so
+// a misbehaving backend (e.g. one that never returns a short page) can't spin
 // this into an unbounded loop.
+//
+// This used to derive `isAdmin` on the way past, because no single response
+// carried it. The server answers that now - `is_admin` and `features` both
+// ride on the conversation itself - so the walk is only about members.
 const MAX_PARTICIPANT_PAGES = 50;
 
 export async function fetchConversationParticipants(
   conversationId: string | number,
   options: { size?: number } = {},
 ): Promise<
-  | { ok: true; participants: ConversationParticipant[]; isAdmin: boolean }
+  | { ok: true; participants: ConversationParticipant[] }
   | { ok: false; message: string }
 > {
   try {
     const size = options.size ?? 100;
-    const currentUsername = getSession();
 
     const participants: ConversationParticipant[] = [];
-    let isAdmin = false;
     let page = 1;
 
     for (; page <= MAX_PARTICIPANT_PAGES; page++) {
@@ -1344,18 +1475,10 @@ export async function fetchConversationParticipants(
           ),
       );
 
-      if (!isAdmin && currentUsername != null) {
-        isAdmin = items.some((item) => {
-          if (!isApiObject(item) || item.role !== "admin") return false;
-          const user = isApiObject(item.user) ? item.user : item;
-          return asText(user.username) === currentUsername;
-        });
-      }
-
       if (items.length < size) break;
     }
 
-    return { ok: true, participants, isAdmin };
+    return { ok: true, participants };
   } catch (error) {
     return {
       ok: false,
@@ -1460,6 +1583,166 @@ export async function updateMemberRole(
       };
     }
     return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Somebody who turned up in the add-members search, and what adding them
+ * would do - so the list can say "already here" or "doesn't accept group
+ * adds" before anybody is picked, rather than the add failing afterwards.
+ */
+export type MemberCandidate = {
+  id: string;
+  username: string;
+  name: string;
+  avatarUrl?: string;
+  status: "ready" | "already_member" | "refused";
+  /** Why they cannot be added, in the server's words. Empty when ready. */
+  detail: string;
+};
+
+/**
+ * A whole address that found nobody, offered as an email invitation. Its
+ * status reads like a person's: already invited, blocked here, or ready.
+ */
+export type EmailInvite = {
+  email: string;
+  status: MemberCandidate["status"];
+  detail: string;
+};
+
+const CANDIDATE_STATUSES = ["ready", "already_member", "refused"];
+
+/**
+ * People an admin could add to this Loop, found by what they typed.
+ *
+ * The server's rules, not a gap here: a username matches by prefix, an email
+ * or a number only in full - a prefix over addresses would let anybody walk
+ * the directory a letter at a time. At most a handful come back; `hasMore`
+ * says there were more, so the answer is to keep typing.
+ */
+export async function searchMemberCandidates(
+  conversationId: string | number,
+  term: string,
+): Promise<
+  | {
+      ok: true;
+      candidates: MemberCandidate[];
+      hasMore: boolean;
+      invite: EmailInvite | null;
+    }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/members/search/?q=${encodeURIComponent(term.trim())}`,
+    );
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const rows =
+      payload && Array.isArray(payload.results) ? payload.results : null;
+    if (!response.ok || !payload || !rows) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Search failed.",
+      };
+    }
+    return {
+      ok: true,
+      candidates: rows
+        .filter(isApiObject)
+        .map(normalizeCandidate)
+        .filter((row): row is MemberCandidate => row !== null),
+      hasMore: payload.has_more === true,
+      invite: normalizeInvite(payload.invite),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+function normalizeInvite(raw: unknown): EmailInvite | null {
+  if (!isApiObject(raw)) return null;
+  const email = asText(raw.email);
+  if (!email) return null;
+  const status = asText(raw.status);
+  return {
+    email,
+    status: CANDIDATE_STATUSES.includes(status)
+      ? (status as EmailInvite["status"])
+      : "refused",
+    detail: asText(raw.detail),
+  };
+}
+
+function normalizeCandidate(raw: ApiObject): MemberCandidate | null {
+  const user = isApiObject(raw.user) ? raw.user : null;
+  const username = user ? asText(user.username) : "";
+  if (!user || !username) return null;
+  const profile = isApiObject(user.profile) ? user.profile : null;
+  const status = asText(raw.status);
+  return {
+    id: String(user.id),
+    username,
+    name: (profile && asText(profile.display_label)) || username,
+    avatarUrl: (profile && asText(profile.avatar_url)) || undefined,
+    // An answer this client does not know is not a yes.
+    status: CANDIDATE_STATUSES.includes(status)
+      ? (status as MemberCandidate["status"])
+      : "refused",
+    detail: asText(raw.detail),
+  };
+}
+
+/**
+ * Ask a member again about an invitation they never answered.
+ *
+ * Admin-only and rate limited server-side to once a day per channel. The
+ * server refuses anybody who has already answered - agreed, declined, or sent
+ * STOP - so the refusal message is worth showing verbatim rather than
+ * flattening to "that did not work".
+ */
+export async function nudgeConversationMember(
+  conversationId: string | number,
+  participantId: string | number,
+  channel: "sms" | "email" | "voice" = "sms",
+): Promise<
+  | { ok: true; participant: ConversationParticipant }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/nudge/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId, channel }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const participant = payload ? normalizeParticipant(payload) : null;
+    if (!response.ok || !participant) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to send that reminder.",
+      };
+    }
+    return { ok: true, participant };
   } catch (error) {
     return {
       ok: false,
@@ -1669,6 +1952,44 @@ export async function leaveConversation(
       return {
         ok: false,
         message: getErrorMessage(data) ?? "Unable to leave this Loop.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Delete a group for EVERYONE, and release its phone number.
+ *
+ * Not the same thing as the "Delete chat" row action, which clears your own
+ * view and leaves the group standing. This is the admin-only one the server
+ * guards: a group is deleted for every member, and a pre_delete signal gives
+ * the number back - a number that outlives its group is one nobody is watching
+ * and everybody is still paying for.
+ *
+ * Answers 204 with no body, so there is nothing to parse on success.
+ */
+export async function deleteConversation(
+  conversationId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const data = await response.json().catch(() => null);
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to delete this Loop.",
       };
     }
     return { ok: true };

@@ -3,10 +3,34 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createPlanCheckoutSession, fetchBillingSummary } from "@/lib/billing";
+import {
+  Building2,
+  Check,
+  ChevronRight,
+  Crown,
+  Disc,
+  HardDrive,
+  Layers,
+  Phone,
+  Rocket,
+  ScreenShare,
+  ShieldCheck,
+  Sparkles,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
+import {
+  comparePlansByPrice,
+  createPlanCheckoutSession,
+  fetchBillingSummary,
+} from "@/lib/billing";
 import { useAuth } from "@/lib/auth/client";
+import { API_BASE_URL } from "@/lib/config/env";
+import { publicOrigin } from "@/lib/config/origin";
+import { platform } from "@/lib/platform";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteTopNav } from "@/components/site/SiteTopNav";
+import { PlanComparison } from "@/components/site/PlanComparison";
 
 type Plan = {
   code: string;
@@ -29,6 +53,14 @@ type ApiPlan = {
   storage_gb: number | null;
   has_whatsapp: boolean;
   has_telegram: boolean;
+  /** One flag for audio AND video - the backend does not split them. */
+  has_calls: boolean;
+  /** Null means unlimited. */
+  max_call_participants: number | null;
+  has_screen_share: boolean;
+  has_call_recording: boolean;
+  /** Null means kept until somebody deletes it. */
+  call_recording_retention_days: number | null;
   features: string[];
   is_custom_pricing: boolean;
 };
@@ -51,6 +83,14 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
     storage_gb: 1,
     has_whatsapp: false,
     has_telegram: false,
+    // Mirrors the backend seed (billing 0006_seed_call_limits): calling is on
+    // for every plan, four to a call here; screen share and recording are
+    // what the paid tiers add.
+    has_calls: true,
+    max_call_participants: 4,
+    has_screen_share: false,
+    has_call_recording: false,
+    call_recording_retention_days: null,
     features: [
       "Web messaging",
       "Basic message history",
@@ -73,15 +113,20 @@ const DEFAULT_API_PLANS: ApiPlan[] = [
     storage_gb: null,
     has_whatsapp: true,
     has_telegram: true,
+    has_calls: true,
+    max_call_participants: null,
+    has_screen_share: true,
+    has_call_recording: true,
+    call_recording_retention_days: null,
     features: [
-      "Workspaces",
-      "SSO",
-      "API access",
-      "Audit logs",
+      "Priority support",
+      "Advanced analytics",
+      "Custom integrations",
       "Custom retention policies",
       "Dedicated account manager",
-      "SLA",
+      "Service Level Agreement (SLA)",
       "Custom volume pricing",
+      "Audit logs",
       "Postpaid communication billing option",
     ],
     is_custom_pricing: true,
@@ -177,6 +222,52 @@ function planSummaryFromCode(code: string): string {
   return "For large organizations requiring custom contracts and limits.";
 }
 
+/**
+ * Calling, as rows for the card's existing limits list.
+ *
+ * Words rather than ticks and crosses, in the same shape as the other limits:
+ * "Not included" is a thing a pricing page has to be able to SAY, and a row
+ * that says it survives colour blindness, a screenshot and a screen reader,
+ * none of which a red cross does on its own.
+ *
+ * Audio and video are one row because they are one flag on the server -
+ * there is no plan where a visitor gets one and not the other. Screen sharing
+ * is its own row: it rides `has_calls` in the token but is gated separately by
+ * plan, so it is the one calling capability a paid tier actually adds.
+ */
+function callingLimits(plan: ApiPlan): Array<{ label: string; value: string }> {
+  if (!plan.has_calls) {
+    return [
+      { label: "Voice & video calls", value: "Not included" },
+      { label: "Screen sharing", value: "Not included" },
+      { label: "Call recording", value: "Not included" },
+    ];
+  }
+
+  return [
+    { label: "Voice & video calls", value: "Included" },
+    {
+      label: "Call participants",
+      value:
+        plan.max_call_participants === null
+          ? "Unlimited"
+          : `Up to ${plan.max_call_participants}`,
+    },
+    {
+      label: "Screen sharing",
+      value: plan.has_screen_share ? "Included" : "Not included",
+    },
+    {
+      label: "Call recording",
+      value: !plan.has_call_recording
+        ? "Not included"
+        : plan.call_recording_retention_days === null
+          ? "Kept until deleted"
+          : `Kept ${plan.call_recording_retention_days} days`,
+    },
+  ];
+}
+
 function normalizePlanValue(value: number | null, unit?: string): string {
   if (value === null) return "Custom";
   return unit ? `${value} ${unit}` : String(value);
@@ -207,41 +298,37 @@ function mapApiPlanToUi(plan: ApiPlan): Plan {
             ? "Custom"
             : normalizePlanValue(plan.storage_gb, "GB"),
       },
+      ...callingLimits(plan),
     ],
     features: plan.features,
   };
 }
 
-function sortPlans(plans: Plan[]): Plan[] {
-  const rank: Record<string, number> = {
-    free: 0,
-    premium: 1,
-    business: 2,
-    enterprise: 3,
-  };
-
-  return [...plans].sort((a, b) => {
-    const aCode = a.code.toLowerCase();
-    const bCode = b.code.toLowerCase();
-
-    if (aCode === "enterprise" && bCode !== "enterprise") return 1;
-    if (bCode === "enterprise" && aCode !== "enterprise") return -1;
-
-    const aRank =
-      aCode.startsWith("premium") || aCode.startsWith("business")
-        ? 1
-        : (rank[aCode] ?? 50);
-    const bRank =
-      bCode.startsWith("premium") || bCode.startsWith("business")
-        ? 1
-        : (rank[bCode] ?? 50);
-
-    if (aRank !== bRank) return aRank - bRank;
-
-    const aPrice = typeof a.price === "string" ? a.price : "";
-    const bPrice = typeof b.price === "string" ? b.price : "";
-    return aPrice.localeCompare(bPrice);
-  });
+/**
+ * Plans cheapest first, sorted while they are still the API shape - that is
+ * where the price is still a NUMBER. The view model carries `price` only as
+ * the string it is displayed as, and the sort this replaces compared those:
+ * "$100.00/mo" sorts before "$20.00/mo" as text, so the dearest plan led the
+ * page. It also ranked by a fixed list of plan codes, which put any plan the
+ * list had not been taught about after Enterprise.
+ *
+ * comparePlansByPrice is the same ordering the signed-in plan lists use.
+ */
+function sortApiPlans(plans: ApiPlan[]): ApiPlan[] {
+  return [...plans].sort((a, b) =>
+    comparePlansByPrice(
+      {
+        monthlyPriceCents: a.monthly_price_cents,
+        isCustomPricing: a.is_custom_pricing,
+        name: a.name,
+      },
+      {
+        monthlyPriceCents: b.monthly_price_cents,
+        isCustomPricing: b.is_custom_pricing,
+        name: b.name,
+      },
+    ),
+  );
 }
 
 function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
@@ -252,6 +339,38 @@ function prependDefaultPlans(plans: ApiPlan[]): ApiPlan[] {
 
   return [...defaultsToPrepend, ...plans];
 }
+
+/**
+ * The badge on each card. Keyed by plan code with a fallback, so a plan the
+ * catalogue has not been taught about still gets a mark rather than a hole -
+ * the same reason the ordering no longer depends on a list of known codes.
+ */
+const PLAN_BADGES: Record<string, { Icon: LucideIcon; className: string }> = {
+  free: { Icon: Sparkles, className: "bg-emerald-500" },
+  premium: { Icon: Crown, className: "bg-sky-500" },
+  business: { Icon: Building2, className: "bg-violet-500" },
+  enterprise: { Icon: Rocket, className: "bg-amber-500" },
+};
+
+function planBadge(code: string) {
+  const normalized = code.toLowerCase();
+  if (PLAN_BADGES[normalized]) return PLAN_BADGES[normalized];
+  if (normalized.startsWith("premium")) return PLAN_BADGES.premium;
+  if (normalized.startsWith("business")) return PLAN_BADGES.business;
+  return { Icon: Layers, className: "bg-slate-500" };
+}
+
+/** The icon beside each limit row, matched on the labels mapApiPlanToUi writes. */
+const LIMIT_ICONS: Record<string, LucideIcon> = {
+  "Max groups": Layers,
+  "Members per group": Users,
+  "Admins per group": ShieldCheck,
+  Storage: HardDrive,
+  "Voice & video calls": Phone,
+  "Call participants": Users,
+  "Screen sharing": ScreenShare,
+  "Call recording": Disc,
+};
 
 export default function PricingPage() {
   const router = useRouter();
@@ -285,7 +404,7 @@ export default function PricingPage() {
     setIsLoadingPlans(true);
     setPlansError(null);
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+    const baseUrl = API_BASE_URL;
     if (!baseUrl) {
       setPlans([]);
       setPlansError("Pricing API URL is not configured.");
@@ -307,7 +426,9 @@ export default function PricingPage() {
         throw new Error(message);
       }
 
-      const mapped = prependDefaultPlans(payload.data).map(mapApiPlanToUi);
+      const mapped = sortApiPlans(prependDefaultPlans(payload.data)).map(
+        mapApiPlanToUi,
+      );
 
       if (mapped.length === 0) {
         setPlans([]);
@@ -317,7 +438,7 @@ export default function PricingPage() {
         return;
       }
 
-      setPlans(sortPlans(mapped));
+      setPlans(mapped);
       setPlansError(null);
     } catch (error: unknown) {
       setPlans([]);
@@ -365,7 +486,7 @@ export default function PricingPage() {
       setCheckoutError(null);
       setCheckoutPlanCode(planCode);
       try {
-        const origin = window.location.origin;
+        const origin = publicOrigin();
         const successUrl = `${origin}/billing/success/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const cancelUrl = `${origin}/billing/cancel/?flow=plan&plan=${encodeURIComponent(planCode)}`;
         const result = await createPlanCheckoutSession(
@@ -378,7 +499,7 @@ export default function PricingPage() {
           return;
         }
 
-        window.location.assign(result.data.checkoutUrl);
+        void platform.openExternal(result.data.checkoutUrl);
       } finally {
         setCheckoutPlanCode(null);
       }
@@ -387,75 +508,81 @@ export default function PricingPage() {
   );
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_20%_15%,#d7efff_0%,#f0f8ff_45%,#f8fbff_100%)] text-slate-900 dark:bg-[radial-gradient(circle_at_20%_15%,#0f172a_0%,#0b1220_45%,#060b17_100%)] dark:text-slate-100">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_50%_-10%,#dceeff_0%,#f2f8ff_45%,#f8fbff_100%)] text-slate-900 dark:bg-[radial-gradient(circle_at_50%_-10%,#123a8a_0%,#0b1c46_38%,#060d24_100%)] dark:text-slate-100">
       <SiteTopNav />
-      <main className="px-6 py-10 sm:px-8">
+
+      <main className="px-4 pt-8 pb-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold tracking-[0.2em] text-sky-700 uppercase dark:text-sky-300">
+          <nav aria-label="Breadcrumb" className="flex justify-center">
+            <ol className="flex items-center gap-1 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-xs font-medium text-slate-600 backdrop-blur dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+              <li>
+                <Link
+                  href="/"
+                  className="rounded-full px-2 py-0.5 transition hover:text-sky-700 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:outline-none dark:hover:text-sky-300"
+                >
+                  Home
+                </Link>
+              </li>
+              <ChevronRight
+                aria-hidden="true"
+                className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500"
+              />
+              <li
+                aria-current="page"
+                className="rounded-full bg-sky-50 px-2.5 py-0.5 font-semibold text-sky-700 dark:bg-sky-500/15 dark:text-sky-300"
+              >
                 Pricing
-              </p>
-              <h1
-                id="pricing-title"
-                className="mt-2 text-4xl font-black tracking-tight sm:text-5xl"
-              >
-                Plans Built For Every Loop
-              </h1>
-              <p
-                id="pricing-subtitle"
-                className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-700 dark:text-slate-300 sm:text-base"
-              >
-                Choose a plan based on how many groups you run and how large
-                your communities are. Limits are enforced to keep plans
-                predictable, and you can upgrade anytime.
-              </p>
-            </div>
-            <nav aria-label="Pricing actions" className="flex gap-2">
-              <Link
-                href="/contact/"
-                className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
-              >
-                Contact Sales
-              </Link>
-              <Link
-                href="/signup/"
-                className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
-              >
-                Start Free
-              </Link>
-            </nav>
+              </li>
+            </ol>
+          </nav>
+
+          <header className="mt-7 text-center">
+            <h1
+              id="pricing-title"
+              className="text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl"
+            >
+              Plans Built for Every Loop
+            </h1>
+            <p
+              id="pricing-subtitle"
+              className="mx-auto mt-4 max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+            >
+              Choose the plan that fits your community. Start with what you need
+              and upgrade as your Loopd&apos;n grows.
+            </p>
           </header>
 
           <section
             aria-labelledby="pricing-title"
             aria-describedby="pricing-subtitle"
-            className="grid gap-5 lg:grid-cols-4"
+            className="mt-12 grid items-stretch gap-6 sm:grid-cols-2 xl:grid-cols-4"
           >
             <p className="sr-only" role="status" aria-live="polite">
               {pricingStatusMessage}
             </p>
+
             {isLoadingPlans &&
               Array.from({ length: 4 }).map((_, index) => (
                 <article
                   key={`pricing-skeleton-${index}`}
                   aria-hidden="true"
-                  className="h-[440px] animate-pulse rounded-3xl border border-slate-200 bg-white/80 p-5 dark:border-slate-700 dark:bg-slate-900/70"
+                  className="h-[420px] animate-pulse rounded-3xl border border-slate-200 bg-white/70 p-6 dark:border-white/10 dark:bg-white/5"
                 >
-                  <div className="h-7 w-28 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="mt-3 h-9 w-24 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="mt-4 h-4 w-full rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="mt-2 h-4 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
-                  <div className="mt-6 space-y-2">
-                    <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-700" />
-                    <div className="h-3 w-full rounded bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-6 w-24 rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-3 h-3 w-full rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-2 h-3 w-2/3 rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-6 h-8 w-28 rounded bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-5 h-10 w-full rounded-xl bg-slate-200 dark:bg-white/10" />
+                  <div className="mt-6 space-y-3">
+                    <div className="h-3 w-full rounded bg-slate-200 dark:bg-white/10" />
+                    <div className="h-3 w-full rounded bg-slate-200 dark:bg-white/10" />
+                    <div className="h-3 w-3/4 rounded bg-slate-200 dark:bg-white/10" />
                   </div>
                 </article>
               ))}
 
             {!isLoadingPlans && plansError && (
-              <div className="lg:col-span-4 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-800 sm:col-span-2 xl:col-span-4 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
                 <p className="text-sm font-semibold">Unable to load pricing</p>
                 <p className="mt-1 text-xs">
                   {plansError} You can still review our standard plans below.
@@ -464,13 +591,13 @@ export default function PricingPage() {
                   <button
                     type="button"
                     onClick={() => void loadPlans()}
-                    className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                    className="rounded-lg border border-amber-400 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 focus-visible:ring-2 focus-visible:ring-amber-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 dark:hover:bg-amber-500/20"
                   >
                     Retry loading plans
                   </button>
                   <Link
                     href="/contact/"
-                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                   >
                     Contact Sales
                   </Link>
@@ -479,7 +606,7 @@ export default function PricingPage() {
             )}
 
             {!isLoadingPlans && checkoutError && (
-              <div className="lg:col-span-4 rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-800 dark:border-rose-800 dark:bg-rose-950/30 dark:text-rose-300">
+              <div className="rounded-2xl border border-rose-300 bg-rose-50 p-4 text-rose-800 sm:col-span-2 xl:col-span-4 dark:border-rose-500/40 dark:bg-rose-500/10 dark:text-rose-200">
                 <p className="text-sm font-semibold">
                   Unable to start checkout
                 </p>
@@ -488,24 +615,24 @@ export default function PricingPage() {
             )}
 
             {!isLoadingPlans && !hasPlans && !plansError && (
-              <div className="lg:col-span-4 rounded-2xl border border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-900">
+              <div className="rounded-2xl border border-slate-300 bg-white p-6 text-center sm:col-span-2 xl:col-span-4 dark:border-white/10 dark:bg-white/5">
                 <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
                   Pricing plans are not available right now.
                 </p>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                   Please try again, or contact sales for current plan details.
                 </p>
-                <div className="mt-4 flex items-center justify-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
                     onClick={() => void loadPlans()}
-                    className="rounded-xl bg-[linear-gradient(130deg,#0ea5e9_0%,#2563eb_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110"
+                    className="rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_20px_rgba(14,165,233,0.3)] transition hover:brightness-110"
                   >
                     Retry
                   </button>
                   <Link
                     href="/contact/"
-                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                   >
                     Contact Sales
                   </Link>
@@ -515,112 +642,182 @@ export default function PricingPage() {
 
             {!isLoadingPlans &&
               hasPlans &&
-              plans.map((plan) =>
-                (() => {
-                  const normalizedCode = plan.code.toLowerCase();
-                  const isCurrentPlan =
-                    Boolean(effectiveCurrentPlanCode) &&
-                    normalizedCode === effectiveCurrentPlanCode;
+              plans.map((plan) => {
+                const normalizedCode = plan.code.toLowerCase();
+                const isCurrentPlan =
+                  Boolean(effectiveCurrentPlanCode) &&
+                  normalizedCode === effectiveCurrentPlanCode;
+                const { Icon, className: badgeClassName } = planBadge(
+                  plan.code,
+                );
+                const featured = Boolean(plan.highlighted);
 
-                  return (
-                    <article
-                      key={plan.code}
-                      aria-label={`${plan.name} plan`}
-                      className={`group relative flex h-full flex-col rounded-3xl border p-5 shadow-sm backdrop-blur-sm transition-transform duration-300 ease-out hover:scale-[1.02] hover:shadow-[0_16px_36px_rgba(15,23,42,0.12)] ${
-                        isCurrentPlan
-                          ? "border-emerald-300 bg-emerald-50/40 dark:border-emerald-700 dark:bg-emerald-950/15"
-                          : ""
-                      } ${
-                        plan.highlighted
-                          ? "border-sky-300 bg-white shadow-[0_12px_32px_rgba(14,165,233,0.18)] dark:border-sky-700 dark:bg-slate-900 dark:shadow-[0_12px_32px_rgba(2,132,199,0.28)]"
-                          : "border-slate-200 bg-white/90 dark:border-slate-700 dark:bg-slate-900/90"
+                return (
+                  <article
+                    key={plan.code}
+                    aria-label={`${plan.name} plan`}
+                    /* Three surfaces, one of them at a time - written as a
+                       single chain rather than appended blocks, because two
+                       background utilities on one element are resolved by the
+                       order Tailwind emits them, not the order they are
+                       written, and "mostly wins" is not a rule to build on.
+                       The weighting is deliberate: recommended is loudest
+                       (gradient, lift, deep shadow), the plan you are on is
+                       second (tint, ring, badge, but flat), everything else is
+                       quiet - so the page still points somewhere. */
+                    className={`relative flex h-full flex-col rounded-3xl border p-6 transition duration-300 ${
+                      featured
+                        ? "border-sky-300/70 bg-[linear-gradient(165deg,#22a7ff_0%,#1f7fe6_55%,#1c62c8_100%)] text-white shadow-[0_24px_60px_rgba(31,127,230,0.4)] xl:-translate-y-5"
+                        : isCurrentPlan
+                          ? "border-emerald-300 bg-emerald-50/70 shadow-sm ring-2 ring-emerald-400/60 backdrop-blur dark:border-emerald-500/40 dark:bg-emerald-500/[0.08]"
+                          : "border-slate-200 bg-white/90 shadow-sm backdrop-blur hover:border-sky-300 dark:border-white/10 dark:bg-white/[0.045] dark:hover:border-sky-400/40"
+                    }`}
+                  >
+                    {isCurrentPlan && !featured && (
+                      <p className="absolute -top-3 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-emerald-300 bg-white px-3 py-1 text-[11px] font-bold tracking-wide text-emerald-700 dark:border-emerald-500/40 dark:bg-slate-900 dark:text-emerald-300">
+                        <Check aria-hidden="true" className="h-3 w-3" />
+                        Your plan
+                      </p>
+                    )}
+
+                    {featured && (
+                      <p className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-1 text-[11px] font-bold tracking-wide text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-300">
+                        Recommended
+                      </p>
+                    )}
+
+                    <div className="flex items-start justify-between gap-3">
+                      <h2 className="text-xl font-extrabold tracking-tight">
+                        {plan.name}
+                      </h2>
+                      <span
+                        aria-hidden="true"
+                        className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white ${
+                          featured ? "bg-white/20" : badgeClassName
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                      </span>
+                    </div>
+
+                    <p
+                      className={`mt-2 min-h-[2.5rem] text-xs leading-5 ${
+                        featured
+                          ? "text-sky-50/90"
+                          : "text-slate-600 dark:text-slate-400"
                       }`}
                     >
-                      {plan.highlighted && (
-                        <p
-                          aria-label="Most popular plan"
-                          className="mb-3 inline-flex  absolute -top-2 right-3 rounded-full bg-sky-100 px-3 py-1 text-[11px] font-bold tracking-wide text-sky-800 uppercase dark:bg-sky-950/50 border dark:text-sky-300"
+                      {plan.summary}
+                    </p>
+
+                    <p className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
+                      {plan.price}
+                    </p>
+
+                    <div className="mt-5">
+                      {isCurrentPlan ? (
+                        <span
+                          className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold ${
+                            featured
+                              ? "bg-white/20 text-white"
+                              : "border border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          }`}
                         >
-                          Most Popular
-                        </p>
-                      )}
-
-                      {isCurrentPlan && (
-                        <p className="mb-3 inline-flex absolute -top-2 left-3 rounded-full border bg-emerald-100 px-3 py-1 text-[11px] font-bold tracking-wide text-emerald-800 uppercase dark:bg-emerald-950/50 dark:text-emerald-300">
                           Current Plan
-                        </p>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => void handlePlanAction(plan.code)}
+                          disabled={checkoutPlanCode !== null}
+                          className={`inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900 ${
+                            featured
+                              ? "bg-white text-sky-700 shadow-sm hover:bg-sky-50"
+                              : "border border-slate-300 bg-white text-slate-800 hover:bg-slate-50 dark:border-white/15 dark:bg-white/5 dark:text-slate-100 dark:hover:bg-white/10"
+                          }`}
+                        >
+                          {normalizedCode === "enterprise"
+                            ? "Build Your Plan"
+                            : checkoutPlanCode === plan.code
+                              ? "Redirecting..."
+                              : isAuthenticated
+                                ? `Choose ${plan.name}`
+                                : "Log in to continue"}
+                        </button>
                       )}
+                    </div>
 
-                      <h2 className="text-2xl font-extrabold">{plan.name}</h2>
-                      <p className="mt-1 text-3xl font-black tracking-tight text-slate-900 dark:text-slate-100">
-                        {plan.price}
-                      </p>
-                      <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-                        {plan.summary}
-                      </p>
-
-                      <dl className="mt-4 space-y-2 rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs dark:border-slate-700 dark:bg-slate-800/80">
-                        {plan.limits.map((limit) => (
+                    <dl
+                      className={`mt-6 space-y-3 border-t pt-5 text-xs ${
+                        featured
+                          ? "border-white/25"
+                          : "border-slate-200 dark:border-white/10"
+                      }`}
+                    >
+                      {plan.limits.map((limit) => {
+                        const LimitIcon = LIMIT_ICONS[limit.label] ?? Layers;
+                        // "Not included" is drawn back rather than struck
+                        // through: the row still has to be readable, it just
+                        // must not look like something the plan gives you.
+                        const included = limit.value !== "Not included";
+                        return (
                           <div
                             key={limit.label}
-                            className="flex items-center justify-between gap-3"
+                            className={`flex items-start gap-2.5 ${
+                              included ? "" : "opacity-55"
+                            }`}
                           >
-                            <dt className="text-slate-600 dark:text-slate-300">
-                              {limit.label}
-                            </dt>
-                            <dd className="font-semibold text-slate-900 dark:text-slate-100">
-                              {limit.value}
+                            <LimitIcon
+                              aria-hidden="true"
+                              className={`mt-px h-4 w-4 shrink-0 ${
+                                featured
+                                  ? "text-sky-100"
+                                  : "text-sky-600 dark:text-sky-400"
+                              }`}
+                            />
+                            <dt className="sr-only">{limit.label}</dt>
+                            <dd
+                              className={
+                                featured
+                                  ? "text-sky-50"
+                                  : "text-slate-700 dark:text-slate-300"
+                              }
+                            >
+                              <span className="font-semibold">
+                                {limit.value}
+                              </span>{" "}
+                              <span
+                                className={
+                                  featured
+                                    ? "text-sky-100/80"
+                                    : "text-slate-500 dark:text-slate-400"
+                                }
+                              >
+                                {limit.label.toLowerCase()}
+                              </span>
                             </dd>
                           </div>
-                        ))}
-                      </dl>
-
-                      <ul
-                        aria-label={`${plan.name} features`}
-                        className="mt-4 space-y-2 text-sm text-slate-800 dark:text-slate-200"
-                      >
-                        {plan.features.map((feature) => (
-                          <li key={feature} className="flex gap-2">
-                            <span
-                              aria-hidden="true"
-                              className="mt-[2px] h-2 w-2 shrink-0 rounded-full bg-sky-500"
-                            />
-                            <span>{feature}</span>
-                          </li>
-                        ))}
-                      </ul>
-
-                      <div className="mt-auto pt-5">
-                        {isCurrentPlan ? (
-                          <span className="inline-flex w-full items-center justify-center rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 dark:border-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
-                            Current Plan
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void handlePlanAction(plan.code)}
-                            disabled={checkoutPlanCode !== null}
-                            className="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition duration-300 hover:bg-slate-50 group-hover:scale-[1.05] group-focus-within:scale-[1.05] disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
-                          >
-                            {plan.code.toLowerCase() === "enterprise"
-                              ? "Build Your Plan"
-                              : checkoutPlanCode === plan.code
-                                ? "Redirecting..."
-                                : isAuthenticated
-                                  ? `Choose ${plan.name}`
-                                  : "Log in to continue"}
-                          </button>
-                        )}
-                      </div>
-                    </article>
-                  );
-                })(),
-              )}
+                        );
+                      })}
+                    </dl>
+                  </article>
+                );
+              })}
           </section>
+
+          {/* Only once the real plans are in: the comparison is derived from
+              their own feature arrays, so it has nothing to say until they
+              have loaded. */}
+          {!isLoadingPlans && hasPlans && (
+            <PlanComparison
+              plans={plans}
+              currentPlanCode={effectiveCurrentPlanCode}
+            />
+          )}
 
           <section
             aria-labelledby="enterprise-section-title"
-            className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8"
+            className="mt-14 rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-sm backdrop-blur sm:p-8 dark:border-white/10 dark:bg-white/[0.045]"
           >
             <div className="grid gap-6 lg:grid-cols-[2fr_1fr] lg:items-center">
               <div>
@@ -630,7 +827,7 @@ export default function PricingPage() {
                 >
                   Enterprise Needs A Custom Buildout
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-300 sm:text-base">
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 sm:text-base dark:text-slate-300">
                   Enterprise includes custom group and member limits,
                   onboarding, support SLAs, and contract terms. Tell us your
                   community size, compliance requirements, and rollout timeline.
@@ -639,13 +836,13 @@ export default function PricingPage() {
               <div className="flex flex-col gap-2">
                 <Link
                   href="/enterprise/builder/"
-                  className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#0284c7_0%,#0f766e_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,116,144,0.32)] transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
+                  className="inline-flex items-center justify-center rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(14,165,233,0.32)] transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
                 >
                   Build Your Enterprise Plan
                 </Link>
                 <Link
                   href="/contact/"
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus-visible:ring-sky-300 dark:focus-visible:ring-offset-slate-900"
+                  className="inline-flex items-center justify-center rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
                 >
                   Talk to sales instead
                 </Link>
@@ -654,6 +851,7 @@ export default function PricingPage() {
           </section>
         </div>
       </main>
+
       <SiteFooter />
     </div>
   );

@@ -14,7 +14,8 @@ type LoopCommunicationModeProps = {
     replyMode?: BroadcastReplyMode,
   ) => Promise<void>;
   isLoading?: boolean;
-  isAdmin?: boolean;
+  /** Whether the viewer may change the group's mode - `group.settings.policy`. */
+  canChangeMode?: boolean;
 };
 
 export function LoopCommunicationMode({
@@ -23,13 +24,13 @@ export function LoopCommunicationMode({
   broadcastReplyMode = "private",
   onModeChange,
   isLoading = false,
-  isAdmin = true,
+  canChangeMode = true,
 }: LoopCommunicationModeProps) {
   const [isChanging, setIsChanging] = useState(false);
   const [error, setError] = useState<string>("");
 
   async function handleModeChange(newMode: CommunicationMode) {
-    if (!isAdmin || isChanging || isLoading) return;
+    if (!canChangeMode || isChanging || isLoading) return;
 
     setIsChanging(true);
     setError("");
@@ -98,7 +99,7 @@ export function LoopCommunicationMode({
       </div>
 
       {/* Mode Toggle (Admin only) */}
-      {isAdmin && (
+      {canChangeMode && (
         <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
           <p className="mb-3 text-sm font-semibold text-slate-900">
             Switch Communication Mode
@@ -143,7 +144,7 @@ export function LoopCommunicationMode({
         </div>
       )}
 
-      {!isAdmin && (
+      {!canChangeMode && (
         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-xs text-slate-600">
             Only admins can change the communication mode for this Loop.

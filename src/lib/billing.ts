@@ -14,6 +14,15 @@ export type BillingPlan = {
   storageGb: number | null;
   hasWhatsApp: boolean;
   hasTelegram: boolean;
+  /** Audio AND video together - the backend has one flag, not two. */
+  hasCalls: boolean;
+  /** Null means unlimited. */
+  maxCallParticipants: number | null;
+  /** Rides `hasCalls` on the server; not sold separately. */
+  hasScreenShare: boolean;
+  hasCallRecording: boolean;
+  /** Null means kept until somebody deletes it. */
+  callRecordingRetentionDays: number | null;
   features: string[];
   isCustomPricing: boolean;
 };
@@ -137,6 +146,14 @@ const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     storageGb: 1,
     hasWhatsApp: false,
     hasTelegram: false,
+    // Mirrors the backend's own seed (billing 0006_seed_call_limits): calling
+    // is on for every plan, capped at four here, and screen share and
+    // recording are what the paid tiers add.
+    hasCalls: true,
+    maxCallParticipants: 4,
+    hasScreenShare: false,
+    hasCallRecording: false,
+    callRecordingRetentionDays: null,
     features: [
       "Web messaging",
       "Basic message history",
@@ -160,6 +177,11 @@ const DEFAULT_BILLING_PLANS: BillingPlan[] = [
     storageGb: null,
     hasWhatsApp: true,
     hasTelegram: true,
+    hasCalls: true,
+    maxCallParticipants: null,
+    hasScreenShare: true,
+    hasCallRecording: true,
+    callRecordingRetentionDays: null,
     features: [
       "Workspaces",
       "SSO",
@@ -263,6 +285,14 @@ function normalizePlan(item: unknown): BillingPlan | null {
     storageGb: asNumber(item.storage_gb),
     hasWhatsApp: asBoolean(item.has_whatsapp, asBoolean(item.whatsapp_enabled)),
     hasTelegram: asBoolean(item.has_telegram, asBoolean(item.telegram_enabled)),
+    // All four default to OFF when the field is absent. The server's own
+    // default for has_calls is on, but absent here means an API that did not
+    // say - and a pricing page must not promise a capability nobody claimed.
+    hasCalls: asBoolean(item.has_calls),
+    maxCallParticipants: asNumber(item.max_call_participants),
+    hasScreenShare: asBoolean(item.has_screen_share),
+    hasCallRecording: asBoolean(item.has_call_recording),
+    callRecordingRetentionDays: asNumber(item.call_recording_retention_days),
     features,
     isCustomPricing: asBoolean(item.is_custom_pricing),
   };
@@ -476,6 +506,8 @@ function normalizeSummary(data: unknown): BillingSummary | null {
   const normalizedSummaryPlan = summaryPlanPayload
     ? normalizePlan(summaryPlanPayload)
     : null;
+  // Reached only when the summary carried no plan object - so nothing is known
+  // beyond the code, and nothing is claimed.
   const fallbackPlan: BillingPlan = {
     id: asText(subscription.plan_code, "free"),
     code: asText(subscription.plan_code, "free"),
@@ -488,6 +520,11 @@ function normalizeSummary(data: unknown): BillingSummary | null {
     storageGb: null,
     hasWhatsApp: false,
     hasTelegram: false,
+    hasCalls: false,
+    maxCallParticipants: null,
+    hasScreenShare: false,
+    hasCallRecording: false,
+    callRecordingRetentionDays: null,
     features: [],
     isCustomPricing: false,
   };
@@ -533,6 +570,40 @@ function prependDefaultPlans(plans: BillingPlan[]): BillingPlan[] {
   return [...defaultsToPrepend, ...plans];
 }
 
+/** The fields an ordering needs, so a caller holding the raw API shape can sort too. */
+export type PlanPriceOrder = {
+  monthlyPriceCents: number | null;
+  isCustomPricing: boolean;
+  name: string;
+};
+
+/**
+ * Plans cheapest first, the way a price list is read.
+ *
+ * By the NUMBER, not by plan code and not by the price as it is displayed.
+ * Both of those were being used, and both were wrong: a code ladder puts every
+ * plan it has not been taught about in one undifferentiated bucket at the end,
+ * and "$100.00/mo" sorts before "$20.00/mo" as text, because "1" is before "2".
+ *
+ * A custom-priced plan goes last whatever its cents say. "Custom" is not a
+ * smaller number than $9 - it is the end of the ladder, the tier you talk to
+ * somebody about - and a null price must never read as free. Equal prices fall
+ * back to the name, so the order is at least stable between loads.
+ */
+export function comparePlansByPrice(
+  a: PlanPriceOrder,
+  b: PlanPriceOrder,
+): number {
+  const aCustom = a.isCustomPricing || a.monthlyPriceCents === null;
+  const bCustom = b.isCustomPricing || b.monthlyPriceCents === null;
+
+  if (aCustom !== bCustom) return aCustom ? 1 : -1;
+  if (aCustom && bCustom) return a.name.localeCompare(b.name);
+
+  const difference = (a.monthlyPriceCents ?? 0) - (b.monthlyPriceCents ?? 0);
+  return difference !== 0 ? difference : a.name.localeCompare(b.name);
+}
+
 export async function fetchBillingPlans(): Promise<
   EnvelopeResult<BillingPlan[]>
 > {
@@ -540,13 +611,16 @@ export async function fetchBillingPlans(): Promise<
   if (!result.ok) return result;
 
   const rows = Array.isArray(result.data) ? result.data : [];
+  // Ordered here rather than by each screen that shows a price list. Three of
+  // them did it themselves, and the three disagreed - the ladder a person
+  // compares plans on should not depend on which screen they opened.
   return {
     ok: true,
     data: prependDefaultPlans(
       rows
         .map(normalizePlan)
         .filter((plan): plan is BillingPlan => plan !== null),
-    ),
+    ).sort(comparePlansByPrice),
   };
 }
 

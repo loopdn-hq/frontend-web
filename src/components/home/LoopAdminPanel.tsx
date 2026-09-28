@@ -23,6 +23,7 @@ import { LoopPanelGeneral } from "./LoopPanelGeneral";
 import { LoopPanelMembers } from "./LoopPanelMembers";
 import type {
   ConversationParticipant,
+  GroupNumber,
   GroupSettings,
 } from "@/lib/chat/conversations";
 
@@ -47,6 +48,8 @@ type LoopAdminPanelProps = {
   onClose: () => void;
   loopName: string;
   settings: GroupSettings | null;
+  /** This Loop's own phone number, shown on General. Null until it has one. */
+  smsNumber?: GroupNumber | null;
   isSettingsLoading?: boolean;
   canEditSettings?: boolean;
   canModerateMembers?: boolean;
@@ -63,6 +66,7 @@ type LoopAdminPanelProps = {
   onAddMembers?: () => void;
   onUpdateMemberRole?: (memberId: string, newRole: MemberRole) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
+  onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   isLoading?: boolean;
   onLeaveLoop?: () => Promise<{ ok: true } | { ok: false; message: string }>;
@@ -73,6 +77,7 @@ export function LoopAdminPanel({
   onClose,
   loopName,
   settings,
+  smsNumber = null,
   isSettingsLoading = false,
   canEditSettings = true,
   canModerateMembers = false,
@@ -89,6 +94,7 @@ export function LoopAdminPanel({
   onAddMembers,
   onUpdateMemberRole,
   onBlockMember,
+  onNudgeMember,
   onRemoveMember,
   isLoading = false,
   onLeaveLoop,
@@ -182,6 +188,7 @@ export function LoopAdminPanel({
                 onSave={onSaveSettings}
                 canEdit={canEditSettings}
                 onFetchJoinCode={onFetchJoinCode}
+                smsNumber={smsNumber}
               />
             ) : (
               <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">
@@ -203,6 +210,7 @@ export function LoopAdminPanel({
               onUpdateMemberRole={onUpdateMemberRole}
               onRemoveMember={onRemoveMember}
               onBlockMember={onBlockMember}
+              onNudgeMember={onNudgeMember}
             />
           )}
         </div>

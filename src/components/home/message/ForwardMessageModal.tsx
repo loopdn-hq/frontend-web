@@ -1,5 +1,6 @@
 "use client";
 
+import { allows, GROUP } from "@/lib/rbac";
 import { useMemo, useState } from "react";
 import { Search, Send } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
@@ -35,7 +36,9 @@ type ForwardMessageModalProps = {
 };
 
 function cannotPostReason(conversation: Conversation): string | null {
-  if (conversation.mode === "broadcast" && !conversation.isAdmin) {
+  // The server already applied broadcast mode when it built `features`, so
+  // this no longer restates the rule - it reads the answer.
+  if (!allows(conversation, GROUP.send)) {
     return "Only admins can post here";
   }
   return null;

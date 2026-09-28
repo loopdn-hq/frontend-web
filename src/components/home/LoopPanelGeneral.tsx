@@ -11,10 +11,13 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Check,
+  Copy,
   CornerUpLeft,
   Info,
   MessageSquare,
   Mic,
+  Phone,
   Shield,
   SlidersHorizontal,
   UserPlus,
@@ -27,6 +30,7 @@ import { useOptimisticChanges } from "@/components/settings/useOptimisticChanges
 import type {
   ConversationMode,
   GroupMemberPermission,
+  GroupNumber,
   GroupSettings,
   JoinMode,
 } from "@/lib/chat/conversations";
@@ -103,6 +107,14 @@ type LoopPanelGeneralProps = {
    * built yet, and a code nobody can read is a join mode nobody can use.
    */
   onFetchJoinCode?: () => Promise<string>;
+  /**
+   * This Loop's own phone number, or null while it has not got one.
+   *
+   * Shown to every member, not only admins: texting it is how anybody without
+   * the app takes part, so a member who cannot read it cannot invite anybody
+   * that way.
+   */
+  smsNumber?: GroupNumber | null;
 };
 
 export function LoopPanelGeneral({
@@ -110,6 +122,7 @@ export function LoopPanelGeneral({
   onSave,
   canEdit = true,
   onFetchJoinCode,
+  smsNumber = null,
 }: LoopPanelGeneralProps) {
   const { shown, isBusy, change, error } = useOptimisticChanges(
     settings,
@@ -128,6 +141,16 @@ export function LoopPanelGeneral({
       )}
 
       {error && <SettingsError className="mb-4">{error}</SettingsError>}
+
+      {/* First, because it is the one thing on this screen somebody needs to
+          give to a person who does not have the app. */}
+      <PanelSection
+        icon={Phone}
+        title="Group number"
+        description="Text this number to post in this Loop."
+      >
+        <GroupNumberRow number={smsNumber} />
+      </PanelSection>
 
       <PanelSection
         icon={MessageSquare}
@@ -294,6 +317,67 @@ function JoinCode({ onFetch }: { onFetch: () => Promise<string> }) {
 }
 
 /** A block of the screen: the glyph, what it is, then its controls. */
+/**
+ * The Loop's phone number, with a one-click copy.
+ *
+ * Read-only on purpose: the number is bought when the group is created and
+ * never changes - it is on everybody's phone by then, and a group whose number
+ * moved would be a group nobody could reach.
+ *
+ * Null is a real state. A group whose provisioning failed has no number at
+ * all, and saying so plainly beats an empty box that looks broken.
+ */
+function GroupNumberRow({ number }: { number: GroupNumber | null }) {
+  const { copy, copied, error } = useCopyToClipboard();
+
+  if (!number) {
+    return (
+      <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+        This Loop has no number yet, so it cannot be reached by text.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
+      <div className="min-w-0">
+        <p className="font-mono text-base text-slate-900 dark:text-slate-100">
+          {number.number}
+        </p>
+        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+          {number.status === "active"
+            ? "Anyone can text this number to post here."
+            : `This number is ${number.status} and may not receive texts.`}
+        </p>
+        {error && (
+          <p
+            role="alert"
+            className="mt-1 text-xs text-rose-600 dark:text-rose-400"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="shrink-0"
+        onClick={() => void copy(number.number)}
+      >
+        {copied ? (
+          <>
+            <Check className="mr-1.5 h-4 w-4" /> Copied
+          </>
+        ) : (
+          <>
+            <Copy className="mr-1.5 h-4 w-4" /> Copy
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 function PanelSection({
   icon: Icon,
   title,

@@ -7,6 +7,7 @@ import { ChatAvatar } from "./ChatAvatar";
 import { startDirectConversation } from "@/lib/chat/conversations";
 import { useDebouncedValue } from "@/lib/hooks/useDebouncedValue";
 import { inviteToApp } from "@/lib/user/invites";
+import { publicOrigin } from "@/lib/config/origin";
 import {
   MIN_USER_SEARCH_LENGTH,
   searchUsers,
@@ -113,7 +114,9 @@ export function NewConversationModal({
   }
 
   async function copyInviteLink() {
-    const link = `${window.location.origin}/signup`;
+    // Must be a link the recipient can open in a browser, so the public web
+    // origin rather than the desktop build's tauri://localhost.
+    const link = `${publicOrigin()}/signup`;
     try {
       await navigator.clipboard.writeText(link);
       setInvite({ term, status: "copied" });

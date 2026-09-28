@@ -46,6 +46,12 @@ export function SiteTopNav() {
                 Pricing
               </Link>
               <Link
+                href="/downloads/"
+                className="transition hover:text-[#0d2d68] dark:hover:text-white"
+              >
+                Downloads
+              </Link>
+              <Link
                 href="/#groupme-alt"
                 className="transition hover:text-[#0d2d68] dark:hover:text-white"
               >
