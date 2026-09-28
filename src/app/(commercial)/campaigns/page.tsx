@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Megaphone } from "lucide-react";
 import { LoadFailed } from "@/components/app/LoadFailed";
+import { CompanyNotice } from "@/components/commercial/CompanyNotice";
 import { NewCampaignLink } from "@/components/commercial/NewCampaignLink";
 import { CommercialPageHeader } from "@/components/commercial/CommercialPageHeader";
 import { CampaignStatusBadge } from "@/components/commercial/StatusBadge";
@@ -17,7 +18,7 @@ import {
 } from "@/lib/commercial/format";
 import type { Campaign } from "@/lib/commercial/types";
 
-/** /commercial/campaigns/ - every campaign of the company being shown. */
+/** /campaigns/ - every campaign of the company being shown. */
 export default function CommercialCampaignsPage() {
   const { company } = useCompany();
 
@@ -27,7 +28,14 @@ export default function CommercialCampaignsPage() {
       <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
         {/* Keyed by company: switching company starts from a clean
             loading state instead of flashing the previous one's campaigns. */}
-        <CampaignList key={company.id} companyId={company.id} />
+        {company ? (
+          <CampaignList key={company.id} companyId={company.id} />
+        ) : (
+          <div className="space-y-4">
+            <CompanyNotice />
+            <NoCampaigns />
+          </div>
+        )}
       </div>
     </>
   );
@@ -85,29 +93,14 @@ function CampaignList({ companyId }: { companyId: number }) {
     );
   }
 
-  if (campaigns.length === 0) {
-    return (
-      <div className="flex flex-col items-center py-16 text-center">
-        <Megaphone className="h-8 w-8 text-slate-300 dark:text-slate-600" />
-        <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-          No campaigns yet
-        </p>
-        <Link
-          href="/commercial/campaigns/new/"
-          className="mt-2 text-sm font-medium text-sky-600 hover:underline"
-        >
-          Create your first campaign
-        </Link>
-      </div>
-    );
-  }
+  if (campaigns.length === 0) return <NoCampaigns />;
 
   return (
     <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
       {campaigns.map((campaign) => (
         <li key={campaign.id}>
           <Link
-            href={`/commercial/campaign/?id=${campaign.id}`}
+            href={`/campaign/?id=${campaign.id}`}
             className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/60"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
@@ -127,5 +120,22 @@ function CampaignList({ companyId }: { companyId: number }) {
         </li>
       ))}
     </ul>
+  );
+}
+
+function NoCampaigns() {
+  return (
+    <div className="flex flex-col items-center py-16 text-center">
+      <Megaphone className="h-8 w-8 text-slate-300 dark:text-slate-600" />
+      <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
+        No campaigns yet
+      </p>
+      <Link
+        href="/campaigns/new/"
+        className="mt-2 text-sm font-medium text-sky-600 hover:underline"
+      >
+        Create your first campaign
+      </Link>
+    </div>
   );
 }

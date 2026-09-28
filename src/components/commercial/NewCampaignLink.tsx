@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { Plus } from "lucide-react";
 
-/** The primary action on the overview and the campaign list. */
+/**
+ * The primary action in the header of the overview and the campaign list: a
+ * round "+" on the blue bar, like "New conversation" in the chat list.
+ */
 export function NewCampaignLink() {
   return (
     <Link
-      href="/commercial/campaigns/new/"
-      className="inline-flex min-h-9 items-center gap-1.5 rounded-xl bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
+      href="/campaigns/new/"
+      title="New campaign"
+      aria-label="New campaign"
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
     >
-      <Plus className="h-4 w-4" aria-hidden />
-      New campaign
+      <Plus className="h-5 w-5" aria-hidden />
     </Link>
   );
 }

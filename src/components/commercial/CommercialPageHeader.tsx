@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 
-/** The title row every commercial page starts with. */
+import { CommercialDrawerButton } from "@/components/commercial/CommercialShell";
+
+/**
+ * The title bar every commercial page starts with: the chat app's blue bar,
+ * with the sidebar's drawer button on small screens.
+ */
 export function CommercialPageHeader({
   title,
   description,
@@ -8,22 +13,25 @@ export function CommercialPageHeader({
 }: {
   title: string;
   description?: string;
-  /** Buttons on the right, e.g. "New campaign". */
+  /** Round buttons on the right, e.g. NewCampaignLink. */
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6 dark:border-slate-800">
-      <div className="min-w-0">
-        <h1 className="truncate text-xl font-bold text-slate-900 dark:text-slate-100">
-          {title}
-        </h1>
-        {description && (
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-            {description}
-          </p>
+    <header className="border-b border-slate-200 bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-white dark:border-slate-700">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1">
+          <CommercialDrawerButton className="-ml-2 text-white hover:bg-white/20" />
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold">{title}</h1>
+            {description && (
+              <p className="truncate text-sm text-white/80">{description}</p>
+            )}
+          </div>
+        </div>
+        {actions && (
+          <div className="flex shrink-0 items-center gap-1">{actions}</div>
         )}
       </div>
-      {actions && <div className="flex shrink-0 gap-2">{actions}</div>}
     </header>
   );
 }

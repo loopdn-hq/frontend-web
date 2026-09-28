@@ -1,19 +1,37 @@
 "use client";
 
-import type { ReactNode } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
 import {
-  ArrowLeft,
-  CreditCard,
-  LayoutDashboard,
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  BarChart3,
+  Building2,
+  ChevronRight,
+  HelpCircle,
+  House,
+  LogOut,
   Megaphone,
+  MessageSquare,
+  PanelLeft,
   Settings,
+  Wallet,
+  X,
   type LucideIcon,
 } from "lucide-react";
-import { CompanyStatusBadge } from "@/components/commercial/StatusBadge";
+import {
+  ContextMenu,
+  type ContextMenuItem,
+  type ContextMenuOrigin,
+} from "@/components/ui";
+import { logout, useAuth } from "@/lib/auth/client";
 import { useCompany } from "@/lib/commercial/CompanyProvider";
-import { cn } from "@/lib/ui/cn";
 
 type NavItem = {
   href: string;
@@ -23,95 +41,385 @@ type NavItem = {
   matches: (pathname: string) => boolean;
 };
 
-const NAV: NavItem[] = [
+type NavSection = { heading?: string; items: NavItem[] };
+
+// The dashboard is the root of the commercial site. None of these paths may
+// contain "ads" or "advert": ad blockers drop them. Three labels differ from
+// their paths on purpose: /analytics/, /billing/ and /settings/ are already chat
+// pages in the same build, so Analytics, Billing and Settings live at
+// /reports/, /balance/ and /account/.
+//
+// No "Audiences" section: §11 of the product plan allows targeting only on
+// aggregate facts about groups, chosen inside each campaign, and §13 forbids
+// giving advertisers member lists - which is what "audiences" means elsewhere.
+const NAV_SECTIONS: NavSection[] = [
   {
-    href: "/commercial/",
-    label: "Overview",
-    icon: LayoutDashboard,
-    matches: (path) => path === "/commercial/" || path === "/commercial",
+    items: [
+      {
+        href: "/",
+        label: "Overview",
+        icon: House,
+        matches: (path) => path === "/",
+      },
+    ],
   },
   {
-    href: "/commercial/campaigns/",
-    label: "Campaigns",
-    icon: Megaphone,
-    // /commercial/campaign/?id= is one campaign, and still "Campaigns".
-    matches: (path) => /^\/commercial\/campaigns?(\/|$)/.test(path),
+    heading: "Advertising",
+    items: [
+      {
+        href: "/campaigns/",
+        label: "Campaigns",
+        icon: Megaphone,
+        // /campaign/?id= is one campaign and /campaigns/new/ makes one: both
+        // are still "Campaigns".
+        matches: (path) => /^\/campaigns?(\/|$)/.test(path),
+      },
+    ],
   },
   {
-    href: "/commercial/billing/",
-    label: "Billing",
-    icon: CreditCard,
-    matches: (path) => path.startsWith("/commercial/billing"),
+    heading: "Results",
+    items: [
+      {
+        href: "/leads/",
+        label: "Leads",
+        icon: MessageSquare,
+        matches: (path) => path.startsWith("/leads"),
+      },
+      {
+        href: "/reports/",
+        label: "Analytics",
+        icon: BarChart3,
+        matches: (path) => path.startsWith("/reports"),
+      },
+    ],
   },
   {
-    href: "/commercial/settings/",
-    label: "Company settings",
-    icon: Settings,
-    matches: (path) => path.startsWith("/commercial/settings"),
+    heading: "Manage",
+    items: [
+      {
+        href: "/balance/",
+        label: "Billing",
+        icon: Wallet,
+        matches: (path) => path.startsWith("/balance"),
+      },
+      {
+        href: "/company/",
+        label: "Company",
+        icon: Building2,
+        matches: (path) => path.startsWith("/company"),
+      },
+      {
+        href: "/account/",
+        label: "Settings",
+        icon: Settings,
+        matches: (path) => path.startsWith("/account"),
+      },
+    ],
   },
 ];
 
+const SUPPORT_MAILTO =
+  "mailto:support@loopdn.com?subject=Loopd%27n%20Commercial%20support";
+
+// Its own key, not the chat rail's: the two sites are different products, and
+// on different hosts the storage is separate anyway.
+const COLLAPSED_KEY = "loopdn_commercial_nav_collapsed";
+
+function readCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeCollapsed(collapsed: boolean): void {
+  try {
+    window.localStorage.setItem(COLLAPSED_KEY, collapsed ? "1" : "0");
+  } catch {
+    // The toggle still works for this visit.
+  }
+}
+
+const NavDrawerContext = createContext<(() => void) | null>(null);
+
 /**
- * The commercial dashboard's frame: its own sidebar, not the chat nav rail.
- *
- * Deliberately independent of AppShellProvider. The chat shell opens a
- * websocket, a call layer and activity toasts; none of that belongs on a
- * campaign report, and none of it should break because this page exists.
- * The one road back to chat is the link at the bottom.
+ * Opens the sidebar as a drawer below md, where it is hidden. Each page puts
+ * this in its own header, as the chat app does with NavDrawerButton.
+ */
+export function CommercialDrawerButton({
+  className = "",
+}: {
+  className?: string;
+}) {
+  const openDrawer = useContext(NavDrawerContext);
+  if (!openDrawer) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={openDrawer}
+      aria-label="Open navigation"
+      className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition md:hidden ${className}`}
+    >
+      <PanelLeft className="h-5 w-5" />
+    </button>
+  );
+}
+
+/**
+ * The commercial dashboard's frame, laid out like the chat app's: a dark
+ * sidebar that collapses to icons, grouped menu items, and the account at the
+ * foot. The same look, deliberately not the same components - the chat rail
+ * carries unread counts, a socket and a call layer, and the lint boundary keeps
+ * the two products from importing each other.
  */
 export function CommercialShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { company } = useCompany();
+  // Safe to read storage here: the frame renders nothing during prerendering.
+  const [collapsed, setCollapsed] = useState(readCollapsed);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((current) => {
+      writeCollapsed(!current);
+      return !current;
+    });
+  }, []);
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-slate-50 md:flex-row dark:bg-slate-950">
-      <aside className="flex shrink-0 flex-col border-b border-slate-200 bg-white md:w-64 md:border-r md:border-b-0 dark:border-slate-800 dark:bg-slate-900">
-        <div className="px-4 pt-4 pb-3">
-          <p className="text-[11px] font-semibold tracking-[0.18em] text-sky-600 uppercase">
-            Loopd&apos;n Commercial
-          </p>
-          <p className="mt-1 truncate text-base font-bold text-slate-900 dark:text-slate-100">
-            {company.name}
-          </p>
-          <CompanyStatusBadge status={company.status} className="mt-1.5" />
-        </div>
+    <NavDrawerContext.Provider value={openDrawer}>
+      <div className="flex h-screen w-full overflow-hidden bg-[#f7fbff] dark:bg-slate-900">
+        {drawerOpen && (
+          <button
+            type="button"
+            aria-label="Close navigation"
+            onClick={closeDrawer}
+            className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          />
+        )}
 
         <nav
           aria-label="Commercial"
-          className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-1 md:flex-col md:overflow-visible"
+          className={`${
+            drawerOpen ? "flex" : "hidden md:flex"
+          } fixed inset-y-0 left-0 z-50 w-[260px] flex-col bg-slate-900 text-slate-300 md:static md:z-auto md:h-full ${
+            collapsed ? "md:w-[72px]" : "md:w-[260px]"
+          }`}
         >
-          {NAV.map((item) => {
-            const active = item.matches(pathname);
-            const Icon = item.icon;
-            return (
+          <div
+            className={`flex items-center gap-2 px-4 py-4 ${
+              collapsed ? "md:justify-center md:px-2" : "justify-between"
+            }`}
+          >
+            {!collapsed && (
               <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex shrink-0 items-center gap-2.5 rounded-xl px-3 py-2 text-sm font-medium transition",
-                  active
-                    ? "bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300"
-                    : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800",
-                )}
+                href="/"
+                onClick={closeDrawer}
+                className="flex min-w-0 items-center gap-2"
               >
-                <Icon className="h-4 w-4" aria-hidden />
-                {item.label}
+                <span className="text-xl font-bold text-white">
+                  Loopd&apos;n
+                </span>
+                <span className="rounded-full bg-sky-500 px-2 py-0.5 text-3xs font-bold tracking-wide text-white uppercase">
+                  Commercial
+                </span>
               </Link>
-            );
-          })}
+            )}
+
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label={
+                collapsed ? "Expand navigation" : "Collapse navigation"
+              }
+              aria-pressed={collapsed}
+              title={collapsed ? "Expand navigation" : "Collapse navigation"}
+              className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white md:inline-flex"
+            >
+              <PanelLeft className="h-5 w-5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={closeDrawer}
+              aria-label="Close navigation"
+              className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-slate-300 md:hidden"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+            {NAV_SECTIONS.map((section, index) => (
+              <div key={section.heading ?? `section-${index}`} className="mb-2">
+                {section.heading && !collapsed && (
+                  <p className="px-3 pt-4 pb-2 text-2xs font-semibold tracking-[0.15em] text-slate-500 uppercase">
+                    {section.heading}
+                  </p>
+                )}
+                {section.heading && collapsed && (
+                  <div className="my-2 border-t border-slate-800" />
+                )}
+
+                {section.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = item.matches(pathname);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={closeDrawer}
+                      aria-current={active ? "page" : undefined}
+                      title={collapsed ? item.label : undefined}
+                      className={`mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                        collapsed ? "md:justify-center md:px-0" : ""
+                      } ${
+                        active
+                          ? "bg-slate-700/70 text-white"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <Icon
+                        className={`h-5 w-5 shrink-0 ${active ? "text-sky-400" : ""}`}
+                      />
+                      {!collapsed && (
+                        <span className="min-w-0 flex-1 truncate">
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          <AccountRow collapsed={collapsed} onNavigate={closeDrawer} />
         </nav>
 
-        <Link
-          href="/chats/"
-          className="hidden items-center gap-2 border-t border-slate-200 px-5 py-3 text-xs font-medium text-slate-500 hover:text-slate-800 md:flex dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
-          Back to chats
-        </Link>
-      </aside>
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          {children}
+        </main>
+      </div>
+    </NavDrawerContext.Provider>
+  );
+}
 
-      <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">{children}</main>
+/**
+ * The foot of the sidebar: who is signed in, and for which company. The whole
+ * row opens the account menu - as in the chat rail, there is no separate
+ * log-out icon to mis-hit.
+ */
+function AccountRow({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed: boolean;
+  onNavigate: () => void;
+}) {
+  const router = useRouter();
+  const { session } = useAuth();
+  const { company } = useCompany();
+  const [menu, setMenu] = useState<ContextMenuOrigin | null>(null);
+
+  const name = session ?? "";
+  const initial = name.charAt(0).toUpperCase() || "?";
+
+  function openMenu(event: ReactMouseEvent<HTMLButtonElement>) {
+    // Anchored to the row, like the chat rail's, so the menu opens just above
+    // the control that owns it.
+    const box = event.currentTarget.getBoundingClientRect();
+    setMenu({ x: box.left, y: box.top - 8 });
+  }
+
+  const items: ContextMenuItem[] = [
+    {
+      id: "company",
+      label: "Company",
+      description: "Profile, companies and team",
+      icon: <Building2 className="h-4 w-4" />,
+      onSelect: () => {
+        onNavigate();
+        router.push("/company/");
+      },
+    },
+    {
+      id: "settings",
+      label: "Settings",
+      description: "Email, password and notifications",
+      icon: <Settings className="h-4 w-4" />,
+      onSelect: () => {
+        onNavigate();
+        router.push("/account/");
+      },
+    },
+    {
+      id: "help",
+      label: "Help",
+      description: "Get in touch with support",
+      icon: <HelpCircle className="h-4 w-4" />,
+      onSelect: () => {
+        window.location.href = SUPPORT_MAILTO;
+      },
+    },
+    { kind: "separator", id: "account-separator" },
+    {
+      id: "logout",
+      label: "Log out",
+      description: "Sign out of your account",
+      icon: <LogOut className="h-4 w-4" />,
+      tone: "danger",
+      onSelect: () => {
+        void logout().finally(() => router.replace("/login/"));
+      },
+    },
+  ];
+
+  return (
+    <div className="border-t border-slate-800 p-2">
+      <button
+        type="button"
+        data-ignore-click-outside
+        aria-haspopup="menu"
+        aria-expanded={menu !== null}
+        aria-label="Account menu"
+        onClick={openMenu}
+        title={name}
+        className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-800 ${
+          collapsed ? "md:justify-center md:px-0" : ""
+        }`}
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-sky-500 text-sm font-semibold text-white">
+          {initial}
+        </span>
+        {!collapsed && (
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-white">
+              {name}
+            </span>
+            <span className="block truncate text-xs text-slate-400">
+              {company?.name ?? "Commercial account"}
+            </span>
+          </span>
+        )}
+        {!collapsed && (
+          <ChevronRight
+            className="h-4 w-4 shrink-0 text-slate-500"
+            aria-hidden
+          />
+        )}
+      </button>
+
+      <ContextMenu
+        origin={menu}
+        items={items}
+        onClose={() => setMenu(null)}
+        label="Account"
+      />
     </div>
   );
 }

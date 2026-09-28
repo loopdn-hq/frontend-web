@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  consumePostAuthRedirect,
   getPendingEmail,
+  getPendingPhone,
   resendEmailVerificationCode,
   setPendingEmail,
   verifyEmailCode,
 } from "@/lib/auth/client";
 import { useLeaveIfSignedIn } from "@/lib/auth/useLeaveIfSignedIn";
+import { homePath } from "@/lib/config/site";
 
 type SendState = "sending" | "sent" | "error";
 
@@ -93,7 +96,13 @@ export default function VerifyEmailPage() {
         return;
       }
 
-      router.push("/verify-phone/");
+      // On to the phone only when there is one to verify: a commercial signup
+      // may have left it out, and then the account is ready now.
+      router.push(
+        getPendingPhone()
+          ? "/verify-phone/"
+          : (consumePostAuthRedirect() ?? homePath()),
+      );
     } finally {
       setIsVerifying(false);
     }

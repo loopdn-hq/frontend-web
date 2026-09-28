@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyNotice } from "@/components/commercial/CompanyNotice";
 import { NewCampaignLink } from "@/components/commercial/NewCampaignLink";
 import { NotBuiltYet } from "@/components/commercial/NotBuiltYet";
 import { CommercialPageHeader } from "@/components/commercial/CommercialPageHeader";
@@ -7,26 +8,36 @@ import { Alert } from "@/components/ui";
 import { useCompany } from "@/lib/commercial/CompanyProvider";
 import { COMPANY_STATUS_LABEL, formatCents } from "@/lib/commercial/format";
 
-/** /commercial/ - the first thing a company sees. */
-export default function CommercialOverviewPage() {
+/**
+ * The commercial site's home page, at `/`: the first thing a company sees.
+ *
+ * A component rather than a route, because `/` is also loopdn.com's homepage
+ * in the same build - src/app/page.tsx picks between the two by hostname.
+ */
+export function CommercialOverview() {
   const { company } = useCompany();
 
   return (
     <>
       <CommercialPageHeader
         title="Overview"
-        description={`How ${company.name} is doing`}
+        description={
+          company
+            ? `How ${company.name} is doing`
+            : "Your advertising at a glance"
+        }
         actions={<NewCampaignLink />}
       />
 
       <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
-        {company.status === "pending" && (
+        <CompanyNotice />
+        {company?.status === "pending" && (
           <Alert variant="info">
             Loopd&apos;n is reviewing your company. You can build campaigns now;
             none will run until the review is done.
           </Alert>
         )}
-        {company.status === "suspended" && (
+        {company?.status === "suspended" && (
           <Alert variant="error">
             This company is suspended, so none of its campaigns are running.
             Contact support to find out why.
@@ -36,11 +47,11 @@ export default function CommercialOverviewPage() {
         <section className="grid gap-3 sm:grid-cols-3">
           <StatCard
             label="Ad balance"
-            value={formatCents(company.balanceCents)}
+            value={company ? formatCents(company.balanceCents) : "—"}
           />
           <StatCard
             label="Company status"
-            value={COMPANY_STATUS_LABEL[company.status]}
+            value={company ? COMPANY_STATUS_LABEL[company.status] : "—"}
           />
           <StatCard label="Running campaigns" value="—" />
         </section>

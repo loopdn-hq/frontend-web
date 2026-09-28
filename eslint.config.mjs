@@ -17,20 +17,20 @@ const TAURI_BOUNDARY = {
     "Import the platform adapter from @/lib/platform instead.",
 };
 
-// The commercial area (/commercial/) and the chat app are two products in
-// one codebase, and neither may reach into the other. See
+// The commercial area (the root of commercial.loopdn.com) and the chat app are
+// two products in one codebase, and neither may reach into the other. See
 // docs/commercial-dashboard.md. Shared building blocks - components/ui,
 // components/charts, lib/auth, lib/config, lib/rbac, lib/hooks - are open to
 // both.
 const COMMERCIAL_FILES = [
-  "src/app/commercial/**",
+  "src/app/(commercial)/**",
   "src/components/commercial/**",
   "src/lib/commercial/**",
 ];
 
 const KEEP_COMMERCIAL_OUT = {
   group: [
-    "@/app/commercial/**",
+    "@/app/(commercial)/**",
     "@/components/commercial/**",
     "@/lib/commercial/**",
   ],
@@ -40,7 +40,7 @@ const KEEP_COMMERCIAL_OUT = {
 };
 
 // What lives here assumes the chat shell (AppShellProvider, the chat socket,
-// the call layer), which /commercial/ never mounts - or it is the PERSON's
+// the call layer), which the commercial site never mounts - or it is the PERSON's
 // billing wallet, which must never be confused with a company's ad balance.
 // `authorizedRequest` is the one thing taken from lib/chat, and LoadFailed the
 // one thing taken from components/app.
@@ -82,12 +82,20 @@ const eslintConfig = defineConfig([
   // repeats the Tauri boundary alongside its own.
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/desktop/**", ...COMMERCIAL_FILES],
+    // src/app/page.tsx is `/` on both sites, so it is the one file outside the
+    // commercial area that renders it; it gets the Tauri boundary alone, below.
+    ignores: ["src/lib/desktop/**", "src/app/page.tsx", ...COMMERCIAL_FILES],
     rules: {
       "no-restricted-imports": [
         "error",
         { patterns: [TAURI_BOUNDARY, KEEP_COMMERCIAL_OUT] },
       ],
+    },
+  },
+  {
+    files: ["src/app/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", { patterns: [TAURI_BOUNDARY] }],
     },
   },
   {

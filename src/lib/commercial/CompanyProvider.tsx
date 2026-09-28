@@ -7,13 +7,11 @@
  * so every page needs to know which one it is about. That answer lives here,
  * once, instead of in a `?advertiser=` on every URL.
  *
- * Split in two on purpose:
- *
- *   useCompanyList()   fetches; the dashboard layout decides what loading,
- *                         failure and "you have none yet" look like.
- *   CompanyProvider    only ever mounted with a non-empty list, so every
- *                         page's useCompany() gets a real Company and
- *                         never has to handle null.
+ * The dashboard never waits for it. The provider loads the list in the
+ * background, and `company` is null until one is there - while loading, when
+ * the account has none yet, or when the list could not be fetched. Each page
+ * shows what it can without one, rather than the whole dashboard showing an
+ * error in its place.
  */
 
 import {
@@ -49,56 +47,18 @@ function writeSelected(id: number): void {
   }
 }
 
-export type CompanyListState =
-  | { status: "loading" }
-  | { status: "failed"; message: string }
-  | { status: "ready"; companies: Company[] };
-
 /**
- * The signed-in person's companies. Does nothing until `enabled`, so the
- * layout can hold the request until it knows the viewer has `ads.access`.
+ * loading      the list has not come back yet
+ * ready        it has; `companies` may be empty
+ * unavailable  it could not be fetched - not fatal, pages carry on without it
  */
-export function useCompanyList(enabled: boolean): {
-  state: CompanyListState;
-  reload: () => void;
-} {
-  const [state, setState] = useState<CompanyListState>({
-    status: "loading",
-  });
-  const [reloadToken, setReloadToken] = useState(0);
-
-  useEffect(() => {
-    if (!enabled) return;
-    let cancelled = false;
-
-    fetchCompanies().then((result) => {
-      if (cancelled) return;
-      setState(
-        result.ok
-          ? { status: "ready", companies: result.data }
-          : { status: "failed", message: result.message },
-      );
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, reloadToken]);
-
-  // Loading is set here, in the handler, not in the effect: the effect only
-  // ever sets state from a response.
-  const reload = useCallback(() => {
-    setState({ status: "loading" });
-    setReloadToken((token) => token + 1);
-  }, []);
-
-  return { state, reload };
-}
+export type CompaniesStatus = "loading" | "ready" | "unavailable";
 
 type CompanyContextValue = {
-  /** The company every page is currently about. */
-  company: Company;
+  /** The company every page is about, or null while there is none to show. */
+  company: Company | null;
   companies: Company[];
+  status: CompaniesStatus;
   select: (id: number) => void;
   /** Re-fetch, e.g. after a top-up changes the balance. */
   reload: () => void;
@@ -106,31 +66,50 @@ type CompanyContextValue = {
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
-export function CompanyProvider({
-  companies,
-  reload,
-  children,
-}: {
-  /** Never empty: the layout sends a person with none to /commercial/start/. */
-  companies: Company[];
-  reload: () => void;
-  children: ReactNode;
-}) {
-  // Safe to read storage in the initializer: this mounts after the list has
-  // been fetched in the browser, never during prerendering.
+export function CompanyProvider({ children }: { children: ReactNode }) {
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [status, setStatus] = useState<CompaniesStatus>("loading");
+  const [reloadToken, setReloadToken] = useState(0);
+  // Safe to read storage in the initializer: this only ever mounts in the
+  // browser, under a frame that renders nothing during prerendering.
   const [selectedId, setSelectedId] = useState<number | null>(readSelected);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchCompanies().then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setCompanies(result.data);
+        setStatus("ready");
+      } else {
+        setStatus("unavailable");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadToken]);
+
   const company =
-    companies.find((item) => item.id === selectedId) ?? companies[0];
+    companies.find((item) => item.id === selectedId) ?? companies[0] ?? null;
 
   const select = useCallback((id: number) => {
     setSelectedId(id);
     writeSelected(id);
   }, []);
 
+  // Loading is set here, in the handler, not in the effect: the effect only
+  // ever sets state from a response.
+  const reload = useCallback(() => {
+    setStatus("loading");
+    setReloadToken((token) => token + 1);
+  }, []);
+
   const value = useMemo(
-    () => ({ company, companies, select, reload }),
-    [company, companies, select, reload],
+    () => ({ company, companies, status, select, reload }),
+    [company, companies, status, select, reload],
   );
 
   return (
@@ -141,9 +120,7 @@ export function CompanyProvider({
 export function useCompany(): CompanyContextValue {
   const value = useContext(CompanyContext);
   if (!value) {
-    throw new Error(
-      "useCompany() must be used under app/commercial/(dashboard)/layout.tsx.",
-    );
+    throw new Error("useCompany() must be used under CommercialFrame.");
   }
   return value;
 }

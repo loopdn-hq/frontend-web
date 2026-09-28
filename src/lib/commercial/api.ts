@@ -1,6 +1,7 @@
 // The commercial area's calls to /api/v1/promote/.
 //
-// The pages are /commercial/ but the API is the backend's, and it is /promote/:
+// The pages are the commercial site's (/, /campaigns/, ...) but the API is the
+// backend's, and it is /promote/:
 // "promote", never "ads" or "advert", because ad blockers drop request paths
 // that contain either - which would break this dashboard for exactly the
 // people most likely to run one. Neither side may ever use those words in a

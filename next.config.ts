@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
   // it is never part of the exported build. Compile and runtime errors are
   // still surfaced.
   devIndicators: false,
+  // The commercial site is this same app served on a commercial.* host (see
+  // src/lib/config/site.ts). Next 16 refuses dev-server requests from any
+  // host but localhost unless it is listed here; dev-only either way.
+  allowedDevOrigins: ["commercial.localhost"],
 };
 
 export default nextConfig;

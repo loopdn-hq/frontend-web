@@ -17,11 +17,11 @@ import {
 import type { Campaign } from "@/lib/commercial/types";
 
 /**
- * /commercial/campaign/?id=12 - one campaign.
+ * /campaign/?id=12 - one campaign.
  *
- * A query string, not /commercial/campaigns/12/: this is a static export, and a
+ * A query string, not /campaigns/12/: this is a static export, and a
  * dynamic [id] segment would need every campaign id at build time. Singular
- * "campaign" so it cannot collide with the /commercial/campaigns/ list.
+ * "campaign" so it cannot collide with the /campaigns/ list.
  *
  * useSearchParams() must sit under Suspense or `next build` fails - the page
  * is prerendered with no query string at all.
@@ -41,10 +41,7 @@ function CampaignFromQuery() {
     return (
       <div className="p-6 text-sm text-slate-600 dark:text-slate-400">
         No campaign selected.{" "}
-        <Link
-          href="/commercial/campaigns/"
-          className="text-sky-600 hover:underline"
-        >
+        <Link href="/campaigns/" className="text-sky-600 hover:underline">
           See all campaigns
         </Link>
       </div>

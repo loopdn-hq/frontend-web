@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
 
+import { isCommercialSite } from "@/lib/config/site";
+
 export const emailSchema = z
   .string()
   .trim()
@@ -70,15 +72,30 @@ export const signupSchema = z
       .trim()
       .max(50, "Must be less than 51 characters.")
       .optional(),
-    // Email + phone are both required for signup.
+    // Email is always required. Phone is too, except on the commercial site:
+    // a commercial account has no chat, and a verified phone only matters to
+    // chat. Asked at validation time, in the browser, so one schema serves both
+    // sites. A number that IS given must still be a real one.
     phoneNumber: z
       .string()
       .trim()
-      .min(1, "Phone number is required.")
-      .refine(
-        (value) => e164Phone.test(normalizePhone(value)),
-        "Enter a valid phone number including country code.",
-      ),
+      .superRefine((value, ctx) => {
+        if (!value) {
+          if (!isCommercialSite()) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: "Phone number is required.",
+            });
+          }
+          return;
+        }
+        if (!e164Phone.test(normalizePhone(value))) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Enter a valid phone number including country code.",
+          });
+        }
+      }),
     smsConsent: z.boolean().optional(),
   })
   .refine((value) => value.password === value.confirmPassword, {

@@ -4,7 +4,7 @@ import { NotBuiltYet } from "@/components/commercial/NotBuiltYet";
 import { CommercialPageHeader } from "@/components/commercial/CommercialPageHeader";
 
 /**
- * /commercial/campaigns/new/ - the campaign builder.
+ * /campaigns/new/ - the campaign builder.
  *
  * The steps are §11's, in its order. When this is built, each step is its own
  * component under components/commercial/builder/, and this page only holds which

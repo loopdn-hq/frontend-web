@@ -4,11 +4,12 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 import { consumePostAuthRedirect, useAuth } from "@/lib/auth/client";
+import { homePath } from "@/lib/config/site";
 
 /**
  * On an auth page, send somebody who ARRIVED already signed in on to where
- * they were going: the page they asked for before being sent here, or
- * /chats/.
+ * they were going: the page they asked for before being sent here, or this
+ * site's home (/chats/, or /commercial/ on the commercial site).
  *
  * Once, on arrival, and never again. These pages sign people in themselves,
  * and when their own form does it, the form decides what comes next - the
@@ -28,7 +29,7 @@ export function useLeaveIfSignedIn(): void {
     decided.current = true;
 
     if (session) {
-      router.replace(consumePostAuthRedirect() ?? "/chats/");
+      router.replace(consumePostAuthRedirect() ?? homePath());
     }
   }, [router, isLoaded, session]);
 }
