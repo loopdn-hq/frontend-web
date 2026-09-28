@@ -30,8 +30,11 @@ export default function VerifyPhonePage() {
       return;
     }
 
+    // `phone` is fixed on arrival, so this never races the success path below.
+    // It is also the way out after an email code when no phone is waiting to
+    // be verified - verify-email sends everybody here.
     if (isLoaded && !phone) {
-      router.replace("/chats/");
+      router.replace(consumePostAuthRedirect() ?? "/chats/");
     }
   }, [router, isLoaded, session, phone]);
 

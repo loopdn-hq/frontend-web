@@ -16,6 +16,7 @@ import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import {
   authenticate,
   authenticateWithGoogle,
+  consumePostAuthRedirect,
   registerAccount,
   setPendingEmail,
   stashPendingCredentials,
@@ -83,7 +84,13 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         }
 
         // New Google accounts have no phone_number yet - collect one before home.
-        router.push(result.isNewAccount ? "/add-phone/" : "/chats/");
+        // The page they asked for stays remembered: /verify-phone/ goes there
+        // at the end of that chain.
+        router.push(
+          result.isNewAccount
+            ? "/add-phone/"
+            : (consumePostAuthRedirect() ?? "/chats/"),
+        );
       } catch {
         setGeneralError("Network error. Please try again.");
       } finally {
@@ -191,7 +198,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/chats/");
+      // Back to the page they asked for before being sent to sign in (say,
+      // one campaign in /commercial/), or chats.
+      router.push(consumePostAuthRedirect() ?? "/chats/");
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {

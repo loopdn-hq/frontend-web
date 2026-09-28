@@ -7,15 +7,14 @@ import {
   getPendingEmail,
   resendEmailVerificationCode,
   setPendingEmail,
-  useAuth,
   verifyEmailCode,
 } from "@/lib/auth/client";
+import { useLeaveIfSignedIn } from "@/lib/auth/useLeaveIfSignedIn";
 
 type SendState = "sending" | "sent" | "error";
 
 export default function VerifyEmailPage() {
   const router = useRouter();
-  const { session, isLoaded } = useAuth();
   const [email, setEmail] = useState<string | null>(() => getPendingEmail());
   const [emailInput, setEmailInput] = useState("");
   const [emailInputError, setEmailInputError] = useState("");
@@ -25,12 +24,10 @@ export default function VerifyEmailPage() {
   const [verifyError, setVerifyError] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
 
-  // Already signed in - nothing pending here.
-  useEffect(() => {
-    if (isLoaded && session) {
-      router.replace("/chats/");
-    }
-  }, [router, isLoaded, session]);
+  // Arrived already signed in - nothing pending here. Not on every change of
+  // session: a correct code signs the person in, and then handleVerify sends
+  // them on to /verify-phone/, which this must not race.
+  useLeaveIfSignedIn();
 
   // Auto-send the code as soon as we know which email to verify - covers both
   // the post-signup redirect and the "verify your email" login redirect.
