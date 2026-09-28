@@ -30,6 +30,8 @@ import {
   setRemoteDraftId,
   useEnterpriseDraft,
 } from "@/lib/enterprise/draft";
+import { publicOrigin } from "@/lib/config/origin";
+import { platform } from "@/lib/platform";
 
 const BUILDER_PATH = "/enterprise/builder/";
 
@@ -192,11 +194,13 @@ export default function EnterprisePlanBuilderPage() {
     setIsCheckingOut(true);
     try {
       const current = saveEnterpriseDraft(configuration, "draft");
-      // window.location.origin is what makes these correct per environment
-      // with no config needed - localhost in dev, the staging host on
-      // staging, the production host in production. Same convention as
-      // createPlanCheckoutSession() in lib/billing.ts.
-      const origin = window.location.origin;
+      // publicOrigin() keeps these correct per environment with no config
+      // needed - localhost in dev, the staging host on staging, production in
+      // production. Same convention as createPlanCheckoutSession() in
+      // lib/billing.ts. In the desktop build the page origin is
+      // tauri://localhost, which Stripe rejects, so that build is given the
+      // real web origin at build time instead.
+      const origin = publicOrigin();
       const successUrl = `${origin}/enterprise/checkout/success/`;
       const cancelUrl = `${origin}/enterprise/checkout/cancel/`;
       // Omit remoteDraftId entirely on the first submit - the backend 404s
@@ -231,9 +235,11 @@ export default function EnterprisePlanBuilderPage() {
   function handleProceedToCheckout() {
     if (!pendingCheckoutUrl) return;
     setIsRedirecting(true);
-    // External Stripe URL, not an in-app route - window.location is correct
-    // here rather than router.push().
-    window.location.assign(pendingCheckoutUrl);
+    // External Stripe URL, not an in-app route - so not router.push(). On
+    // the web this navigates the page; in the desktop build it hands off to
+    // the system browser, because the app window must not navigate away from
+    // the app.
+    void platform.openExternal(pendingCheckoutUrl);
   }
 
   const selectedInterval =

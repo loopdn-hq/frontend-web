@@ -10,9 +10,13 @@ import {
   Input,
   InternationalPhoneInput,
   Modal,
-  Textarea,
 } from "@/components/ui";
 import { normalizePhone } from "@/lib/validation/auth";
+import {
+  MemberSearchPicker,
+  type MemberPick,
+  type MemberSearchResult,
+} from "./MemberSearchPicker";
 
 // Required for Telnyx/carrier compliance: an admin must affirmatively confirm
 // consent for this specific number before an invite SMS goes out. Tied to the
@@ -22,12 +26,24 @@ import { normalizePhone } from "@/lib/validation/auth";
 const SMS_CONSENT_LABEL =
   "I confirm that I have permission from this person to add them to this group and that they have agreed to receive SMS messages related to this group.";
 
+/** Says what the button will do: add people, send invitations, or both. */
+function submitLabel(selected: MemberPick[]): string {
+  const invites = selected.filter((pick) => pick.kind === "email").length;
+  if (invites > 0 && invites === selected.length) {
+    return invites === 1 ? "Send invitation" : `Send ${invites} invitations`;
+  }
+  return selected.length > 1 ? `Add ${selected.length} members` : "Add member";
+}
+
 type AddMembersModalProps = {
   isOpen: boolean;
   groupName: string;
   currentMemberCount: number;
   onClose: () => void;
-  onAddMembers: (members: string[]) => Promise<void>;
+  /** Accounts by username, and addresses with no account to invite. */
+  onAddMembers: (members: string[], inviteEmails: string[]) => Promise<void>;
+  /** People who could be added, and what adding each would do. */
+  onSearchMembers: (term: string) => Promise<MemberSearchResult>;
   onInvitePhone: (invite: {
     phone_number: string;
     display_name?: string;
@@ -40,10 +56,11 @@ export function AddMembersModal({
   currentMemberCount,
   onClose,
   onAddMembers,
+  onSearchMembers,
   onInvitePhone,
 }: AddMembersModalProps) {
   const [tab, setTab] = useState<"app" | "phone">("app");
-  const [value, setValue] = useState("");
+  const [selected, setSelected] = useState<MemberPick[]>([]);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [smsConsent, setSmsConsent] = useState(false);
@@ -59,25 +76,25 @@ export function AddMembersModal({
 
   async function handleSubmitApp(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const members = Array.from(
-      new Set(
-        value
-          .split(/[\n,]+/)
-          .map((member) => member.trim())
-          .filter(Boolean),
-      ),
+    // By username: it is what the search found them by, and the one handle
+    // that cannot resolve to anybody else between the search and the add.
+    const members = selected.flatMap((pick) =>
+      pick.kind === "account" ? [pick.username] : [],
+    );
+    const inviteEmails = selected.flatMap((pick) =>
+      pick.kind === "email" ? [pick.email] : [],
     );
 
-    if (members.length === 0) {
-      setError("Enter at least one username, email, or phone number.");
+    if (members.length === 0 && inviteEmails.length === 0) {
+      setError("Search for at least one person to add.");
       return;
     }
 
     setIsSubmitting(true);
     setError("");
     try {
-      await onAddMembers(members);
-      setValue("");
+      await onAddMembers(members, inviteEmails);
+      setSelected([]);
       onClose();
     } catch (submissionError) {
       setError(
@@ -175,18 +192,20 @@ export function AddMembersModal({
           onSubmit={handleSubmitApp}
           className="mt-5 space-y-4"
         >
-          <Field
-            label="Usernames, emails, or phone numbers"
-            htmlFor="member-identifiers"
-            hint="Separate multiple people with commas or new lines."
-          >
-            <Textarea
-              id="member-identifiers"
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-              placeholder={"alex\n+14155552671"}
-              rows={5}
-              autoFocus
+          <Field label="Find people" htmlFor="member-search">
+            <MemberSearchPicker
+              inputId="member-search"
+              selected={selected}
+              onSelect={(person) => {
+                setError("");
+                setSelected((current) => [...current, person]);
+              }}
+              onRemove={(person) =>
+                setSelected((current) =>
+                  current.filter((other) => other.id !== person.id),
+                )
+              }
+              onSearch={onSearchMembers}
               disabled={isSubmitting}
             />
           </Field>
@@ -205,10 +224,10 @@ export function AddMembersModal({
             </Button>
             <Button
               type="submit"
-              disabled={isSubmitting || !value.trim()}
+              disabled={isSubmitting || selected.length === 0}
               fullWidth
             >
-              {isSubmitting ? "Adding..." : "Add members"}
+              {isSubmitting ? "Adding..." : submitLabel(selected)}
             </Button>
           </div>
         </form>

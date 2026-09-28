@@ -17,7 +17,8 @@ import type { LoginPayload, SignupPayload } from "@/lib/validation/auth";
 import { normalizePhone } from "@/lib/validation/auth";
 import { clearEnterpriseDraft } from "@/lib/enterprise/draft";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE_URL } from "@/lib/config/env";
+import { http as fetch } from "@/lib/config/http";
 
 // Client-side session, so every route can be prerendered to static HTML and
 // served from S3. The previous server-side flow (cookies() in a page, POST

@@ -27,6 +27,7 @@ import {
   type ContextMenuOrigin,
 } from "@/components/ui";
 import { LinkRow } from "@/components/settings/SettingsRows";
+import { MemberChannelConsent } from "./MemberChannelConsent";
 import { ChatAvatar } from "./ChatAvatar";
 import type { ConversationParticipant } from "@/lib/chat/conversations";
 
@@ -78,6 +79,7 @@ type LoopPanelMembersProps = {
   onUpdateMemberRole?: (memberId: string, role: MemberRole) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
+  onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
 };
 
 export function LoopPanelMembers({
@@ -92,6 +94,7 @@ export function LoopPanelMembers({
   onUpdateMemberRole,
   onRemoveMember,
   onBlockMember,
+  onNudgeMember,
 }: LoopPanelMembersProps) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
@@ -172,6 +175,22 @@ export function LoopPanelMembers({
         label: role === "member" ? "Make a member" : `Make ${role}`,
         onSelect: () =>
           void run(member.id, () => onUpdateMemberRole?.(member.id, role)),
+      });
+    }
+
+    // One entry per channel the server says a nudge can go out on. Anybody who
+    // answered, was never asked, or has nowhere to receive it is absent rather
+    // than disabled: offering a button that cannot work is worse than not
+    // offering it. Read from the server rather than from `status`, which
+    // offered a member added by phone a nudge about email.
+    for (const [channel, state] of Object.entries(member.channels)) {
+      if (!state.canNudge) continue;
+      items.push({
+        id: `nudge-${channel}`,
+        label: `Nudge about ${channel.toUpperCase()}`,
+        description: "Asks again. Once a day at most.",
+        onSelect: () =>
+          void run(member.id, () => onNudgeMember?.(member.id, channel)),
       });
     }
 
@@ -321,6 +340,7 @@ export function LoopPanelMembers({
                     {member.email || member.phone || "No contact info"} · Joined{" "}
                     {joinedLabel(member.joinedAt)}
                   </p>
+                  <MemberChannelConsent channels={member.channels} />
                 </div>
 
                 <RolePill role={member.role} />

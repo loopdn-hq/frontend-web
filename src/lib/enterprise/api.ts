@@ -16,7 +16,8 @@ import {
 // at a backend that hasn't shipped one of these yet degrades instead of
 // throwing.
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+import { API_BASE_URL } from "@/lib/config/env";
+import { http as fetch } from "@/lib/config/http";
 
 type ApiObject = Record<string, unknown>;
 
