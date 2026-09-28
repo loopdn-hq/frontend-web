@@ -63,6 +63,8 @@ type LoopAdminPanelProps = {
   onDeclineRequest?: (participantId: string) => Promise<void>;
   onSaveSettings?: (settings: Partial<GroupSettings>) => Promise<void>;
   onFetchJoinCode?: () => Promise<string>;
+  /** Buys the Loop its number. Absent for anybody who may not. */
+  onProvisionNumber?: () => Promise<void>;
   onAddMembers?: () => void;
   onUpdateMemberRole?: (memberId: string, newRole: MemberRole) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
@@ -91,6 +93,7 @@ export function LoopAdminPanel({
   onDeclineRequest,
   onSaveSettings,
   onFetchJoinCode,
+  onProvisionNumber,
   onAddMembers,
   onUpdateMemberRole,
   onBlockMember,
@@ -189,6 +192,7 @@ export function LoopAdminPanel({
                 canEdit={canEditSettings}
                 onFetchJoinCode={onFetchJoinCode}
                 smsNumber={smsNumber}
+                onProvisionNumber={onProvisionNumber}
               />
             ) : (
               <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">

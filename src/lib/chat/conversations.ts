@@ -1255,6 +1255,47 @@ export async function fetchConversation(
   }
 }
 
+/**
+ * Buy this Loop the phone number it was created without. Admins only.
+ *
+ * One Loop, one number: a Loop that already has one gets it back and nothing
+ * is bought. When none can be had the server says why - no provider, no
+ * country for the creator, SMS switched off, or none for sale right now - and
+ * that sentence is the message here, verbatim.
+ */
+export async function provisionGroupNumber(
+  conversationId: string | number,
+): Promise<
+  { ok: true; conversation: Conversation } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/number/`,
+      { method: "POST" },
+    );
+    const data = await response.json().catch(() => null);
+    const conversationData = getObjectData(data);
+    const normalized = conversationData
+      ? normalizeConversation(conversationData)
+      : null;
+    if (!response.ok || !normalized) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to get this Loop a number.",
+      };
+    }
+    return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
 export async function updateGroupSettings(
   conversationId: string | number,
   payload: {
