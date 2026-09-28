@@ -3,7 +3,7 @@
 /**
  * What each role may use, and changing it.
  *
- * Answers "what can an advertiser actually do?" without anybody reading the
+ * Answers "what can a commercial user actually do?" without anybody reading the
  * database, and lets an account admin change the answer.
  *
  * Reading and writing are separate features on the server -
