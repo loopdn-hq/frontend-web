@@ -53,6 +53,7 @@ import {
   nudgeConversationMember,
   removeConversationMember,
   respondToJoinRequest,
+  searchMemberCandidates,
   sendConversationMessage,
   setMessageReaction,
   setPinnedMessage,
@@ -2025,15 +2026,32 @@ export function HomeShell({ mode }: HomeShellProps) {
     setSelectedConversationId(opened.id);
   }
 
-  async function handleAddMembers(members: string[]) {
+  /** People who could be added to the open Loop, from what was typed. */
+  const handleSearchMembers = useCallback(
+    async (term: string) => {
+      if (!selectedConversationId) {
+        return { ok: false as const, message: "No Loop is open." };
+      }
+      return searchMemberCandidates(selectedConversationId, term);
+    },
+    [selectedConversationId],
+  );
+
+  async function handleAddMembers(
+    members: string[],
+    inviteEmails: string[] = [],
+  ) {
     if (!selectedConversationId) return;
+    // An invited address is a row in the group like anybody else, so it
+    // counts against the plan the same way.
+    const adding = members.length + inviteEmails.length;
     if (typeof maxMembersPerGroup === "number" && selectedConversation) {
       const projectedMembers =
-        selectedConversation.participants.length + members.length;
+        selectedConversation.participants.length + adding;
       if (projectedMembers > maxMembersPerGroup) {
         showUpgradeLimitPrompt(
           "Member limit reached",
-          `Adding ${members.length} member${members.length === 1 ? "" : "s"} exceeds your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to continue.`,
+          `Adding ${adding} member${adding === 1 ? "" : "s"} exceeds your ${activePlan?.name ?? "current"} plan limit of ${maxMembersPerGroup} members per group. Upgrade your plan to continue.`,
         );
         throw new Error(
           `This group is limited to ${maxMembersPerGroup} members on your current plan.`,
@@ -2044,6 +2062,7 @@ export function HomeShell({ mode }: HomeShellProps) {
     const result = await addConversationMembers(
       selectedConversationId,
       members,
+      inviteEmails,
     );
     if (!result.ok) throw new Error(result.message);
     await refreshConversations();
@@ -4455,6 +4474,7 @@ export function HomeShell({ mode }: HomeShellProps) {
           currentMemberCount={selectedConversation.participants.length}
           onClose={() => setIsAddMembersOpen(false)}
           onAddMembers={handleAddMembers}
+          onSearchMembers={handleSearchMembers}
           onInvitePhone={handleInvitePhone}
         />
       )}

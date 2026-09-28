@@ -1297,9 +1297,14 @@ export async function updateGroupSettings(
   }
 }
 
+/**
+ * Add accounts, and invite addresses that have none, in one all-or-nothing
+ * request. `inviteEmails` get an invitation to reply YES or sign up.
+ */
 export async function addConversationMembers(
   conversationId: string | number,
   members: string[],
+  inviteEmails: string[] = [],
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const response = await authorizedRequest(
@@ -1307,7 +1312,7 @@ export async function addConversationMembers(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members }),
+        body: JSON.stringify({ members, invite_email: inviteEmails }),
       },
     );
     const data = await response.json().catch(() => null);
@@ -1587,6 +1592,120 @@ export async function updateMemberRole(
           : "Network error. Please try again.",
     };
   }
+}
+
+/**
+ * Somebody who turned up in the add-members search, and what adding them
+ * would do - so the list can say "already here" or "doesn't accept group
+ * adds" before anybody is picked, rather than the add failing afterwards.
+ */
+export type MemberCandidate = {
+  id: string;
+  username: string;
+  name: string;
+  avatarUrl?: string;
+  status: "ready" | "already_member" | "refused";
+  /** Why they cannot be added, in the server's words. Empty when ready. */
+  detail: string;
+};
+
+/**
+ * A whole address that found nobody, offered as an email invitation. Its
+ * status reads like a person's: already invited, blocked here, or ready.
+ */
+export type EmailInvite = {
+  email: string;
+  status: MemberCandidate["status"];
+  detail: string;
+};
+
+const CANDIDATE_STATUSES = ["ready", "already_member", "refused"];
+
+/**
+ * People an admin could add to this Loop, found by what they typed.
+ *
+ * The server's rules, not a gap here: a username matches by prefix, an email
+ * or a number only in full - a prefix over addresses would let anybody walk
+ * the directory a letter at a time. At most a handful come back; `hasMore`
+ * says there were more, so the answer is to keep typing.
+ */
+export async function searchMemberCandidates(
+  conversationId: string | number,
+  term: string,
+): Promise<
+  | {
+      ok: true;
+      candidates: MemberCandidate[];
+      hasMore: boolean;
+      invite: EmailInvite | null;
+    }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/members/search/?q=${encodeURIComponent(term.trim())}`,
+    );
+    const data = await response.json().catch(() => null);
+    const payload = getObjectData(data);
+    const rows =
+      payload && Array.isArray(payload.results) ? payload.results : null;
+    if (!response.ok || !payload || !rows) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Search failed.",
+      };
+    }
+    return {
+      ok: true,
+      candidates: rows
+        .filter(isApiObject)
+        .map(normalizeCandidate)
+        .filter((row): row is MemberCandidate => row !== null),
+      hasMore: payload.has_more === true,
+      invite: normalizeInvite(payload.invite),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+function normalizeInvite(raw: unknown): EmailInvite | null {
+  if (!isApiObject(raw)) return null;
+  const email = asText(raw.email);
+  if (!email) return null;
+  const status = asText(raw.status);
+  return {
+    email,
+    status: CANDIDATE_STATUSES.includes(status)
+      ? (status as EmailInvite["status"])
+      : "refused",
+    detail: asText(raw.detail),
+  };
+}
+
+function normalizeCandidate(raw: ApiObject): MemberCandidate | null {
+  const user = isApiObject(raw.user) ? raw.user : null;
+  const username = user ? asText(user.username) : "";
+  if (!user || !username) return null;
+  const profile = isApiObject(user.profile) ? user.profile : null;
+  const status = asText(raw.status);
+  return {
+    id: String(user.id),
+    username,
+    name: (profile && asText(profile.display_label)) || username,
+    avatarUrl: (profile && asText(profile.avatar_url)) || undefined,
+    // An answer this client does not know is not a yes.
+    status: CANDIDATE_STATUSES.includes(status)
+      ? (status as MemberCandidate["status"])
+      : "refused",
+    detail: asText(raw.detail),
+  };
 }
 
 /**
