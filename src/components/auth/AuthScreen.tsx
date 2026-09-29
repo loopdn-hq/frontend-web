@@ -16,10 +16,16 @@ import { GoogleLogin, type CredentialResponse } from "@react-oauth/google";
 import {
   authenticate,
   authenticateWithGoogle,
+  consumePostAuthRedirect,
   registerAccount,
   setPendingEmail,
   stashPendingCredentials,
 } from "@/lib/auth/client";
+import {
+  homePath,
+  isCommercialSite,
+  useIsCommercialSite,
+} from "@/lib/config/site";
 import {
   loginSchema,
   signupSchema,
@@ -60,6 +66,7 @@ const panelSubTitle: Record<AuthMode, string> = {
 
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
+  const commercialSite = useIsCommercialSite();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
 
   const [generalError, setGeneralError] = useState<string>("");
@@ -82,8 +89,15 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
           return;
         }
 
-        // New Google accounts have no phone_number yet - collect one before home.
-        router.push(result.isNewAccount ? "/add-phone/" : "/chats/");
+        // New Google accounts have no phone_number yet - collect one before home,
+        // except on the commercial site, where a phone is optional. The page
+        // they asked for stays remembered: /verify-phone/ goes there at the end
+        // of that chain.
+        router.push(
+          result.isNewAccount && !isCommercialSite()
+            ? "/add-phone/"
+            : (consumePostAuthRedirect() ?? homePath()),
+        );
       } catch {
         setGeneralError("Network error. Please try again.");
       } finally {
@@ -191,7 +205,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         return;
       }
 
-      router.push("/chats/");
+      // Back to the page they asked for before being sent to sign in (say,
+      // one campaign in /commercial/), or this site's home.
+      router.push(consumePostAuthRedirect() ?? homePath());
     } catch {
       setGeneralError("Network error. Please try again.");
     } finally {
@@ -315,14 +331,18 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             </div>
 
             <h2 className="text-[30px] leading-none font-medium tracking-[-0.03em] text-[#05205A]">
-              {panelTitle[authMode]}
+              {commercialSite && authMode === "signup"
+                ? "Create your commercial account"
+                : panelTitle[authMode]}
             </h2>
             <p
               className={`text-[15px] leading-[150%] font-normal text-[#05205A] ${
                 isSignup ? "mt-2" : "mt-3"
               }`}
             >
-              {panelSubTitle[authMode]}
+              {commercialSite && authMode === "signup"
+                ? "Create an account with your email. A phone number is optional."
+                : panelSubTitle[authMode]}
             </p>
 
             {/* 23px, per Frame 22's gap between the Welcome block and the
@@ -492,6 +512,7 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
                   <label className="block">
                     <span className="mb-[14px] block text-[16px] leading-[150%] font-normal text-[#05205A]">
                       Phone Number
+                      {commercialSite && " (optional)"}
                     </span>
                     <Controller
                       control={control}

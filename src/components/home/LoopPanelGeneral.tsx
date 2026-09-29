@@ -15,6 +15,7 @@ import {
   Copy,
   CornerUpLeft,
   Info,
+  Loader2,
   MessageSquare,
   Mic,
   Phone,
@@ -115,6 +116,12 @@ type LoopPanelGeneralProps = {
    * that way.
    */
   smsNumber?: GroupNumber | null;
+  /**
+   * Buys this Loop its number, for one created without. Passed only to
+   * somebody who may (`group.number.provision`), so its absence is what hides
+   * the button.
+   */
+  onProvisionNumber?: () => Promise<void>;
 };
 
 export function LoopPanelGeneral({
@@ -123,6 +130,7 @@ export function LoopPanelGeneral({
   canEdit = true,
   onFetchJoinCode,
   smsNumber = null,
+  onProvisionNumber,
 }: LoopPanelGeneralProps) {
   const { shown, isBusy, change, error } = useOptimisticChanges(
     settings,
@@ -149,7 +157,7 @@ export function LoopPanelGeneral({
         title="Group number"
         description="Text this number to post in this Loop."
       >
-        <GroupNumberRow number={smsNumber} />
+        <GroupNumberRow number={smsNumber} onProvision={onProvisionNumber} />
       </PanelSection>
 
       <PanelSection
@@ -325,17 +333,20 @@ function JoinCode({ onFetch }: { onFetch: () => Promise<string> }) {
  * moved would be a group nobody could reach.
  *
  * Null is a real state. A group whose provisioning failed has no number at
- * all, and saying so plainly beats an empty box that looks broken.
+ * all, and saying so plainly beats an empty box that looks broken - with the
+ * way to fix it beside it, for whoever may.
  */
-function GroupNumberRow({ number }: { number: GroupNumber | null }) {
+function GroupNumberRow({
+  number,
+  onProvision,
+}: {
+  number: GroupNumber | null;
+  onProvision?: () => Promise<void>;
+}) {
   const { copy, copied, error } = useCopyToClipboard();
 
   if (!number) {
-    return (
-      <p className="rounded-xl border border-dashed border-slate-200 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        This Loop has no number yet, so it cannot be reached by text.
-      </p>
-    );
+    return <NoNumberRow onProvision={onProvision} />;
   }
 
   return (
@@ -374,6 +385,84 @@ function GroupNumberRow({ number }: { number: GroupNumber | null }) {
           </>
         )}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * A Loop with no number, and - for an admin - the button that buys it one.
+ *
+ * ONE NUMBER PER LOOP, and the copy says so before it is pressed: the number
+ * cannot be swapped later, so this is not a button to try twice for a nicer
+ * one. The server holds the line too - pressing it on a Loop that has a number
+ * just returns that number.
+ *
+ * It takes a few seconds (a search, an order and its confirmation at the
+ * provider), so the button says it is working rather than looking dead. When
+ * nothing can be bought, the server's sentence is shown as it came: it says
+ * what would fix it - verify a phone, turn SMS on, try again later.
+ */
+function NoNumberRow({ onProvision }: { onProvision?: () => Promise<void> }) {
+  const [isBusy, setIsBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function provision() {
+    if (!onProvision) return;
+    setIsBusy(true);
+    setError(null);
+    try {
+      await onProvision();
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not get a number. Try again.",
+      );
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-xl border border-dashed border-slate-200 px-4 py-3 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
+      <div className="min-w-0">
+        <p className="text-sm text-slate-600 dark:text-slate-300">
+          This Loop has no number yet, so it cannot be reached by text.
+        </p>
+        {onProvision && (
+          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+            Each Loop gets one number, and it stays the same for good.
+          </p>
+        )}
+        {error && (
+          <p
+            role="alert"
+            className="mt-1 text-xs text-rose-600 dark:text-rose-400"
+          >
+            {error}
+          </p>
+        )}
+      </div>
+      {onProvision && (
+        <Button
+          size="sm"
+          className="shrink-0"
+          onClick={() => void provision()}
+          disabled={isBusy}
+          aria-busy={isBusy || undefined}
+        >
+          {isBusy ? (
+            <>
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Phone className="mr-1.5 h-4 w-4" /> Generate number
+            </>
+          )}
+        </Button>
+      )}
     </div>
   );
 }

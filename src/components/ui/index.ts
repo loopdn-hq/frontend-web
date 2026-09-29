@@ -17,3 +17,9 @@ export { Skeleton, SkeletonRegion } from "./skeleton";
 export { Switch } from "./switch";
 export { Tabs, type TabsItem } from "./tabs";
 export { Textarea } from "./textarea";
+export {
+  ToastProvider,
+  useToast,
+  type ToastInput,
+  type ToastTone,
+} from "./toaster";

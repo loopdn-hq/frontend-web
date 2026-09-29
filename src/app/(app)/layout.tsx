@@ -8,6 +8,9 @@ import { CallLayer } from "@/components/calls/CallLayer";
 import { AppShellProvider } from "@/lib/app/AppShellProvider";
 import { CallProvider } from "@/lib/calls/CallProvider";
 import { fetchCurrentUser, useAuth } from "@/lib/auth/client";
+import { isDesktop } from "@/lib/config/origin";
+import { commercialSiteUrl } from "@/lib/config/site";
+import { useFeatures } from "@/lib/rbac";
 
 /**
  * Frame shared by every signed-in route: the auth guard, the shell state that
@@ -16,6 +19,23 @@ import { fetchCurrentUser, useAuth } from "@/lib/auth/client";
 export default function AppLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { session, isLoaded } = useAuth();
+  const { features, loading: featuresLoading } = useFeatures();
+
+  // A commercial account has no chat: it holds `ads.access` and not
+  // `chat.access`, so everything here would be empty or refused. Send it to its
+  // own site instead. Signing in is per site (tokens live in this origin's
+  // storage), so it signs in once more there. Not in the desktop app, which is
+  // chat only and has no commercial site to go to.
+  const commercialOnly =
+    !featuresLoading &&
+    features.has("ads.access") &&
+    !features.has("chat.access");
+
+  useEffect(() => {
+    if (commercialOnly && !isDesktop()) {
+      window.location.replace(commercialSiteUrl("/"));
+    }
+  }, [commercialOnly]);
 
   useEffect(() => {
     if (isLoaded && !session) {

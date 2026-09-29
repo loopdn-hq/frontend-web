@@ -18,6 +18,7 @@ import { normalizePhone } from "@/lib/validation/auth";
 import { clearEnterpriseDraft } from "@/lib/enterprise/draft";
 
 import { API_BASE_URL } from "@/lib/config/env";
+import { isCommercialSite } from "@/lib/config/site";
 import { http as fetch } from "@/lib/config/http";
 
 // Client-side session, so every route can be prerendered to static HTML and
@@ -508,7 +509,11 @@ export async function authenticateWithGoogle(
     const response = await fetch(`${API_BASE_URL}/users/google/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ credential }),
+      // Same as registerAccount: only used if this sign-in creates the account.
+      body: JSON.stringify({
+        credential,
+        ...(isCommercialSite() ? { account_type: "commercial" } : {}),
+      }),
     });
 
     const data: unknown = await response.json().catch(() => null);
@@ -569,6 +574,9 @@ export async function registerAccount(
         last_name: payload.lastName,
         display_name: payload.displayName?.trim() || payload.firstName,
         phone_number: normalizedPhone,
+        // A signup on the commercial site makes a commercial account: the
+        // ads area and no chat. The server applies it at creation only.
+        ...(isCommercialSite() ? { account_type: "commercial" } : {}),
       }),
     });
 
@@ -583,7 +591,13 @@ export async function registerAccount(
       };
     }
 
-    setPendingPhone(normalizedPhone);
+    // Only a number that was given is waiting to be verified. A commercial
+    // signup may leave it out, and verify-email then skips /verify-phone/.
+    if (normalizedPhone) {
+      setPendingPhone(normalizedPhone);
+    } else {
+      clearPendingPhone();
+    }
     setPendingEmail(payload.email);
     stashPendingCredentials(payload.username, payload.password);
 

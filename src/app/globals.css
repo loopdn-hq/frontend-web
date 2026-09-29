@@ -75,6 +75,23 @@
   --text-2xs: 0.6875rem;
 }
 
+/* A toast sliding in from the right (components/ui/toaster.tsx). Used as
+   motion-safe:animate-toast-in, so reduced motion gets no slide. */
+@theme {
+  --animate-toast-in: toast-in 200ms ease-out;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateX(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}
+
 /* Settings → Appearance → Text size. Tailwind's text-* utilities read these
    variables (font-size: var(--text-sm)), so scaling them resizes text
    everywhere without stretching the layout around it. Sizes still written

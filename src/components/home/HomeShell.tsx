@@ -51,6 +51,7 @@ import {
   normalizeMessagePayload,
   normalizeParticipant,
   nudgeConversationMember,
+  provisionGroupNumber,
   removeConversationMember,
   respondToJoinRequest,
   searchMemberCandidates,
@@ -4393,6 +4394,18 @@ export function HomeShell({ mode }: HomeShellProps) {
             if (!result.ok) throw new Error(result.message);
             return result.code;
           }}
+          onProvisionNumber={
+            allows(selectedConversation, GROUP.provisionNumber)
+              ? async () => {
+                  if (!selectedConversationId) return;
+                  const result = await provisionGroupNumber(
+                    selectedConversationId,
+                  );
+                  if (!result.ok) throw new Error(result.message);
+                  applyConversationUpdate(result.conversation);
+                }
+              : undefined
+          }
           onUpdateMemberRole={async (memberId, role) => {
             if (!selectedConversationId) return;
             if (
