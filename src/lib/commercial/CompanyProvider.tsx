@@ -1,17 +1,18 @@
 "use client";
 
 /**
- * Which company the dashboard is showing.
+ * Which company the dashboard is working in - the active company - and the
+ * others the person can switch to.
  *
- * One person can own several companies (two shops, an agency with clients),
- * so every page needs to know which one it is about. That answer lives here,
- * once, instead of in a `?company=` on every URL.
+ * The server remembers the choice per person (GET/PUT active-company/), so it
+ * follows them to another browser, and it is context only: every page still
+ * names its company in its own requests, and the server checks each one. The
+ * browser keeps no copy of its own to trust.
  *
- * The dashboard never waits for it. The provider loads the list in the
- * background, and `company` is null until one is there - while loading, when
- * the account has none yet, or when the list could not be fetched. Each page
- * shows what it can without one, rather than the whole dashboard showing an
- * error in its place.
+ * The dashboard never waits for it, and never requires one. `company` is null
+ * while loading, when the person has no company yet (allowed - pages offer
+ * "Create company"), or when it could not be fetched, and each page shows what
+ * it can without one.
  */
 
 import {
@@ -23,82 +24,92 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { fetchCompanies } from "./api";
+import {
+  fetchActiveCompany,
+  fetchCompanyPage,
+  switchActiveCompany,
+} from "./api";
 import type { Company } from "./types";
 
-// localStorage, not the URL: which company you last looked at is a
-// preference of this browser, not part of any page's address.
-const SELECTED_KEY = "loopdn_commercial_company";
-
-function readSelected(): number | null {
-  try {
-    const value = Number(window.localStorage.getItem(SELECTED_KEY));
-    return Number.isInteger(value) && value > 0 ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeSelected(id: number): void {
-  try {
-    window.localStorage.setItem(SELECTED_KEY, String(id));
-  } catch {
-    // Private mode or storage full: the choice lasts this visit only.
-  }
-}
-
 /**
- * loading      the list has not come back yet
- * ready        it has; `companies` may be empty
+ * loading      the answer has not come back yet
+ * ready        it has; `company` is null only when they have none
  * unavailable  it could not be fetched - not fatal, pages carry on without it
  */
 export type CompaniesStatus = "loading" | "ready" | "unavailable";
 
 type CompanyContextValue = {
-  /** The company every page is about, or null while there is none to show. */
+  /** The active company, or null while there is none to show. */
   company: Company | null;
+  /** Every company the person manages, the active one included. */
+  /**
+   * The first page of the person's companies (ten, by name), plus the active
+   * one - enough for the dropdown. The Companies dialog pages through the rest.
+   */
   companies: Company[];
+  /** How many companies they have in all. */
+  companyCount: number;
   status: CompaniesStatus;
-  select: (id: number) => void;
+  /** Which company a switch is waiting on, so the switcher can say so. */
+  switchingTo: number | null;
+  /** Make another of their companies the active one. The company, or null if the switch failed. */
+  switchTo: (id: number) => Promise<Company | null>;
+  /**
+   * Take a company just created, which the server has already made the
+   * active one. For an edit, use `update`.
+   */
+  adopt: (company: Company) => void;
+  /**
+   * Take an edited company the server just returned. Unlike `adopt`, it does
+   * not make it the active one: any of the person's companies can be edited.
+   */
+  update: (company: Company) => void;
   /** Re-fetch, e.g. after a top-up changes the balance. */
   reload: () => void;
 };
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
 
+function withCompany(companies: Company[], company: Company): Company[] {
+  return companies.some((item) => item.id === company.id)
+    ? companies.map((item) => (item.id === company.id ? company : item))
+    : [...companies, company];
+}
+
 export function CompanyProvider({ children }: { children: ReactNode }) {
+  const [company, setCompany] = useState<Company | null>(null);
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [companyCount, setCompanyCount] = useState(0);
   const [status, setStatus] = useState<CompaniesStatus>("loading");
+  const [switchingTo, setSwitchingTo] = useState<number | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  // Safe to read storage in the initializer: this only ever mounts in the
-  // browser, under a frame that renders nothing during prerendering.
-  const [selectedId, setSelectedId] = useState<number | null>(readSelected);
 
   useEffect(() => {
     let cancelled = false;
 
-    fetchCompanies().then((result) => {
-      if (cancelled) return;
-      if (result.ok) {
-        setCompanies(result.data);
-        setStatus("ready");
-      } else {
-        setStatus("unavailable");
-      }
-    });
+    // Both at once: the active company decides what every page shows, the
+    // list only fills the switcher.
+    Promise.all([fetchActiveCompany(), fetchCompanyPage()]).then(
+      ([active, list]) => {
+        if (cancelled) return;
+        if (active.ok && list.ok) {
+          setCompany(active.data);
+          const firstPage = list.data.companies;
+          setCompanies(
+            active.data ? withCompany(firstPage, active.data) : firstPage,
+          );
+          setCompanyCount(list.data.count);
+          setStatus("ready");
+        } else {
+          setStatus("unavailable");
+        }
+      },
+    );
 
     return () => {
       cancelled = true;
     };
   }, [reloadToken]);
-
-  const company =
-    companies.find((item) => item.id === selectedId) ?? companies[0] ?? null;
-
-  const select = useCallback((id: number) => {
-    setSelectedId(id);
-    writeSelected(id);
-  }, []);
 
   // Loading is set here, in the handler, not in the effect: the effect only
   // ever sets state from a response.
@@ -107,9 +118,61 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     setReloadToken((token) => token + 1);
   }, []);
 
+  const switchTo = useCallback(
+    async (id: number) => {
+      setSwitchingTo(id);
+      const result = await switchActiveCompany(id);
+      setSwitchingTo(null);
+
+      if (result.ok) {
+        setCompany(result.data);
+        setCompanies((current) => withCompany(current, result.data));
+        return result.data;
+      }
+      // Most likely it is no longer theirs. Start again from what the server
+      // says they have, rather than guess.
+      reload();
+      return null;
+    },
+    [reload],
+  );
+
+  const adopt = useCallback((next: Company) => {
+    setCompany(next);
+    setCompanies((current) => withCompany(current, next));
+    // Only ever given a company just created, so there is one more in all.
+    setCompanyCount((count) => count + 1);
+    setStatus("ready");
+  }, []);
+
+  const update = useCallback((next: Company) => {
+    setCompanies((current) => withCompany(current, next));
+    setCompany((current) => (current?.id === next.id ? next : current));
+  }, []);
+
   const value = useMemo(
-    () => ({ company, companies, status, select, reload }),
-    [company, companies, status, select, reload],
+    () => ({
+      company,
+      companies,
+      companyCount,
+      status,
+      switchingTo,
+      switchTo,
+      adopt,
+      update,
+      reload,
+    }),
+    [
+      company,
+      companies,
+      companyCount,
+      status,
+      switchingTo,
+      switchTo,
+      adopt,
+      update,
+      reload,
+    ],
   );
 
   return (

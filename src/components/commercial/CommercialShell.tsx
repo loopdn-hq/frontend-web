@@ -30,8 +30,8 @@ import {
   type ContextMenuItem,
   type ContextMenuOrigin,
 } from "@/components/ui";
+import { CompanySwitcher } from "@/components/commercial/CompanySwitcher";
 import { logout, useAuth } from "@/lib/auth/client";
-import { useCompany } from "@/lib/commercial/CompanyProvider";
 
 type NavItem = {
   href: string;
@@ -52,6 +52,10 @@ type NavSection = { heading?: string; items: NavItem[] };
 // No "Audiences" section: §11 of the product plan allows targeting only on
 // aggregate facts about groups, chosen inside each campaign, and §13 forbids
 // giving advertisers member lists - which is what "audiences" means elsewhere.
+//
+// No "Company" item either: companies are managed from the company dropdown in
+// the top bar (CompanySwitcher) - "View all companies" opens the Companies
+// dialog, where any of them can be edited or switched to.
 const NAV_SECTIONS: NavSection[] = [
   {
     items: [
@@ -103,12 +107,6 @@ const NAV_SECTIONS: NavSection[] = [
         matches: (path) => path.startsWith("/balance"),
       },
       {
-        href: "/company/",
-        label: "Company",
-        icon: Building2,
-        matches: (path) => path.startsWith("/company"),
-      },
-      {
         href: "/account/",
         label: "Settings",
         icon: Settings,
@@ -144,14 +142,10 @@ function writeCollapsed(collapsed: boolean): void {
 const NavDrawerContext = createContext<(() => void) | null>(null);
 
 /**
- * Opens the sidebar as a drawer below md, where it is hidden. Each page puts
- * this in its own header, as the chat app does with NavDrawerButton.
+ * Opens the sidebar as a drawer below md, where it is hidden. In the blue bar,
+ * as the chat app does with NavDrawerButton.
  */
-export function CommercialDrawerButton({
-  className = "",
-}: {
-  className?: string;
-}) {
+function CommercialDrawerButton({ className = "" }: { className?: string }) {
   const openDrawer = useContext(NavDrawerContext);
   if (!openDrawer) return null;
 
@@ -301,18 +295,25 @@ export function CommercialShell({ children }: { children: ReactNode }) {
           <AccountRow collapsed={collapsed} onNavigate={closeDrawer} />
         </nav>
 
-        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
-          {children}
-        </main>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {/* The dashboard's bar, not a page's: the company every page is
+              about, and the drawer button on small screens. Each page's own
+              title sits under it (CommercialPageHeader). */}
+          <header className="flex h-[68px] shrink-0 items-center gap-2 bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 sm:px-6">
+            <CommercialDrawerButton className="-ml-2 text-white hover:bg-white/20" />
+            <CompanySwitcher />
+          </header>
+          <main className="min-h-0 flex-1 overflow-y-auto">{children}</main>
+        </div>
       </div>
     </NavDrawerContext.Provider>
   );
 }
 
 /**
- * The foot of the sidebar: who is signed in, and for which company. The whole
- * row opens the account menu - as in the chat rail, there is no separate
- * log-out icon to mis-hit.
+ * The foot of the sidebar: who is signed in. The company is at the top, in the
+ * switcher. The whole row opens the account menu - as in the chat rail, there
+ * is no separate log-out icon to mis-hit.
  */
 function AccountRow({
   collapsed,
@@ -323,7 +324,6 @@ function AccountRow({
 }) {
   const router = useRouter();
   const { session } = useAuth();
-  const { company } = useCompany();
   const [menu, setMenu] = useState<ContextMenuOrigin | null>(null);
 
   const name = session ?? "";
@@ -340,7 +340,7 @@ function AccountRow({
     {
       id: "company",
       label: "Company",
-      description: "Profile, companies and team",
+      description: "Details of the company you're working in",
       icon: <Building2 className="h-4 w-4" />,
       onSelect: () => {
         onNavigate();
@@ -402,7 +402,7 @@ function AccountRow({
               {name}
             </span>
             <span className="block truncate text-xs text-slate-400">
-              {company?.name ?? "Commercial account"}
+              Commercial account
             </span>
           </span>
         )}

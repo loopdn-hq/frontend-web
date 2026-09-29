@@ -8,7 +8,6 @@ import type { CompanyStatus, CampaignStatus } from "@/lib/commercial/types";
 type Tone = "neutral" | "success" | "warning";
 
 const COMPANY_TONE: Record<CompanyStatus, Tone> = {
-  pending: "warning",
   active: "success",
   suspended: "warning",
 };

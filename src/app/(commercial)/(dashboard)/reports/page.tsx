@@ -15,11 +15,11 @@ import { CommercialPageHeader } from "@/components/commercial/CommercialPageHead
 export default function CommercialReportsPage() {
   return (
     <>
-      <CommercialPageHeader
-        title="Analytics"
-        description="How your campaigns are performing"
-      />
       <div className="mx-auto w-full max-w-6xl space-y-4 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="Analytics"
+          description="How your campaigns are performing"
+        />
         <CompanyNotice />
         <NotBuiltYet
           title="Performance over time"

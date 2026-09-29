@@ -7,7 +7,7 @@
  * called "Business" (billing.Plan) is a different thing: that is a `plan`, and
  * nothing about it lives in this folder.
  *
- * Mirrors backend/ads/models/ - camelCase here, snake_case on the wire, and
+ * Mirrors backend/commercial/models/ - camelCase here, snake_case on the wire, and
  * api.ts is the only place that converts between the two. The string unions
  * are the backend's TextChoices values exactly, so a new status on the server
  * is a compile error in format.ts rather than a blank badge.
@@ -19,19 +19,65 @@
  * gone wrong.
  */
 
-/** A company that buys ads - not the person signed in to buy them. */
-export type CompanyStatus = "pending" | "active" | "suspended";
+/**
+ * Active from the moment it is created: Loopd'n reviews campaigns, not
+ * companies. Staff can suspend one.
+ */
+export type CompanyStatus = "active" | "suspended";
 
+/** A company that buys ads - not the person signed in to buy them. */
 export type Company = {
   id: number;
   /** What a sponsored message is labelled with: "Sponsored · Joe's Pizza". */
   name: string;
-  website: string;
+  /** An `Industry` slug. */
+  industry: string;
+  industryLabel: string;
+  /** ISO 3166-1 alpha-2: "PH", "US". */
+  country: string;
+  /** ISO 4217: "PHP", "USD". Every amount for this company is in it. */
+  currency: string;
+  /** True once money has moved, after which the currency cannot change. */
+  currencyLocked: boolean;
   contactEmail: string;
+  /** Optional details, filled in after setup. Phone is E.164: "+639171234567". */
+  contactPhone: string;
+  website: string;
+  address: string;
+  /** The company in its own words, up to 500 characters. */
+  description: string;
+  logoUrl: string | null;
   status: CompanyStatus;
   /** Prepaid ad balance. NOT the user's billing wallet, which is SMS credit. */
   balanceCents: number;
   createdAt: string | null;
+};
+
+/** What a company does - "Food and drink". The company form's first list. */
+export type Industry = { slug: string; label: string };
+
+/** Where a company can advertise, and what it can pay in (backend markets.py). */
+export type Markets = {
+  countries: { code: string; name: string; defaultCurrency: string }[];
+  currencies: { code: string; name: string }[];
+};
+
+/**
+ * What "Set up your company" and the Company page send. `logo` is a new file
+ * to upload, `null` to remove the current one, or absent to leave it alone.
+ */
+export type CompanyInput = {
+  name: string;
+  industry: string;
+  country: string;
+  currency: string;
+  contactEmail: string;
+  website: string;
+  /** Edited on the company's details, not asked for when creating one. */
+  contactPhone?: string;
+  address?: string;
+  description?: string;
+  logo?: File | null;
 };
 
 export type CampaignObjective =
@@ -59,6 +105,12 @@ export type Campaign = {
   createdAt: string | null;
 };
 
-/** What every lib/commercial call resolves to. Never throws. */
+/**
+ * What every lib/commercial call resolves to. Never throws.
+ *
+ * `fieldErrors` is the server's per-field message, keyed by the API's field
+ * name (`contact_email`), when it refused a form.
+ */
 export type CompanyResult<T> =
-  { ok: true; data: T } | { ok: false; message: string };
+  | { ok: true; data: T }
+  | { ok: false; message: string; fieldErrors?: Record<string, string> };

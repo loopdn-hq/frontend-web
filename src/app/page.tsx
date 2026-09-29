@@ -1,5 +1,6 @@
 "use client";
 
+import { CommercialDashboard } from "@/components/commercial/CommercialDashboard";
 import { CommercialFrame } from "@/components/commercial/CommercialFrame";
 import { CommercialOverview } from "@/components/commercial/CommercialOverview";
 import { MarketingHome } from "@/components/site/MarketingHome";
@@ -24,7 +25,9 @@ export default function RootPage() {
   if (commercialSite) {
     return (
       <CommercialFrame>
-        <CommercialOverview />
+        <CommercialDashboard>
+          <CommercialOverview />
+        </CommercialDashboard>
       </CommercialFrame>
     );
   }

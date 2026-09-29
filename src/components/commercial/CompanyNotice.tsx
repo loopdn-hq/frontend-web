@@ -1,13 +1,12 @@
 "use client";
 
-import Link from "next/link";
-
+import { useCreateCompany } from "@/components/commercial/CompanyDialogs";
 import { Alert } from "@/components/ui";
 import { useCompany } from "@/lib/commercial/CompanyProvider";
 
 /**
  * What a page says in place of company data it does not have. Nothing while
- * the list is loading or once a company is there.
+ * the company is loading or once there is one.
  *
  * Two different situations, worded differently on purpose: an account with no
  * company yet has something to do, while a list that failed to load does not
@@ -15,6 +14,7 @@ import { useCompany } from "@/lib/commercial/CompanyProvider";
  */
 export function CompanyNotice() {
   const { company, status, reload } = useCompany();
+  const openCreateCompany = useCreateCompany();
 
   if (company || status === "loading") return null;
 
@@ -33,16 +33,19 @@ export function CompanyNotice() {
     );
   }
 
+  // Having no company is allowed: the dashboard works without one, and this is
+  // how each page that needs one says so.
   return (
     <Alert variant="info">
-      Set up your company to start advertising: its name is what your ads are
-      labelled with.{" "}
-      <Link
-        href="/company/"
+      Set up your company - create a company to start advertising on
+      Loopd&apos;n.{" "}
+      <button
+        type="button"
+        onClick={openCreateCompany}
         className="font-semibold underline underline-offset-2"
       >
-        Set up your company
-      </Link>
+        Create company
+      </button>
     </Alert>
   );
 }

@@ -15,11 +15,11 @@ import { CommercialPageHeader } from "@/components/commercial/CommercialPageHead
 export default function CommercialLeadsPage() {
   return (
     <>
-      <CommercialPageHeader
-        title="Leads"
-        description="People who contacted you through your campaigns"
-      />
       <div className="mx-auto w-full max-w-6xl space-y-4 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="Leads"
+          description="People who contacted you through your campaigns"
+        />
         <CompanyNotice />
         <NotBuiltYet
           title="Calls and texts"

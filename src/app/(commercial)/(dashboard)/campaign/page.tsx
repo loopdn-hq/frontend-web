@@ -9,6 +9,7 @@ import { CommercialPageHeader } from "@/components/commercial/CommercialPageHead
 import { CampaignStatusBadge } from "@/components/commercial/StatusBadge";
 import { Skeleton, SkeletonRegion } from "@/components/ui";
 import { fetchCampaign } from "@/lib/commercial/api";
+import { useCompany } from "@/lib/commercial/CompanyProvider";
 import {
   CAMPAIGN_OBJECTIVE_LABEL,
   formatCents,
@@ -53,6 +54,7 @@ function CampaignFromQuery() {
 }
 
 function CampaignDetail({ campaignId }: { campaignId: number }) {
+  const { companies } = useCompany();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -90,26 +92,30 @@ function CampaignDetail({ campaignId }: { campaignId: number }) {
 
   if (!campaign) return <CampaignSkeleton />;
 
+  // In the currency of the company that owns it, which need not be the one
+  // the sidebar has open: a link can lead to any of the person's campaigns.
+  const currency = companies.find(
+    (company) => company.id === campaign.companyId,
+  )?.currency;
+  const money = (cents: number) =>
+    currency ? formatCents(cents, currency) : "—";
+
   return (
     <>
-      <CommercialPageHeader
-        title={campaign.name}
-        description={CAMPAIGN_OBJECTIVE_LABEL[campaign.objective]}
-        actions={<CampaignStatusBadge status={campaign.status} />}
-      />
-
       <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+        <CommercialPageHeader
+          title={campaign.name}
+          description={CAMPAIGN_OBJECTIVE_LABEL[campaign.objective]}
+          actions={<CampaignStatusBadge status={campaign.status} />}
+        />
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Fact
-            label="Total budget"
-            value={formatCents(campaign.totalBudgetCents)}
-          />
+          <Fact label="Total budget" value={money(campaign.totalBudgetCents)} />
           <Fact
             label="Daily cap"
             value={
               campaign.dailyBudgetCents === null
                 ? "No cap"
-                : formatCents(campaign.dailyBudgetCents)
+                : money(campaign.dailyBudgetCents)
             }
           />
           <Fact label="Starts" value={formatDate(campaign.startsAt)} />

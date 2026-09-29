@@ -21,15 +21,15 @@ export default function CommercialBalancePage() {
 
   return (
     <>
-      <CommercialPageHeader
-        title="Billing"
-        description={
-          company
-            ? `Ad balance: ${formatCents(company.balanceCents)}`
-            : "Your ad balance and payments"
-        }
-      />
       <div className="mx-auto w-full max-w-4xl space-y-4 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="Billing"
+          description={
+            company
+              ? `Ad balance: ${formatCents(company.balanceCents, company.currency)}`
+              : "Your ad balance and payments"
+          }
+        />
         <CompanyNotice />
         <NotBuiltYet
           title="Add funds"

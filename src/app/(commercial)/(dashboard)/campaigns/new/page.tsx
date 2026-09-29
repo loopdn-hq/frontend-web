@@ -1,5 +1,6 @@
 "use client";
 
+import { CompanyNotice } from "@/components/commercial/CompanyNotice";
 import { NotBuiltYet } from "@/components/commercial/NotBuiltYet";
 import { CommercialPageHeader } from "@/components/commercial/CommercialPageHeader";
 
@@ -13,11 +14,13 @@ import { CommercialPageHeader } from "@/components/commercial/CommercialPageHead
 export default function CommercialNewCampaignPage() {
   return (
     <>
-      <CommercialPageHeader
-        title="New campaign"
-        description="Build it now; it runs once it passes review."
-      />
       <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="New campaign"
+          description="Build it now; it runs once it passes review."
+        />
+        {/* A campaign belongs to a company: without one, say so first. */}
+        <CompanyNotice />
         <NotBuiltYet
           title="Campaign builder"
           endpoint="POST /commercial/campaigns/"

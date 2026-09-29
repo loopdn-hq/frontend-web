@@ -24,24 +24,34 @@ export default function CommercialCampaignsPage() {
 
   return (
     <>
-      <CommercialPageHeader title="Campaigns" actions={<NewCampaignLink />} />
-      <div className="mx-auto w-full max-w-6xl p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+        <CommercialPageHeader title="Campaigns" actions={<NewCampaignLink />} />
         {/* Keyed by company: switching company starts from a clean
             loading state instead of flashing the previous one's campaigns. */}
         {company ? (
-          <CampaignList key={company.id} companyId={company.id} />
+          <CampaignList
+            key={company.id}
+            companyId={company.id}
+            companyName={company.name}
+            currency={company.currency}
+          />
         ) : (
-          <div className="space-y-4">
-            <CompanyNotice />
-            <NoCampaigns />
-          </div>
+          <CompanyNotice />
         )}
       </div>
     </>
   );
 }
 
-function CampaignList({ companyId }: { companyId: number }) {
+function CampaignList({
+  companyId,
+  companyName,
+  currency,
+}: {
+  companyId: number;
+  companyName: string;
+  currency: string;
+}) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -93,7 +103,7 @@ function CampaignList({ companyId }: { companyId: number }) {
     );
   }
 
-  if (campaigns.length === 0) return <NoCampaigns />;
+  if (campaigns.length === 0) return <NoCampaigns companyName={companyName} />;
 
   return (
     <ul className="divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-800 dark:border-slate-800 dark:bg-slate-900">
@@ -111,7 +121,7 @@ function CampaignList({ companyId }: { companyId: number }) {
               {CAMPAIGN_OBJECTIVE_LABEL[campaign.objective]}
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">
-              {formatCents(campaign.totalBudgetCents)} budget
+              {formatCents(campaign.totalBudgetCents, currency)} budget
             </span>
             <span className="text-xs text-slate-500 dark:text-slate-400">
               {formatDate(campaign.startsAt)}
@@ -123,19 +133,17 @@ function CampaignList({ companyId }: { companyId: number }) {
   );
 }
 
-function NoCampaigns() {
+/** Names the company, so nobody wonders whether they are looking at the right one. */
+function NoCampaigns({ companyName }: { companyName: string }) {
   return (
     <div className="flex flex-col items-center py-16 text-center">
       <Megaphone className="h-8 w-8 text-slate-300 dark:text-slate-600" />
       <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-        No campaigns yet
+        No campaigns for {companyName} yet
       </p>
-      <Link
-        href="/campaigns/new/"
-        className="mt-2 text-sm font-medium text-sky-600 hover:underline"
-      >
-        Create your first campaign
-      </Link>
+      <div className="mt-4">
+        <NewCampaignLink />
+      </div>
     </div>
   );
 }

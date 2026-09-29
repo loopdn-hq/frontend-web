@@ -19,24 +19,17 @@ export function CommercialOverview() {
 
   return (
     <>
-      <CommercialPageHeader
-        title="Overview"
-        description={
-          company
-            ? `How ${company.name} is doing`
-            : "Your advertising at a glance"
-        }
-        actions={<NewCampaignLink />}
-      />
-
       <div className="mx-auto w-full max-w-6xl space-y-6 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="Overview"
+          description={
+            company
+              ? `How ${company.name} is doing`
+              : "Your advertising at a glance"
+          }
+          actions={<NewCampaignLink />}
+        />
         <CompanyNotice />
-        {company?.status === "pending" && (
-          <Alert variant="info">
-            Loopd&apos;n is reviewing your company. You can build campaigns now;
-            none will run until the review is done.
-          </Alert>
-        )}
         {company?.status === "suspended" && (
           <Alert variant="error">
             This company is suspended, so none of its campaigns are running.
@@ -47,7 +40,11 @@ export function CommercialOverview() {
         <section className="grid gap-3 sm:grid-cols-3">
           <StatCard
             label="Ad balance"
-            value={company ? formatCents(company.balanceCents) : "—"}
+            value={
+              company
+                ? formatCents(company.balanceCents, company.currency)
+                : "—"
+            }
           />
           <StatCard
             label="Company status"

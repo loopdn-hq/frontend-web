@@ -4,10 +4,10 @@
 // either, which would break this dashboard for exactly the people most likely
 // to run one. That is why a company is /companies/, never /advertisers/.
 //
-// THE BACKEND ROUTES DO NOT EXIST YET (commercial/viewsets/ is empty). The paths
-// below are the contract proposed in docs/commercial-dashboard.md. Every call
-// resolves to { ok: false } on a 404 or a network error rather than throwing,
-// so the dashboard shows LoadFailed until the API ships instead of a blank page.
+// Companies, the active company, industries and markets are live (slice 0 of
+// backend/docs/campaigns_final_plan.md). The campaign routes are not built
+// yet; their calls resolve to { ok: false } on the 404, like every call here on
+// any failure, so a page shows LoadFailed rather than a blank screen.
 //
 // `authorizedRequest` lives in lib/chat for historical reasons; it is the
 // app's one authenticated fetch (bearer token, refresh on 401) and is the only
@@ -16,12 +16,15 @@
 import { authorizedRequest } from "@/lib/chat/conversations";
 import type {
   Company,
+  CompanyInput,
   CompanyStatus,
   Campaign,
   CampaignObjective,
   CampaignPacing,
   CampaignStatus,
   CompanyResult,
+  Industry,
+  Markets,
 } from "./types";
 
 type ApiObject = Record<string, unknown>;
@@ -58,6 +61,20 @@ function rowsOf(data: unknown): unknown[] {
 }
 
 /**
+ * A refused form's errors, one sentence per field: DRF sends
+ * `{ "contact_email": ["Enter a valid email address."] }` under `data`.
+ */
+function fieldErrorsOf(data: unknown): Record<string, string> | undefined {
+  if (!isObject(data)) return undefined;
+  const errors: Record<string, string> = {};
+  for (const [field, value] of Object.entries(data)) {
+    const first = Array.isArray(value) ? value[0] : value;
+    if (typeof first === "string") errors[field] = first;
+  }
+  return Object.keys(errors).length > 0 ? errors : undefined;
+}
+
+/**
  * One request, unwrapped from the {code, message, data} envelope.
  *
  * The server's `message` is shown as-is on failure: EnvelopeJSONRenderer
@@ -74,7 +91,13 @@ async function request(
 
     if (!response.ok || !isObject(payload)) {
       const message = isObject(payload) ? asText(payload.message) : "";
-      return { ok: false, message: message || fallback };
+      return {
+        ok: false,
+        message: message || fallback,
+        fieldErrors: isObject(payload)
+          ? fieldErrorsOf(payload.data)
+          : undefined,
+      };
     }
 
     return { ok: true, data: payload.data };
@@ -100,11 +123,43 @@ function normalizeCompany(row: unknown): Company | null {
   return {
     id: row.id,
     name: asText(row.name),
-    website: asText(row.website),
+    industry: asText(row.industry),
+    industryLabel: asText(row.industry_label),
+    country: asText(row.country),
+    currency: asText(row.currency, "USD"),
+    currencyLocked: row.currency_locked === true,
     contactEmail: asText(row.contact_email),
-    status: asText(row.status, "pending") as CompanyStatus,
+    contactPhone: asText(row.contact_phone),
+    website: asText(row.website),
+    address: asText(row.address),
+    description: asText(row.description),
+    logoUrl: asNullableText(row.logo_url),
+    status: asText(row.status, "active") as CompanyStatus,
     balanceCents: asNumber(row.balance_cents),
     createdAt: asNullableText(row.created_at),
+  };
+}
+
+function normalizeIndustry(row: unknown): Industry | null {
+  if (!isObject(row) || typeof row.slug !== "string") return null;
+  return { slug: row.slug, label: asText(row.label, row.slug) };
+}
+
+function normalizeMarkets(data: unknown): Markets {
+  const countries =
+    isObject(data) && Array.isArray(data.countries) ? data.countries : [];
+  const currencies =
+    isObject(data) && Array.isArray(data.currencies) ? data.currencies : [];
+  return {
+    countries: countries.filter(isObject).map((row) => ({
+      code: asText(row.code),
+      name: asText(row.name, asText(row.code)),
+      defaultCurrency: asText(row.default_currency),
+    })),
+    currencies: currencies.filter(isObject).map((row) => ({
+      code: asText(row.code),
+      name: asText(row.name, asText(row.code)),
+    })),
   };
 }
 
@@ -131,42 +186,173 @@ function isPresent<T>(value: T | null): value is T {
 
 // ---- Companies ------------------------------------------------------
 
-/** Every company the signed-in person owns. Usually one. */
-export async function fetchCompanies(): Promise<CompanyResult<Company[]>> {
+/** One page of the person's companies, by name. */
+export type CompanyPage = {
+  companies: Company[];
+  /** How many there are in all - matching the search, if there is one. */
+  count: number;
+  hasMore: boolean;
+};
+
+/**
+ * The companies the signed-in person manages, ten a page, by name. `search`
+ * narrows by name. The Companies dialog scrolls through the pages; the
+ * dropdown only needs the first.
+ */
+export async function fetchCompanyPage({
+  search = "",
+  page = 1,
+}: { search?: string; page?: number } = {}): Promise<
+  CompanyResult<CompanyPage>
+> {
+  const query = new URLSearchParams({ page: String(page) });
+  if (search.trim()) query.set("search", search.trim());
+
   const result = await request(
-    "/companies/",
+    `/companies/?${query}`,
     {},
-    "Couldn't load your company.",
+    "Couldn't load your companies.",
   );
   if (!result.ok) return result;
+
+  const companies = rowsOf(result.data).map(normalizeCompany).filter(isPresent);
+  const data = isObject(result.data) ? result.data : {};
   return {
     ok: true,
-    data: rowsOf(result.data).map(normalizeCompany).filter(isPresent),
+    data: {
+      companies,
+      count: asNumber(data.count, companies.length),
+      hasMore: typeof data.next === "string" && data.next !== "",
+    },
   };
 }
 
-export async function createCompany(input: {
-  name: string;
-  website: string;
-  contactEmail: string;
-}): Promise<CompanyResult<Company>> {
-  const result = await request(
-    "/companies/",
-    {
-      method: "POST",
-      ...jsonBody({
-        name: input.name,
-        website: input.website,
-        contact_email: input.contactEmail,
-      }),
-    },
-    "Couldn't create your company.",
-  );
+/**
+ * The fields as the API names them. Multipart when there is a logo to
+ * upload, because a file cannot travel in JSON; JSON otherwise, which is also
+ * the only way to send `logo: null` and remove one.
+ */
+function companyBody(input: Partial<CompanyInput>): RequestInit {
+  const fields: ApiObject = {};
+  if (input.name !== undefined) fields.name = input.name;
+  if (input.industry !== undefined) fields.industry = input.industry;
+  if (input.country !== undefined) fields.country = input.country;
+  if (input.currency !== undefined) fields.currency = input.currency;
+  if (input.contactEmail !== undefined) {
+    fields.contact_email = input.contactEmail;
+  }
+  if (input.website !== undefined) fields.website = input.website;
+  if (input.contactPhone !== undefined) {
+    fields.contact_phone = input.contactPhone;
+  }
+  if (input.address !== undefined) fields.address = input.address;
+  if (input.description !== undefined) fields.description = input.description;
+
+  if (input.logo instanceof File) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, String(value));
+    }
+    form.append("logo", input.logo);
+    return { body: form };
+  }
+
+  if (input.logo === null) fields.logo = null;
+  return jsonBody(fields);
+}
+
+function companyFrom(result: CompanyResult<unknown>): CompanyResult<Company> {
   if (!result.ok) return result;
   const company = normalizeCompany(result.data);
   return company
     ? { ok: true, data: company }
     : { ok: false, message: "Unexpected response from the server." };
+}
+
+/**
+ * "Set up your company". The server makes the caller its owner and makes it
+ * their active company, so there is nothing to switch to afterwards.
+ */
+export async function createCompany(
+  input: CompanyInput,
+): Promise<CompanyResult<Company>> {
+  return companyFrom(
+    await request(
+      "/companies/",
+      { method: "POST", ...companyBody(input) },
+      "Couldn't create your company.",
+    ),
+  );
+}
+
+/** Only the fields given are sent. */
+export async function updateCompany(
+  companyId: number,
+  input: Partial<CompanyInput>,
+): Promise<CompanyResult<Company>> {
+  return companyFrom(
+    await request(
+      `/companies/${companyId}/`,
+      { method: "PATCH", ...companyBody(input) },
+      "Couldn't save your company.",
+    ),
+  );
+}
+
+/**
+ * The company the dashboard opens on, as the server remembers it for this
+ * person - or null when they have none yet, and should set one up.
+ */
+export async function fetchActiveCompany(): Promise<
+  CompanyResult<Company | null>
+> {
+  const result = await request(
+    "/active-company/",
+    {},
+    "Couldn't load your company.",
+  );
+  if (!result.ok) return result;
+  if (result.data === null) return { ok: true, data: null };
+  return companyFrom(result);
+}
+
+/**
+ * Switch to another of their companies. The server checks it is theirs: a
+ * company they cannot manage is a 404, and nothing is stored.
+ */
+export async function switchActiveCompany(
+  companyId: number,
+): Promise<CompanyResult<Company>> {
+  return companyFrom(
+    await request(
+      "/active-company/",
+      { method: "PUT", ...jsonBody({ company: companyId }) },
+      "Couldn't switch company.",
+    ),
+  );
+}
+
+export async function fetchIndustries(): Promise<CompanyResult<Industry[]>> {
+  const result = await request(
+    "/industries/",
+    {},
+    "Couldn't load the list of industries.",
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: rowsOf(result.data).map(normalizeIndustry).filter(isPresent),
+  };
+}
+
+export async function fetchMarkets(): Promise<CompanyResult<Markets>> {
+  const result = await request(
+    "/markets/",
+    {},
+    "Couldn't load the list of countries.",
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: normalizeMarkets(result.data) };
 }
 
 // ---- Campaigns --------------------------------------------------------

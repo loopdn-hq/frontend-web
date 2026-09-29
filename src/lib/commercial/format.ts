@@ -4,9 +4,10 @@ import type { CompanyStatus, CampaignObjective, CampaignStatus } from "./types";
  * Money, from cents. Integer cents on the wire, like billing.Wallet, so the
  * only place a decimal ever appears is here.
  *
- * USD until the backend says otherwise: Company has no currency field yet.
+ * The currency is the company's and is required: every amount belongs to one
+ * company, and a default would print pesos as dollars without a word.
  */
-export function formatCents(cents: number, currency = "USD"): string {
+export function formatCents(cents: number, currency: string): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
     cents / 100,
   );
@@ -27,7 +28,6 @@ export function formatDate(value: string | null): string {
 // here until somebody writes its label.
 
 export const COMPANY_STATUS_LABEL: Record<CompanyStatus, string> = {
-  pending: "Pending review",
   active: "Active",
   suspended: "Suspended",
 };

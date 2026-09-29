@@ -14,11 +14,11 @@ export default function CommercialAccountPage() {
 
   return (
     <>
-      <CommercialPageHeader
-        title="Settings"
-        description="Your sign-in details and notifications"
-      />
       <div className="mx-auto w-full max-w-3xl space-y-4 p-4 sm:p-6">
+        <CommercialPageHeader
+          title="Settings"
+          description="Your sign-in details and notifications"
+        />
         <NotBuiltYet title="Sign-in">
           Your email, username ({session}) and password.
         </NotBuiltYet>

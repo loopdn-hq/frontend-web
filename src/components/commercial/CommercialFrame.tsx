@@ -4,8 +4,12 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
-import { CommercialShell } from "@/components/commercial/CommercialShell";
-import { Button, Skeleton, SkeletonRegion } from "@/components/ui";
+import {
+  Button,
+  Skeleton,
+  SkeletonRegion,
+  ToastProvider,
+} from "@/components/ui";
 import { logout, setPostAuthRedirect, useAuth } from "@/lib/auth/client";
 import { CompanyProvider } from "@/lib/commercial/CompanyProvider";
 import { chatSiteUrl, useIsCommercialSite } from "@/lib/config/site";
@@ -16,13 +20,14 @@ import { meets, useFeatures } from "@/lib/rbac";
 const ADS_ACCESS = { account: "ads.access" };
 
 /**
- * Everything around a dashboard page, on the commercial site.
+ * Everything around a commercial page, on the commercial site.
  *
  *   not the commercial site   -> nothing (CommercialSiteRedirect moves them)
  *   not signed in             -> /login/, and back to this page afterwards
  *   no `ads.access`           -> a notice: this is not a commercial account
- *   otherwise                 -> the dashboard, straight away
+ *   otherwise                 -> the page, straight away
  *
+ * No sidebar here: CommercialDashboard adds it.
  * Nothing waits on the company. CompanyProvider loads it in the background and
  * each page shows what it can without one, so a slow or missing API never
  * replaces the whole dashboard with an error.
@@ -49,9 +54,9 @@ export function CommercialFrame({ children }: { children: ReactNode }) {
   }
 
   return (
-    <CompanyProvider>
-      <CommercialShell>{children}</CommercialShell>
-    </CompanyProvider>
+    <ToastProvider>
+      <CompanyProvider>{children}</CompanyProvider>
+    </ToastProvider>
   );
 }
 
@@ -114,7 +119,7 @@ function DashboardSkeleton() {
         <Skeleton className="h-9 w-full bg-slate-800" />
       </div>
       <div className="flex-1 space-y-4">
-        <div className="h-[60px] bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)]" />
+        <div className="h-[68px] bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)]" />
         <div className="space-y-4 px-6">
           <Skeleton className="h-6 w-48" />
           <div className="grid gap-3 sm:grid-cols-3">
