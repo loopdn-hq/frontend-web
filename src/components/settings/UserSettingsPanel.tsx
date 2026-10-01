@@ -7,6 +7,7 @@ import {
   CreditCard,
   KeyRound,
   Lock,
+  MessageCircle,
   MessageSquare,
   Palette,
   User,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
 import { AccountSection } from "./AccountSection";
+import { WhatsAppSettingsSection } from "@/components/whatsapp/WhatsAppSettingsSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { MessagingSection } from "./MessagingSection";
 import {
@@ -58,6 +60,7 @@ export type SettingsTab =
   | "profile"
   | "security"
   | "appearance"
+  | "whatsapp"
   | "messaging"
   | "notifications"
   | "privacy"
@@ -76,6 +79,9 @@ const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
   { value: "security", label: "Security", icon: KeyRound },
   { value: "appearance", label: "Appearance", icon: Palette },
   { value: "messaging", label: "Messaging", icon: MessageSquare },
+  // One of the two places WhatsApp can be connected. The tab hides itself
+  // when the deployment has no WhatsApp - see WhatsAppSettingsSection.
+  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "privacy", label: "Privacy", icon: Lock },
   { value: "billing", label: "Billing", icon: CreditCard },
@@ -279,6 +285,7 @@ export function UserSettingsPanel({
           )}
           {activeTab === "security" && <SecuritySection profile={profile} />}
           {activeTab === "appearance" && <AppearanceSection />}
+          {activeTab === "whatsapp" && <WhatsAppSettingsSection />}
           {activeTab === "messaging" && (
             <MessagingSection
               preferences={messagingPreferences}
