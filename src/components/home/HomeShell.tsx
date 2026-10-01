@@ -4205,13 +4205,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           title={billingLimitModal.title}
           description="Your current plan limit has been reached."
           closeLabel="Close upgrade prompt"
+          maxWidthClassName="max-w-5xl"
           footer={
-            <div className="flex gap-3">
+            <div className="flex justify-end">
               <Button
                 type="button"
                 variant="secondary"
                 onClick={closeUpgradePrompt}
-                fullWidth
               >
                 Not now
               </Button>
@@ -4226,9 +4226,11 @@ export function HomeShell({ mode }: HomeShellProps) {
               {upgradeCheckoutError}
             </p>
           )}
-          <div className="mt-4 space-y-3 max-h-80 overflow-y-auto">
+          {/* Side by side so the plans can be compared at a glance; auto-fit
+              drops to fewer columns, then one, as the screen narrows. */}
+          <div className="mt-4 grid max-h-[60vh] grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-3 overflow-y-auto">
             {modalPlans.length === 0 && (
-              <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+              <p className="col-span-full rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                 Plans are loading. You can still view all options on the pricing
                 page.
               </p>
@@ -4247,28 +4249,34 @@ export function HomeShell({ mode }: HomeShellProps) {
                 return (
                   <article
                     key={`upgrade-plan-${plan.code}`}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+                    className="flex flex-col rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-                          {plan.name}
-                        </p>
-                        <p className="text-xs text-slate-600 dark:text-slate-400">
-                          {plan.price}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                          {plan.summary}
-                        </p>
-                      </div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                      {plan.name}
+                    </p>
+                    <p className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">
+                      {plan.price}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      {plan.summary}
+                    </p>
+                    {/* flex-1 pushes the action to the bottom, so the
+                        buttons line up across cards of different lengths. */}
+                    <ul className="mt-3 flex-1 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
+                      {plan.features.map((feature) => (
+                        <li key={`${plan.code}-${feature}`}>{feature}</li>
+                      ))}
+                    </ul>
+                    <div className="mt-4">
                       {isCurrentPlan ? (
-                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                        <span className="flex min-h-9 items-center justify-center rounded-lg bg-emerald-100 px-3 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
                           Current plan
                         </span>
                       ) : isEnterprisePlan ? (
                         <Button
                           type="button"
                           size="sm"
+                          fullWidth
                           onClick={() =>
                             void handleUpgradePlanSelection(plan.code)
                           }
@@ -4280,6 +4288,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                         <Button
                           type="button"
                           size="sm"
+                          fullWidth
                           onClick={() =>
                             void handleUpgradePlanSelection(plan.code)
                           }
@@ -4290,16 +4299,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                             : "Choose"}
                         </Button>
                       ) : (
-                        <span className="rounded-full bg-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                        <span className="flex min-h-9 items-center justify-center rounded-lg bg-slate-200 px-3 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
                           Included
                         </span>
                       )}
                     </div>
-                    <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-600 dark:text-slate-400">
-                      {plan.features.map((feature) => (
-                        <li key={`${plan.code}-${feature}`}>{feature}</li>
-                      ))}
-                    </ul>
                   </article>
                 );
               })(),
