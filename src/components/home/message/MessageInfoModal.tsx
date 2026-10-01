@@ -36,6 +36,7 @@ const sourceLabel: Record<string, string> = {
   app: "Sent from the app",
   sms: "Arrived by SMS",
   email: "Arrived by email",
+  whatsapp: "Arrived by WhatsApp",
   system: "System message",
 };
 
