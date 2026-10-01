@@ -27,9 +27,7 @@ export function LinkPreviewCard({
       target="_blank"
       rel="noreferrer noopener"
       className={`mt-2 block overflow-hidden rounded-xl border transition hover:opacity-90 ${
-        mine
-          ? "border-sky-200 bg-white/70 dark:border-sky-800 dark:bg-slate-900/40"
-          : "border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800"
+        mine ? "border-on-bubble-out/30 bg-canvas" : "border-line bg-canvas"
       }`}
     >
       {preview.imageUrl && !pictureFailed && (
@@ -44,16 +42,16 @@ export function LinkPreviewCard({
         />
       )}
       <span className="block px-3 py-2">
-        <span className="block truncate text-2xs tracking-wide text-slate-500 uppercase dark:text-slate-400">
+        <span className="block truncate text-2xs tracking-wide text-ink-muted uppercase">
           {preview.siteName || hostOf(preview.url)}
         </span>
         {preview.title && (
-          <span className="mt-0.5 line-clamp-2 block text-sm font-semibold text-slate-900 dark:text-slate-100">
+          <span className="mt-0.5 line-clamp-2 block text-sm font-semibold text-ink">
             {preview.title}
           </span>
         )}
         {preview.description && (
-          <span className="mt-0.5 line-clamp-2 block text-xs text-slate-600 dark:text-slate-300">
+          <span className="mt-0.5 line-clamp-2 block text-xs text-ink-muted">
             {preview.description}
           </span>
         )}

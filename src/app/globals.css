@@ -13,19 +13,105 @@
 :root {
   --background: #e8f5ff;
   --foreground: #0f172a;
-  --panel: #ffffff;
-  --brand: #00a6ff;
-  --brand-dark: #0b4d9a;
-  --accent: #2de2a9;
 }
 
 .dark {
   --background: #0b1220;
   --foreground: #e2e8f0;
-  --panel: #131b2c;
-  --brand: #00a6ff;
-  --brand-dark: #58bfff;
-  --accent: #2de2a9;
+}
+
+/* Colour themes: a palette (blue today) times a mode (light, dark).
+ *
+ * Components never name a hex or a `dark:` pair. They name a ROLE -
+ * bg-panel, text-ink-muted, border-line, bg-brand text-on-brand - and the
+ * role's value comes from whichever palette and mode are on <html>:
+ * `data-palette` (PALETTES in lib/app/appearanceOptions, saved with the other
+ * Appearance choices) and the `.dark` class (ThemeProvider). Switching either
+ * repaints everything built on roles, with no component knowing.
+ *
+ * Adding a palette is two blocks below - its light roles and its dark roles,
+ * the same fourteen names - and one line in PALETTES. Nothing else changes.
+ * Settings → UI primitives → Colours shows every palette in the current mode,
+ * with the contrast of the pairs that carry text.
+ *
+ * Roles:
+ *   canvas       the message area, the page under everything
+ *   rail         the nav rail
+ *   panel        the chat list, chat header, composer, incoming bubbles
+ *   field        search and text fields
+ *   tint         selected and active: the open chat, the current rail item
+ *   line         borders and dividers
+ *   line-soft    quieter outlines, such as an unselected filter chip
+ *   ink          primary text
+ *   ink-muted    secondary text and icons: previews, times
+ *   ink-faint    inactive icons, unselected chip labels
+ *   placeholder  placeholder text
+ *   brand        solid accent: outgoing bubbles, send, unread badges
+ *   on-brand     text and icons on brand
+ *   brand-ink    accent-coloured text on a surface: sender names, the logo
+ *
+ * A palette can also live on any element (data-palette="..." on a div) and
+ * holds for that subtree in the current mode - how a picker previews itself.
+ */
+
+/* Roles derived from the ones above, written once so every palette and mode
+ * gets them for free. On [data-palette] as well as :root so a subtree that
+ * sets a palette derives from its own colours, not the page's. Before the
+ * palettes, so a palette may still override any of them. */
+:root,
+[data-palette] {
+  /* Toward ink: darker in light mode, lighter in dark - right both ways. */
+  --brand-hover: color-mix(in oklab, var(--brand), var(--ink) 15%);
+  --hover: color-mix(in oklab, var(--tint) 60%, transparent);
+  --focus: color-mix(in oklab, var(--brand) 45%, transparent);
+  --bubble-in: var(--panel);
+  --on-bubble-in: var(--ink);
+  --bubble-out: var(--brand);
+  --on-bubble-out: var(--on-brand);
+}
+
+/* Blue - the default, and the chat design's own palette.
+ *
+ * Light is the design's values exactly. Several of them are below WCAG
+ * contrast (on-brand on brand 2.3:1, brand-ink on panel 2.2:1, ink-faint 2.1:1,
+ * placeholder 1.9:1) - kept as designed until design decides; each is one
+ * line here. Dark is not designed yet: canvas, rail and line are from hidden
+ * layers of the design file, the rest chosen to clear contrast. */
+:root,
+[data-palette="blue"] {
+  --canvas: #ffffff;
+  --rail: #eff4ff;
+  --panel: #f4f7ff;
+  --field: #d5ebff;
+  --tint: #d7e8ff;
+  --line: #91c7f6;
+  --line-soft: #c4e3fe;
+  --ink: #172843;
+  --ink-muted: #436491;
+  --ink-faint: #72b1e8;
+  --placeholder: #8dacd8;
+  --brand: #3cb3fd;
+  --on-brand: #ffffff;
+  --brand-ink: #3cb3fd;
+}
+
+.dark,
+.dark[data-palette="blue"],
+.dark [data-palette="blue"] {
+  --canvas: #010618;
+  --rail: #0b172d;
+  --panel: #050f23;
+  --field: #0a243f;
+  --tint: #0b2b4b;
+  --line: #113c58;
+  --line-soft: #12283e;
+  --ink: #e7effc;
+  --ink-muted: #9fbade;
+  --ink-faint: #689ecd;
+  --placeholder: #7b94b7;
+  --brand: #0079c3;
+  --on-brand: #ffffff;
+  --brand-ink: #55bbff;
 }
 
 /* Chart colours (Analytics).
@@ -64,6 +150,32 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-public-sans);
   --font-mono: var(--font-space-mono);
+
+  /* The colour-theme roles as utilities: bg-panel, text-ink-muted,
+     border-line, bg-brand/20 and so on. `inline` so each utility reads the
+     variable where it is used, which is what lets a subtree's data-palette
+     win over the page's. */
+  --color-canvas: var(--canvas);
+  --color-rail: var(--rail);
+  --color-panel: var(--panel);
+  --color-field: var(--field);
+  --color-tint: var(--tint);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-placeholder: var(--placeholder);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-on-brand: var(--on-brand);
+  --color-brand-ink: var(--brand-ink);
+  --color-hover: var(--hover);
+  --color-focus: var(--focus);
+  --color-bubble-in: var(--bubble-in);
+  --color-on-bubble-in: var(--on-bubble-in);
+  --color-bubble-out: var(--bubble-out);
+  --color-on-bubble-out: var(--on-bubble-out);
 }
 
 /* Two sizes below Tailwind's smallest, for the 10px and 11px text - chat
@@ -147,9 +259,11 @@ button:disabled,
   cursor: not-allowed;
 }
 
+/* Scrollbars follow the colour theme - a fixed blue track was a light stripe
+   down every dark-mode list. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #00a6ff #e1effe; /* Thumb (Royal Blue) & Track (Sky Tint) */
+  scrollbar-color: var(--brand) var(--tint); /* Thumb & track */
 }
 
 /* 2. WebKit settings for Chrome, Edge, and Safari */
@@ -162,28 +276,20 @@ button:disabled,
 
 /* Track (The background path behind the handle) */
 ::-webkit-scrollbar-track {
-  background: #b7d2ef; /* Soft Sky Tint */
+  background: var(--tint);
   border-radius: 10px;
 }
 
 /* Thumb (The draggable scroll handle) */
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    to bottom,
-    #3b82f6,
-    #00a6ff
-  ); /* Bright Blue to Royal Blue */
+  background: var(--brand);
   border-radius: 10px;
-  border: 1px solid #e1effe; /* Creates a slight padding illusion */
+  border: 1px solid var(--tint); /* Creates a slight padding illusion */
 }
 
-/* Thumb Hover State (Darkens when you mouse over it) */
+/* Thumb Hover State */
 ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    to bottom,
-    #1d4ed8,
-    #00a6ff
-  ); /* Royal Blue to Navy Blue */
+  background: var(--brand-hover);
 }
 
 .intl-phone .PhoneInputCountry {

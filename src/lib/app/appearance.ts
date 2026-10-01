@@ -1,13 +1,14 @@
 /**
- * Settings → Appearance: text size and message spacing.
+ * Settings → Appearance: text size, message spacing and colour palette.
  *
  * REAL, and kept in this browser - which is where they belong: they describe
  * a screen, not an account. The theme is NOT kept here; ThemeProvider has
  * saved it (as "loopdn_theme") since before this screen existed.
  *
- * Both are applied as attributes on <html> - `data-text-size` and
- * `data-message-spacing` - which app/globals.css reads. app/layout.tsx sets
- * them before the first paint; `useApplyAppearance` keeps them current after.
+ * All three are applied as attributes on <html> - `data-text-size`,
+ * `data-message-spacing` and `data-palette` - which app/globals.css reads.
+ * app/layout.tsx sets them before the first paint; `useApplyAppearance` keeps
+ * them current after.
  */
 import { useEffect } from "react";
 import {
@@ -18,6 +19,7 @@ import type { ThemePreference } from "@/lib/theme/ThemeProvider";
 import {
   APPEARANCE_STORAGE_KEY,
   defaultLocalAppearancePreferences,
+  knownPalette,
   MESSAGE_SPACINGS,
   TEXT_SIZES,
   type LocalAppearancePreferences,
@@ -91,10 +93,13 @@ export const saveAppearancePreferences = store.save;
 export function useApplyAppearance(): void {
   useEffect(() => {
     const apply = () => {
-      const { textSize, messageSpacing } = store.get();
+      const { textSize, messageSpacing, palette } = store.get();
       const root = document.documentElement;
       root.dataset.textSize = textSize;
       root.dataset.messageSpacing = messageSpacing;
+      // Not a row on the Appearance screen, so the store cannot check it
+      // against an option list - a palette since removed falls back here.
+      root.dataset.palette = knownPalette(palette);
     };
     apply();
     return store.subscribe(apply);

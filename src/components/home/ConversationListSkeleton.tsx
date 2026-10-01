@@ -41,12 +41,9 @@ export function ConversationListSkeleton() {
       {Array.from({ length: ROWS }, (_, row) => {
         const [title, preview] = WIDTHS[row % WIDTHS.length];
         return (
-          <div
-            key={row}
-            className="w-full rounded-xl border border-transparent bg-white px-3 py-2.5 dark:bg-slate-800"
-          >
+          <div key={row} className="w-full rounded-xl px-2.5 py-2">
             <div className="flex items-center gap-3 pr-7">
-              <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <Skeleton className="h-10 w-10 shrink-0 rounded-[9px]" />
               <div className="min-w-0 flex-1">
                 <Skeleton className={`h-3.5 ${title}`} />
                 <Skeleton className={`mt-2 h-3 ${preview}`} />

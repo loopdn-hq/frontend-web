@@ -42,8 +42,8 @@ export function MentionPicker({
   if (options.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(30,89,138,0.18)] dark:border-slate-700 dark:bg-slate-800">
-      <p className="border-b border-slate-100 px-3 py-2 text-xs font-semibold text-slate-500 dark:border-slate-700 dark:text-slate-400">
+    <div className="absolute bottom-full left-0 right-0 z-20 mb-2 overflow-hidden rounded-2xl border border-line bg-canvas shadow-xl">
+      <p className="border-b border-line px-3 py-2 text-xs font-semibold text-ink-muted">
         Mention someone
       </p>
       <ul id={id} role="listbox" className="max-h-56 overflow-y-auto py-1">
@@ -65,16 +65,14 @@ export function MentionPicker({
                 onMouseEnter={() => onHover(index)}
                 onClick={() => onPick(option)}
                 className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition ${
-                  isActive
-                    ? "bg-sky-50 text-sky-900 dark:bg-slate-700 dark:text-slate-100"
-                    : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-700/60"
+                  isActive ? "bg-tint text-ink" : "text-ink hover:bg-hover"
                 }`}
               >
                 <span className="min-w-0 flex-1 truncate font-medium">
                   {option.label}
                 </span>
                 {option.hint && (
-                  <span className="shrink-0 text-2xs text-slate-400 dark:text-slate-500">
+                  <span className="shrink-0 text-2xs text-ink-muted">
                     {option.hint}
                   </span>
                 )}

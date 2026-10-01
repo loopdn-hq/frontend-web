@@ -40,16 +40,14 @@ export function JoinGroupPanel({
   error,
 }: JoinGroupPanelProps) {
   return (
-    <div className="w-full max-w-sm rounded-2xl border border-sky-200 bg-white p-6 text-center shadow-[0_10px_30px_rgba(14,88,148,0.15)] dark:border-slate-700 dark:bg-slate-800">
-      <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-        {name}
-      </h3>
-      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+    <div className="w-full max-w-sm rounded-2xl border border-line bg-panel p-6 text-center shadow-xl">
+      <h3 className="text-lg font-semibold text-ink">{name}</h3>
+      <p className="mt-1 text-sm text-ink-muted">
         {description || "No description"}
       </p>
 
       {requestSent ? (
-        <p className="mt-4 rounded-lg bg-sky-50 px-3 py-2 text-sm text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+        <p className="mt-4 rounded-lg bg-tint px-3 py-2 text-sm text-ink">
           Request sent. An admin needs to approve your request to join.
         </p>
       ) : joinMode === "code" ? (
@@ -60,19 +58,19 @@ export function JoinGroupPanel({
             onChange={(event) => onCodeChange(event.target.value)}
             placeholder="Enter join code"
             disabled={isJoining}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-center text-sm tracking-widest text-slate-800 uppercase transition outline-none placeholder:tracking-normal placeholder:normal-case focus:border-sky-500 focus:ring-4 focus:ring-sky-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+            className="w-full rounded-xl bg-field px-4 py-2.5 text-center text-sm tracking-widest text-ink uppercase transition outline-none placeholder:tracking-normal placeholder:text-placeholder placeholder:normal-case focus:ring-4 focus:ring-focus"
           />
           <button
             type="button"
             onClick={onJoinWithCode}
             disabled={isJoining || !code.trim()}
-            className="w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isJoining ? "Joining..." : "Submit Code"}
           </button>
         </div>
       ) : joinMode === "invite" ? (
-        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+        <p className="mt-4 rounded-lg bg-tint px-3 py-2 text-sm text-ink-muted">
           This Loop is invite-only. Ask a member to invite you.
         </p>
       ) : (
@@ -80,7 +78,7 @@ export function JoinGroupPanel({
           type="button"
           onClick={onJoin}
           disabled={isJoining}
-          className="mt-4 w-full rounded-xl bg-sky-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-4 w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isJoining
             ? "Joining..."

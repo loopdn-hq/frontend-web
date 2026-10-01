@@ -118,11 +118,13 @@ import {
 } from "@/lib/chat/preview";
 import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { LoopdnLogo } from "@/components/app/LoopdnLogo";
 import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
 import {
   Archive,
+  Check,
   CheckCheck,
   Copy,
   CornerUpLeft,
@@ -139,9 +141,16 @@ import {
   Trash2,
   ChevronLeft,
   EllipsisVertical,
+  Link as LinkIcon,
   ListChecks,
+  LoaderCircle,
+  MessageCirclePlus,
+  Mic,
   Plus,
   Search,
+  Send,
+  Smile,
+  Square,
 } from "lucide-react";
 import { NewConversationModal } from "./NewConversationModal";
 import { useLocalMessagingPreferences } from "@/lib/user/messagingPreferences";
@@ -2232,17 +2241,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     const isOpen = String(conversation.id) === String(selectedConversationId);
     const isUnread = (conversation.unread || 0) > 0;
 
-    // Four states, and the two axes are independent: a row can be open, or
-    // unread, or both. Dark mode keeps the same ordering - each step up in
-    // emphasis is a step up in blue - rather than reusing the light hexes,
-    // which would all read as near-white on a dark ground.
-    const rowTone = isOpen
-      ? isUnread
-        ? "border-sky-400 bg-[#DDF0FF] text-slate-900 dark:border-sky-500 dark:bg-sky-900/50 dark:text-slate-100"
-        : "border-sky-400 bg-[#E4F3FF] text-slate-900 dark:border-sky-500 dark:bg-sky-900/40 dark:text-slate-100"
-      : isUnread
-        ? "border-transparent bg-[#F2F8FF] text-slate-900 hover:bg-[#F7FAFC] dark:bg-sky-950/40 dark:text-slate-100 dark:hover:bg-slate-700"
-        : "border-transparent bg-white text-slate-700 hover:border-slate-200 hover:bg-[#F7FAFC] dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700";
+    // Open and unread are independent: a row can be either, or both. Open is
+    // the tint behind the row; unread is the bolder name and the badge, so an
+    // open row that is also unread still says so.
+    const rowTone = isOpen ? "bg-tint text-ink" : "text-ink hover:bg-hover";
 
     const isMenuOpen = rowMenuFor === conversation.id;
     // Null unless this row IS one person, which is what decides whether the
@@ -2313,7 +2315,7 @@ export function HomeShell({ mode }: HomeShellProps) {
             }
             handleSelectConversation(conversation.id);
           }}
-          className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${rowTone}`}
+          className={`w-full rounded-xl px-2.5 py-2 text-left transition ${rowTone}`}
         >
           {/* The right padding is a lane for the row menu, which is absolutely
               positioned so appearing on hover cannot reflow the row. Without it
@@ -2323,8 +2325,8 @@ export function HomeShell({ mode }: HomeShellProps) {
               <span
                 className={`h-4 w-4 shrink-0 rounded border ${
                   isSelectedForBatch
-                    ? "border-sky-600 bg-sky-600"
-                    : "border-slate-300 bg-white"
+                    ? "border-brand bg-brand"
+                    : "border-line bg-canvas"
                 }`}
               />
             )}
@@ -2333,6 +2335,8 @@ export function HomeShell({ mode }: HomeShellProps) {
               name={conversation.name}
               imageUrl={conversation.logoImage}
               isGroup={conversation.kind === "group"}
+              size={40}
+              shape="square"
             />
 
             <div className="min-w-0 flex-1">
@@ -2343,18 +2347,14 @@ export function HomeShell({ mode }: HomeShellProps) {
                   {conversation?.name}
                 </p>
                 {conversation.kind === "group" && conversation.isAdmin && (
-                  <span className="shrink-0 rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-3xs font-semibold tracking-wide text-sky-700 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-300">
+                  <span className="shrink-0 rounded-full border border-line-soft px-2 py-0.5 text-3xs font-semibold tracking-wide text-ink-muted">
                     Admin
                   </span>
                 )}
               </div>
               <p
                 className={`mt-0.5 truncate text-xs ${
-                  isOpen
-                    ? "text-sky-700 dark:text-sky-300"
-                    : isUnread
-                      ? "text-slate-700 dark:text-slate-300"
-                      : "text-slate-500 dark:text-slate-400"
+                  isUnread ? "text-ink" : "text-ink-muted"
                 }`}
               >
                 {conversation.preview}
@@ -2364,13 +2364,13 @@ export function HomeShell({ mode }: HomeShellProps) {
             {/* Time above, badge below - so neither competes with the name for
                 width, and a long group name truncates far later. */}
             <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="text-2xs leading-none text-slate-400 dark:text-slate-500">
+              <span className="text-2xs leading-none text-ink-muted">
                 {conversationTimeLabel(conversation.lastMessageAt)}
               </span>
               <span className="flex items-center gap-1.5">
                 {conversation.muted && (
                   <BellOff
-                    className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500"
+                    className="h-3.5 w-3.5 text-ink-faint"
                     aria-label="Muted"
                   />
                 )}
@@ -2395,7 +2395,7 @@ export function HomeShell({ mode }: HomeShellProps) {
               setRowActionError(null);
               setRowMenuFor(conversation.id);
             }}
-            className={`absolute top-1/2 right-1 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 transition hover:bg-white/70 focus:opacity-100 group-hover/row:opacity-100 dark:text-slate-400 dark:hover:bg-slate-900/60 ${
+            className={`absolute top-1/2 right-1 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-ink-muted transition hover:bg-canvas/70 focus:opacity-100 group-hover/row:opacity-100 ${
               isMenuOpen ? "opacity-100" : "opacity-0"
             }`}
           >
@@ -2411,11 +2411,11 @@ export function HomeShell({ mode }: HomeShellProps) {
               onClick={closeRowMenu}
               className="fixed inset-0 z-20 cursor-default"
             />
-            <div className="absolute top-full right-2 z-30 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+            <div className="absolute top-full right-2 z-30 mt-1 w-56 rounded-xl border border-line bg-canvas p-1.5 text-sm text-ink shadow-xl">
               <button
                 type="button"
                 onClick={() => void handleToggleMuted(conversation)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
               >
                 {conversation.muted ? (
                   <Bell className="h-4 w-4" />
@@ -2427,7 +2427,7 @@ export function HomeShell({ mode }: HomeShellProps) {
               <button
                 type="button"
                 onClick={() => void handleToggleArchived(conversation)}
-                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
               >
                 {conversation.archived ? (
                   <ArchiveRestore className="h-4 w-4" />
@@ -2437,7 +2437,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 {conversation.archived ? "Unarchive" : "Archive"}
               </button>
               {/* Says the thing people get wrong about these two. */}
-              <p className="px-3 pt-1.5 pb-1 text-2xs leading-snug text-slate-400 dark:text-slate-500">
+              <p className="px-3 pt-1.5 pb-1 text-2xs leading-snug text-ink-muted">
                 {conversation.muted
                   ? "Muted, so texts are paused too."
                   : "Archiving still delivers texts."}
@@ -2446,7 +2446,7 @@ export function HomeShell({ mode }: HomeShellProps) {
               {/* Leaving and deleting are refused on a one-to-one - there is
                   no way back into one - so they are not offered there. */}
               <>
-                <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
+                <div className="my-1 border-t border-line" />
 
                 {rowConfirm === null ? (
                   <>
@@ -2469,7 +2469,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                         }
                         className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left ${
                           counterpart.blockedByMe
-                            ? "hover:bg-slate-100 dark:hover:bg-slate-700"
+                            ? "hover:bg-hover"
                             : "text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950/30"
                         }`}
                       >
@@ -2484,7 +2484,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <button
                         type="button"
                         onClick={() => setRowConfirm("leave")}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
                       >
                         <LogOut className="h-4 w-4" />
                         Leave group
@@ -2517,10 +2517,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                 ) : (
                   confirmStep && (
                     <div className="px-3 py-2">
-                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100">
+                      <p className="text-xs font-semibold text-ink">
                         {confirmStep.title}
                       </p>
-                      <p className="mt-1 text-2xs leading-snug text-slate-500 dark:text-slate-400">
+                      <p className="mt-1 text-2xs leading-snug text-ink-muted">
                         {confirmStep.body}
                       </p>
 
@@ -2537,7 +2537,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                             setRowConfirm(null);
                             setRowActionError(null);
                           }}
-                          className="flex-1 rounded-lg border border-slate-200 px-2 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+                          className="flex-1 rounded-lg border border-line px-2 py-1.5 text-xs font-semibold text-ink-muted hover:bg-hover"
                         >
                           Cancel
                         </button>
@@ -3087,49 +3087,62 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   return (
     <>
-      <div className="grid h-full min-h-0 w-full overflow-hidden md:grid-cols-[340px_1fr]">
+      <div className="grid h-full min-h-0 w-full overflow-hidden md:grid-cols-[340px_1fr] xl:grid-cols-[400px_1fr]">
         <aside
-          className={`${showConversationPanelOnMobile ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-slate-200 bg-[#f7f9fb] md:border-r md:border-b-0 dark:border-slate-800 dark:bg-slate-900`}
+          className={`${showConversationPanelOnMobile ? "hidden md:flex" : "flex"} min-h-0 flex-col border-b border-line bg-panel md:border-r md:border-b-0`}
         >
-          <div className="border-b border-slate-200 bg-[linear-gradient(130deg,#00a6ff_0%,#1f7fe6_100%)] px-4 py-3 text-white dark:border-slate-700">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1">
-                <NavDrawerButton className="-ml-2 text-white hover:bg-white/20" />
-                <p className="truncate text-lg font-bold">
+          {/* The same 64px as the chat header beside it, so the two read as
+              one bar and their bottom lines meet. */}
+          <div className="flex min-h-16 items-center border-b border-line px-4">
+            <div className="flex w-full items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <NavDrawerButton className="-ml-2 text-ink-muted hover:bg-hover" />
+                <h1 className="sr-only">
                   {isBroadcast ? "Broadcast" : "Chats"}
-                </p>
+                </h1>
+                <LoopdnLogo className="text-brand-ink" />
+                {/* Chats and Broadcast share this screen, and on a phone -
+                    rail hidden - nothing else says which one it is. Chats is
+                    the design's own header; Broadcast says so beside it. */}
+                {isBroadcast && (
+                  <span className="truncate rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-ink-muted">
+                    Broadcast
+                  </span>
+                )}
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-[9px]">
                 <button
                   type="button"
                   title="New conversation"
+                  aria-label="New conversation"
                   aria-haspopup="dialog"
                   onClick={() => setIsNewConversationOpen(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                  className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-brand text-on-brand transition hover:bg-brand-hover"
                 >
-                  <Plus className="h-5 w-5" />
+                  <MessageCirclePlus className="h-[18px] w-[18px]" />
                 </button>
 
                 <div className="relative">
                   <button
                     type="button"
                     title="Loop menu"
+                    aria-label="Loop menu"
                     onClick={() => setIsLoopMenuOpen((current) => !current)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white/30"
+                    className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink"
                   >
-                    <EllipsisVertical className="h-5 w-5" />
+                    <EllipsisVertical className="h-[18px] w-[18px]" />
                   </button>
 
                   {isLoopMenuOpen && (
-                    <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1.5 text-sm text-slate-700 shadow-xl dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <div className="absolute right-0 z-30 mt-2 w-56 rounded-xl border border-line bg-canvas p-1.5 text-sm text-ink shadow-xl">
                       <button
                         type="button"
                         onClick={() => {
                           setIsLoopMenuOpen(false);
                           handleOpenCreateLoop();
                         }}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
                       >
                         <Plus className="h-4 w-4" />
                         New Loop
@@ -3137,7 +3150,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <button
                         type="button"
                         onClick={handleMarkAllRead}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
                       >
                         <CheckCheck className="h-4 w-4" />
                         Mark all as read
@@ -3145,7 +3158,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       <button
                         type="button"
                         onClick={handleToggleSelectChatsMode}
-                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left hover:bg-hover"
                       >
                         <ListChecks className="h-4 w-4" />
                         {isSelectChatsMode
@@ -3159,22 +3172,23 @@ export function HomeShell({ mode }: HomeShellProps) {
             </div>
           </div>
 
-          <div className="border-b border-slate-200 px-3 py-3 dark:border-slate-700">
-            <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800">
-              <Search className="h-4 w-4 text-slate-400" />
+          <div className="px-4 pt-4">
+            <div className="flex items-center gap-2 rounded-xl bg-field px-3.5 py-2.5 focus-within:ring-2 focus-within:ring-focus">
+              <Search className="h-4 w-4 shrink-0 text-placeholder" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                placeholder="Search your chats"
-                className="w-full bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-400 dark:text-slate-100"
+                placeholder="Search"
+                aria-label="Search your chats"
+                className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-placeholder"
               />
             </div>
           </div>
 
           <div
             onScroll={handleChatListScroll}
-            className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+            className="min-h-0 flex-1 overflow-y-auto px-2.5 py-4"
           >
             <div className="space-y-5">
               {billingError && (
@@ -3188,7 +3202,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 </p>
               )}
               {activePlan && (
-                <p className="rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <p className="rounded-lg bg-tint px-3 py-2 text-xs text-ink-muted">
                   Plan: {activePlan.name} · Groups {ownedGroupCount}
                   {typeof maxGroups === "number" ? `/${maxGroups}` : ""}
                   {typeof maxMembersPerGroup === "number"
@@ -3197,11 +3211,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                 </p>
               )}
               {isSelectChatsMode && (
-                <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+                <p className="rounded-lg bg-tint px-3 py-2 text-xs font-medium text-ink">
                   Selected chats: {selectedChatIds.size}
                 </p>
               )}
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-[7px] px-1.5">
                 {(
                   [
                     { id: "all", label: "All", count: 0 },
@@ -3234,10 +3248,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                       key={chip.id}
                       type="button"
                       onClick={() => setListFilter(chip.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition ${
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-0.5 text-xs transition ${
                         active
-                          ? "bg-[#168CFF] text-white"
-                          : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                          ? "border-brand bg-brand text-on-brand"
+                          : "border-line-soft text-ink-faint hover:bg-hover"
                       }`}
                     >
                       {chip.id === "archived" && (
@@ -3248,8 +3262,8 @@ export function HomeShell({ mode }: HomeShellProps) {
                         <span
                           className={`rounded-full px-1.5 text-3xs font-bold ${
                             active
-                              ? "bg-white/25 text-white"
-                              : "bg-[#168CFF] text-white"
+                              ? "bg-on-brand/25 text-on-brand"
+                              : "bg-brand text-on-brand"
                           }`}
                         >
                           {chip.count}
@@ -3276,8 +3290,8 @@ export function HomeShell({ mode }: HomeShellProps) {
                   onRetry={reloadConversations}
                 />
               ) : listedConversations.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center dark:border-slate-700 dark:bg-slate-800/50">
-                  <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                <div className="rounded-xl border border-dashed border-line bg-canvas p-6 text-center">
+                  <p className="text-sm font-semibold text-ink">
                     {listFilter === "unread"
                       ? "Nothing unread"
                       : listFilter === "archived"
@@ -3288,7 +3302,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                             ? "No broadcast Loops yet"
                             : "No chats yet"}
                   </p>
-                  <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-ink-muted">
                     {listFilter === "all"
                       ? isBroadcast
                         ? "Loops set to broadcast mode appear here"
@@ -3300,7 +3314,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 <div className="space-y-1">
                   {listedConversations.map(renderConversationButton)}
                   {isLoadingMoreConversations && (
-                    <p className="py-3 text-center text-xs text-slate-400 dark:text-slate-500">
+                    <p className="py-3 text-center text-xs text-ink-muted">
                       Loading more...
                     </p>
                   )}
@@ -3313,91 +3327,89 @@ export function HomeShell({ mode }: HomeShellProps) {
         <section
           className={`${
             showConversationPanelOnMobile ? "flex" : "hidden md:flex"
-          } min-h-0 min-w-0 flex-col bg-[#f3f9ff] dark:bg-slate-950`}
+          } min-h-0 min-w-0 flex-col bg-canvas`}
         >
-          <header className="border-b border-slate-200 bg-[#eef7ff] px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPendingConversation(null);
-                      setSelectedConversationId(null);
-                    }}
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-600 hover:bg-slate-200 md:hidden dark:text-slate-300 dark:hover:bg-slate-800"
-                    aria-label="Back to chat list"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <h2 className="truncate text-base font-bold text-slate-900 sm:text-lg dark:text-slate-100">
+          {/* One 64px row, level with the list header beside it: who the
+              chat is with on the left, what you can do on the right. */}
+          <header className="flex min-h-16 items-center border-b border-line bg-panel px-4">
+            <div className="flex w-full items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingConversation(null);
+                    setSelectedConversationId(null);
+                  }}
+                  className="-mr-2 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-muted hover:bg-hover md:hidden"
+                  aria-label="Back to chat list"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                {selectedConversation && (
+                  <ChatAvatar
+                    name={selectedConversation.name}
+                    imageUrl={selectedConversation.logoImage}
+                    isGroup={isGroupConversation}
+                    size={36}
+                    shape="square"
+                  />
+                )}
+                <div className="min-w-0">
+                  <h2 className="truncate text-sm font-semibold text-ink">
                     {selectedConversation?.name ||
                       pendingConversation?.name ||
                       "Select a Loop"}
                   </h2>
+                  {selectedConversation && (
+                    <p className="flex items-center gap-[5px] truncate text-2xs text-ink-muted">
+                      {isGroupConversation ? (
+                        <>
+                          {selectedConversation.participants.length} member
+                          {selectedConversation.participants.length === 1
+                            ? ""
+                            : "s"}
+                          <span
+                            aria-hidden
+                            className="h-[3px] w-[3px] shrink-0 rounded-full bg-ink-muted"
+                          />
+                          Group Chat
+                        </>
+                      ) : // One person, so the line says whether they are
+                      // there - what the presence chips under the name said
+                      // before. A group's members show theirs in Loop
+                      // Settings → Members.
+                      selectedCounterpart?.isOnline ? (
+                        "Online"
+                      ) : selectedCounterpart?.lastActive ? (
+                        `Last seen ${conversationTimeLabel(
+                          selectedCounterpart.lastActive,
+                        ).replace(/^Yesterday$/, "yesterday")}`
+                      ) : (
+                        "Direct Message"
+                      )}
+                    </p>
+                  )}
                 </div>
-                {selectedConversationId && selectedConversation && (
-                  <div className="mt-2 flex max-w-[68vw] gap-1.5 overflow-x-auto pb-1 md:max-w-[40vw]">
-                    {selectedConversation.participants.map((participant) => (
-                      <span
-                        key={participant.id}
-                        title={
-                          participant.isOnline
-                            ? `${participant.name} is online`
-                            : participant.lastActive
-                              ? `${participant.name} - last seen ${new Date(
-                                  participant.lastActive,
-                                ).toLocaleString()}`
-                              : participant.name
-                        }
-                        className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-2 py-1 text-2xs text-slate-600 dark:bg-slate-800 dark:text-slate-300"
-                      >
-                        <span
-                          aria-hidden
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            participant.isOnline
-                              ? "bg-emerald-500"
-                              : "bg-slate-300 dark:bg-slate-600"
-                          }`}
-                        />
-                        {participant.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
               </div>
 
-              <div className="flex items-center gap-2">
-                {selectedConversationId && (
-                  <div className="hidden rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-600 lg:block dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                    {selectedConversation?.participants.length ?? 0} member
-                    {(selectedConversation?.participants.length ?? 0) === 1
-                      ? ""
-                      : "s"}
-                  </div>
-                )}
-
-                {selectedConversationId && (
+              <div className="flex shrink-0 items-center gap-[9px]">
+                {/* Only when something is wrong. "Live" on every healthy chat
+                    was noise beside the buttons. */}
+                {selectedConversationId && socketStatus !== "connected" && (
                   <div
                     className={`rounded-full px-2.5 py-1 text-3xs font-semibold ${
-                      socketStatus === "connected"
-                        ? "bg-sky-100 text-sky-700"
-                        : socketStatus === "connecting"
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-slate-100 text-slate-700"
+                      socketStatus === "connecting"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-tint text-ink-muted"
                     }`}
                     title={`WebSocket: ${socketStatus}`}
                   >
-                    {socketStatus === "connected" && "Live"}
-                    {socketStatus === "connecting" && "Connecting"}
-                    {socketStatus !== "connected" &&
-                      socketStatus !== "connecting" &&
-                      "Offline"}
+                    {socketStatus === "connecting" ? "Connecting" : "Offline"}
                   </div>
                 )}
 
                 {selectedConversationId && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-[9px]">
                     <ConversationCallButtons
                       conversationId={selectedConversationId}
                       canStart={canPostMessage}
@@ -3408,10 +3420,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                         onClick={handleOpenAddMembers}
                         title="Add members"
                         aria-label="Add members"
-                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                        className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink"
                       >
                         <svg
-                          className="h-5 w-5"
+                          className="h-[18px] w-[18px]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -3436,10 +3448,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                         }}
                         title="Loop Settings"
                         aria-label="Loop Settings"
-                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                        className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink"
                       >
                         <svg
-                          className="h-5 w-5"
+                          className="h-[18px] w-[18px]"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -3477,9 +3489,9 @@ export function HomeShell({ mode }: HomeShellProps) {
                         title={`More about ${selectedCounterpart.name}`}
                         aria-label={`More about ${selectedCounterpart.name}`}
                         aria-haspopup="menu"
-                        className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
+                        className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink"
                       >
-                        <EllipsisVertical className="h-5 w-5" />
+                        <EllipsisVertical className="h-[18px] w-[18px]" />
                       </button>
                     )}
                   </div>
@@ -3510,7 +3522,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                   type="button"
                   onClick={() => void handleLoadOlderMessages()}
                   disabled={isLoadingOlder}
-                  className="rounded-full border border-slate-200 bg-white px-4 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  className="rounded-full border border-line bg-canvas px-4 py-1.5 text-xs font-semibold text-ink-muted transition hover:bg-hover disabled:opacity-60"
                 >
                   {isLoadingOlder ? "Loading..." : "Load older messages"}
                 </button>
@@ -3534,9 +3546,9 @@ export function HomeShell({ mode }: HomeShellProps) {
             ) : !selectedConversation ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <div className="mx-auto mb-4 h-16 w-16 rounded-full bg-sky-100 p-4 dark:bg-sky-950/40">
+                  <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-tint p-3">
                     <svg
-                      className="h-full w-full text-sky-600"
+                      className="h-full w-full text-brand-ink"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -3549,10 +3561,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                       />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  <h3 className="text-sm font-semibold text-ink">
                     No Loop Selected
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-ink-muted">
                     Create a Loop to get started!
                   </p>
                 </div>
@@ -3577,10 +3589,10 @@ export function HomeShell({ mode }: HomeShellProps) {
             ) : currentMessages.length === 0 ? (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                  <h3 className="text-sm font-semibold text-ink">
                     No messages yet
                   </h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  <p className="mt-1 text-xs text-ink-muted">
                     Start the conversation!
                   </p>
                 </div>
@@ -3588,8 +3600,8 @@ export function HomeShell({ mode }: HomeShellProps) {
             ) : (
               thread.map((row) =>
                 row.kind === "day" ? (
-                  <div key={row.key} className="flex justify-center py-2">
-                    <span className="rounded-full bg-white px-3 py-1 text-2xs font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">
+                  <div key={row.key} className="flex justify-center py-3">
+                    <span className="rounded-full bg-panel px-3 py-1 text-2xs font-medium text-ink-muted">
                       {row.label}
                     </span>
                   </div>
@@ -3613,21 +3625,21 @@ export function HomeShell({ mode }: HomeShellProps) {
           </div>
 
           {typingLabel && (
-            <p className="shrink-0 px-4 pb-1 text-xs text-slate-500 italic dark:text-slate-400">
+            <p className="shrink-0 px-5 pb-1 text-xs text-ink-muted italic">
               {typingLabel}
             </p>
           )}
 
-          <footer className="shrink-0 border-t border-slate-200 bg-[#eef7ff] p-3 sm:p-4 dark:border-slate-800 dark:bg-slate-900">
+          <footer className="shrink-0 bg-canvas px-3 pt-1 pb-3 sm:px-4 sm:pb-4">
             {pendingConversation ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+              <div className="rounded-2xl border border-line bg-panel p-3 text-center">
+                <p className="text-sm text-ink-muted">
                   Join this Loop to start chatting
                 </p>
               </div>
             ) : !selectedConversation ? (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+              <div className="rounded-2xl border border-line bg-panel p-3 text-center">
+                <p className="text-sm text-ink-muted">
                   Select or create a Loop to start chatting
                 </p>
               </div>
@@ -3636,8 +3648,8 @@ export function HomeShell({ mode }: HomeShellProps) {
               // instead means nobody writes one first and finds out after -
               // and the thread above stays exactly where it was, because a
               // block is not a departure and undoing it brings everything back.
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-sm text-slate-600 dark:text-slate-400">
+              <div className="rounded-2xl border border-line bg-panel p-3 text-center">
+                <p className="text-sm text-ink-muted">
                   You blocked {selectedCounterpart.name}. Unblock them to send a
                   message.
                 </p>
@@ -3657,7 +3669,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                 </Button>
               </div>
             ) : (
-              <div className="relative rounded-2xl border border-slate-200 bg-[#eef7ff] p-2 shadow-[0_6px_20px_rgba(30,89,138,0.09)] dark:border-slate-700 dark:bg-slate-800">
+              <div className="relative rounded-2xl border border-line bg-panel p-2">
                 {messageError && (
                   <p className="px-2 pb-2 text-xs text-rose-600">
                     {messageError}
@@ -3693,7 +3705,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                             ),
                           )
                         }
-                        className="max-w-full truncate rounded-lg bg-slate-100 px-2 py-1 text-xs text-slate-600 hover:bg-rose-100 hover:text-rose-700"
+                        className="max-w-full truncate rounded-lg bg-tint px-2 py-1 text-xs text-ink-muted hover:bg-rose-100 hover:text-rose-700"
                         title="Remove attachment"
                       >
                         {file.name} ×
@@ -3702,68 +3714,77 @@ export function HomeShell({ mode }: HomeShellProps) {
                   </div>
                 )}
                 {canPostMessage ? (
-                  <div className="flex gap-2">
-                    {/* An edit changes words and nothing else - the endpoint
-                        takes only text - so the two controls that produce
-                        files are out while one is in progress rather than
-                        accepting input that would be dropped. */}
-                    <label
-                      className={`flex items-center px-2 text-slate-500 ${
-                        isEditing
-                          ? "cursor-not-allowed opacity-40"
-                          : "cursor-pointer"
-                      }`}
-                      title={
-                        isEditing
-                          ? "Not available while editing"
-                          : "Attach files"
-                      }
-                    >
-                      <span aria-hidden="true">📎</span>
-                      <input
-                        type="file"
-                        multiple
-                        onChange={(event) =>
-                          setMessageAttachments(
-                            Array.from(event.target.files ?? []),
-                          )
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex shrink-0 items-center gap-2.5 pl-1.5 sm:gap-3">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setShowEmojiPicker((current) => !current)
+                        }
+                        disabled={isSendingMessage}
+                        className="text-ink-faint transition hover:text-ink-muted"
+                        title="Add emoji"
+                        aria-label="Add emoji"
+                      >
+                        <Smile className="h-5 w-5" />
+                      </button>
+                      {/* An edit changes words and nothing else - the endpoint
+                          takes only text - so the two controls that produce
+                          files are out while one is in progress rather than
+                          accepting input that would be dropped. */}
+                      <label
+                        className={`flex items-center text-ink-faint transition ${
+                          isEditing
+                            ? "cursor-not-allowed opacity-40"
+                            : "cursor-pointer hover:text-ink-muted"
+                        }`}
+                        title={
+                          isEditing
+                            ? "Not available while editing"
+                            : "Attach files"
+                        }
+                      >
+                        <LinkIcon className="h-5 w-5" aria-hidden />
+                        <input
+                          type="file"
+                          multiple
+                          aria-label="Attach files"
+                          onChange={(event) =>
+                            setMessageAttachments(
+                              Array.from(event.target.files ?? []),
+                            )
+                          }
+                          disabled={isSendingMessage || isEditing}
+                          className="hidden"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={
+                          isRecordingVoice
+                            ? handleStopRecording
+                            : handleStartRecording
                         }
                         disabled={isSendingMessage || isEditing}
-                        className="hidden"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setShowEmojiPicker((current) => !current)}
-                      disabled={isSendingMessage}
-                      className="px-1 text-slate-500"
-                      title="Add emoji"
-                      aria-label="Add emoji"
-                    >
-                      😊
-                    </button>
-                    <button
-                      type="button"
-                      onClick={
-                        isRecordingVoice
-                          ? handleStopRecording
-                          : handleStartRecording
-                      }
-                      disabled={isSendingMessage || isEditing}
-                      className={`px-1 disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-slate-500"}`}
-                      title={
-                        isRecordingVoice
-                          ? "Stop recording"
-                          : "Record a voice message"
-                      }
-                      aria-label={
-                        isRecordingVoice
-                          ? "Stop recording"
-                          : "Record a voice message"
-                      }
-                    >
-                      {isRecordingVoice ? "⏹️" : "🎙️"}
-                    </button>
+                        className={`transition disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-ink-faint hover:text-ink-muted"}`}
+                        title={
+                          isRecordingVoice
+                            ? "Stop recording"
+                            : "Record a voice message"
+                        }
+                        aria-label={
+                          isRecordingVoice
+                            ? "Stop recording"
+                            : "Record a voice message"
+                        }
+                      >
+                        {isRecordingVoice ? (
+                          <Square className="h-5 w-5 fill-current" />
+                        ) : (
+                          <Mic className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
                     <input
                       type="text"
                       placeholder={
@@ -3843,8 +3864,10 @@ export function HomeShell({ mode }: HomeShellProps) {
                         }
                       }}
                       disabled={isSendingMessage}
-                      className="w-full bg-transparent px-2 text-sm text-slate-700 placeholder-slate-400 outline-none dark:text-slate-100 dark:placeholder-slate-500"
+                      className="h-10 min-w-0 flex-1 rounded-full bg-canvas px-4 text-sm text-ink outline-none placeholder:text-placeholder focus-visible:ring-2 focus-visible:ring-focus"
                     />
+                    {/* An icon, so its words live in the label: what a press
+                        will do, or what it is doing now. */}
                     <button
                       type="button"
                       onClick={handleSendMessage}
@@ -3857,19 +3880,29 @@ export function HomeShell({ mode }: HomeShellProps) {
                           : !messageInput.trim() &&
                             messageAttachments.length === 0)
                       }
-                      className="rounded-xl bg-[linear-gradient(130deg,#02adff_0%,#297be3_100%)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed transition"
+                      aria-label={
+                        isSendingMessage
+                          ? isEditing
+                            ? "Saving"
+                            : "Sending"
+                          : isEditing
+                            ? "Save edit"
+                            : "Send message"
+                      }
+                      title={isEditing ? "Save edit" : "Send message"}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-brand text-on-brand transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {isSendingMessage
-                        ? isEditing
-                          ? "Saving..."
-                          : "Sending..."
-                        : isEditing
-                          ? "Save"
-                          : "Send"}
+                      {isSendingMessage ? (
+                        <LoaderCircle className="h-[18px] w-[18px] animate-spin" />
+                      ) : isEditing ? (
+                        <Check className="h-[18px] w-[18px]" />
+                      ) : (
+                        <Send className="h-[18px] w-[18px]" />
+                      )}
                     </button>
                   </div>
                 ) : (
-                  <div className="text-center text-sm text-slate-500 dark:text-slate-400">
+                  <div className="text-center text-sm text-ink-muted">
                     Only Admins Can Post Messages
                   </div>
                 )}
@@ -3885,15 +3918,15 @@ export function HomeShell({ mode }: HomeShellProps) {
                 )}
 
                 {showEmojiPicker && (
-                  <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-[0_12px_30px_rgba(30,89,138,0.18)] dark:border-slate-700 dark:bg-slate-800">
-                    <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2 dark:border-slate-700">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  <div className="absolute bottom-full left-0 right-0 z-20 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-line bg-canvas p-3 shadow-xl">
+                    <div className="mb-2 flex items-center justify-between border-b border-line pb-2">
+                      <span className="text-xs font-semibold text-ink-muted">
                         Choose an emoji
                       </span>
                       <button
                         type="button"
                         onClick={() => setShowEmojiPicker(false)}
-                        className="text-xs text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        className="text-xs text-ink-muted hover:text-ink"
                         aria-label="Close emoji picker"
                       >
                         Close
@@ -3905,7 +3938,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                           key={`${emoji}-${index}`}
                           type="button"
                           onClick={() => appendEmoji(emoji)}
-                          className="flex aspect-square items-center justify-center rounded-lg text-lg hover:bg-sky-100 dark:hover:bg-slate-700"
+                          className="flex aspect-square items-center justify-center rounded-lg text-lg hover:bg-hover"
                           aria-label={`Insert ${emoji}`}
                         >
                           {emoji}

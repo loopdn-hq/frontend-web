@@ -28,20 +28,17 @@ export function PinnedMessageBar({
   onUnpin,
 }: PinnedMessageBarProps) {
   return (
-    <div className="flex items-center gap-2 border-b border-sky-100 bg-sky-50/70 px-4 py-2 dark:border-slate-700 dark:bg-slate-800/60">
-      <Pin
-        className="h-3.5 w-3.5 shrink-0 text-sky-600 dark:text-sky-400"
-        aria-hidden
-      />
+    <div className="flex items-center gap-2 border-b border-line bg-panel px-4 py-2">
+      <Pin className="h-3.5 w-3.5 shrink-0 text-brand-ink" aria-hidden />
       <button
         type="button"
         onClick={() => onJump(message.id)}
         className="min-w-0 flex-1 text-left"
       >
-        <span className="block text-2xs font-semibold text-sky-700 dark:text-sky-300">
+        <span className="block text-2xs font-semibold text-ink">
           Pinned · {message.sender}
         </span>
-        <span className="block truncate text-xs text-slate-600 dark:text-slate-400">
+        <span className="block truncate text-xs text-ink-muted">
           {message.text || "Attachment"}
         </span>
       </button>
@@ -50,7 +47,7 @@ export function PinnedMessageBar({
           type="button"
           onClick={onUnpin}
           aria-label="Unpin this message"
-          className="shrink-0 rounded p-1 text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+          className="shrink-0 rounded p-1 text-ink-muted transition hover:bg-hover hover:text-ink"
         >
           <X className="h-3.5 w-3.5" />
         </button>
