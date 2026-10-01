@@ -42,8 +42,8 @@ export function MessageThreadSkeleton() {
         >
           {!row.mine && <Skeleton className="h-8 w-8 shrink-0 rounded-full" />}
           <div
-            className={`rounded-2xl px-3 py-2.5 ${
-              row.mine ? "bg-[#dff1ff]" : "bg-white dark:bg-slate-800"
+            className={`rounded-[10px] px-3 py-2.5 ${
+              row.mine ? "bg-tint" : "bg-bubble-in"
             }`}
           >
             <Skeleton className={`h-3 ${row.width}`} />

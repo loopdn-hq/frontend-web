@@ -12,7 +12,7 @@ export function NotificationBadge({
 
   return (
     <span
-      className={`rounded-full bg-[#168CFF] px-2 py-0.5 text-2xs font-bold text-white ${className}`}
+      className={`rounded-md bg-brand px-1.5 py-0.5 text-3xs leading-none font-semibold text-on-brand ${className}`}
     >
       {count > 99 ? "99+" : count}
     </span>

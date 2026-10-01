@@ -14,8 +14,9 @@ type ConversationCallButtonsProps = {
   canStart: boolean;
 };
 
+// The chat header's icon button, in colour roles so it follows the theme.
 const ICON_BUTTON =
-  "rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white";
+  "flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink disabled:opacity-50";
 
 /** Voice and video buttons for a conversation's header, or Join / Return. */
 export function ConversationCallButtons({
@@ -81,7 +82,7 @@ export function ConversationCallButtons({
         aria-label="Start a voice call"
         className={ICON_BUTTON}
       >
-        <Phone className="h-5 w-5" />
+        <Phone className="h-[18px] w-[18px]" />
       </button>
       <button
         type="button"
@@ -91,7 +92,7 @@ export function ConversationCallButtons({
         aria-label="Start a video call"
         className={ICON_BUTTON}
       >
-        <Video className="h-5 w-5" />
+        <Video className="h-[18px] w-[18px]" />
       </button>
     </>
   );

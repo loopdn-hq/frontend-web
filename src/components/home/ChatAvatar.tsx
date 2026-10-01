@@ -6,6 +6,11 @@ type ChatAvatarProps = {
   imageUrl?: string | null;
   isGroup?: boolean;
   size?: number;
+  /**
+   * A circle for a person in a thread; a rounded square where the design lists
+   * conversations - the chat list and the chat header.
+   */
+  shape?: "circle" | "square";
   className?: string;
 };
 
@@ -29,7 +34,7 @@ function tintFor(name: string): string {
 }
 
 /**
- * A conversation or person, as a circle.
+ * A conversation or person, as a circle or a rounded square.
  *
  * Falls back twice: to a group glyph where there is no picture and it is a
  * group, and to a tinted initial otherwise. A blank grey circle tells the
@@ -40,9 +45,14 @@ export function ChatAvatar({
   imageUrl,
   isGroup = false,
   size = 40,
+  shape = "circle",
   className = "",
 }: ChatAvatarProps) {
   const initial = name.trim().charAt(0).toUpperCase() || "?";
+  // The design's 10px corner on a 45px square, kept in proportion at any size.
+  const rounding =
+    shape === "square" ? { borderRadius: Math.round(size * 0.22) } : undefined;
+  const circle = shape === "circle" ? "rounded-full" : "";
 
   if (imageUrl) {
     return (
@@ -51,8 +61,8 @@ export function ChatAvatar({
         alt=""
         width={size}
         height={size}
-        className={`shrink-0 rounded-full object-cover ${className}`}
-        style={{ width: size, height: size }}
+        className={`shrink-0 object-cover ${circle} ${className}`}
+        style={{ width: size, height: size, ...rounding }}
         unoptimized
       />
     );
@@ -61,10 +71,12 @@ export function ChatAvatar({
   return (
     <span
       aria-hidden
-      className={`flex shrink-0 items-center justify-center rounded-full font-bold text-white ${
-        isGroup ? "bg-sky-500" : tintFor(name)
+      // A group wears the palette's accent; a person keeps their own tint,
+      // which is about telling people apart, not about the theme.
+      className={`flex shrink-0 items-center justify-center font-bold ${circle} ${
+        isGroup ? "bg-brand text-on-brand" : `${tintFor(name)} text-white`
       } ${className}`}
-      style={{ width: size, height: size, fontSize: size * 0.4 }}
+      style={{ width: size, height: size, fontSize: size * 0.4, ...rounding }}
     >
       {isGroup ? (
         <Users style={{ width: size * 0.5, height: size * 0.5 }} />
