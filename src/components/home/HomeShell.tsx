@@ -1976,33 +1976,33 @@ export function HomeShell({ mode }: HomeShellProps) {
     composerContext,
   ]);
 
-  async function handleCreateLoopSuccess() {
+  async function handleCreateLoopSuccess(
+    conversationId: string | number | null,
+  ) {
     const result = await fetchConversations();
     if (!result.ok) return;
 
+    // By ID, not by position. The list is newest activity first, so the new
+    // Loop is normally row 0 - this used to take the last row, which opened
+    // the oldest chat on the page - and a message landing in another chat at
+    // the same moment can put that one above it anyway.
+    const openedId = conversationId ?? result.conversations[0]?.id ?? null;
     setPendingConversation(null);
     setConversations(
       result.conversations.map((conversation) => ({
         ...conversation,
-        active: false,
+        active: conversation.id === openedId,
       })),
     );
-    const newestConversation = result.conversations.at(-1);
-    setSelectedConversationId(newestConversation?.id ?? null);
-    setConversations((current) =>
-      current.map((conversation) => ({
-        ...conversation,
-        active: conversation.id === newestConversation?.id,
-      })),
-    );
+    setSelectedConversationId(openedId);
     setIsCreateLoopOpen(false);
   }
 
   /**
    * A direct conversation was opened - which may be one that already existed,
    * since the server hands back the same thread for a pair rather than a
-   * second one. Selected by ID for that reason: "the newest" is right after
-   * creating a group and wrong here.
+   * second one. Selected by ID for that reason: an existing thread is not
+   * necessarily the newest.
    */
   async function handleDirectMessageStarted(conversationId: string | number) {
     setIsNewConversationOpen(false);
@@ -2071,7 +2071,7 @@ export function HomeShell({ mode }: HomeShellProps) {
 
   async function handleInvitePhone(invite: {
     phone_number: string;
-    display_name?: string;
+    display_name: string;
   }) {
     if (!selectedConversationId) return;
     if (typeof maxMembersPerGroup === "number" && selectedConversation) {

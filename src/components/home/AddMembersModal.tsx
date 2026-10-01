@@ -46,7 +46,7 @@ type AddMembersModalProps = {
   onSearchMembers: (term: string) => Promise<MemberSearchResult>;
   onInvitePhone: (invite: {
     phone_number: string;
-    display_name?: string;
+    display_name: string;
   }) => Promise<void>;
 };
 
@@ -115,6 +115,15 @@ export function AddMembersModal({
       return;
     }
 
+    // Required by the API, not just here: this person has chosen no name, so
+    // without one the group sees only a masked number, and the admin adding
+    // them is the only one who knows who it is.
+    const name = displayName.trim();
+    if (!name) {
+      setError("Enter a name so the group knows who this is.");
+      return;
+    }
+
     if (!smsConsent) {
       setError(
         "Confirm you have this person's permission before sending an invite.",
@@ -127,7 +136,7 @@ export function AddMembersModal({
     try {
       await onInvitePhone({
         phone_number: normalizedPhone,
-        display_name: displayName.trim() || undefined,
+        display_name: name,
       });
       setPhoneNumber("");
       setDisplayName("");
@@ -250,10 +259,11 @@ export function AddMembersModal({
             />
           </Field>
 
-          <Field label="Display name (optional)" htmlFor="invite-display-name">
+          <Field label="Display name" htmlFor="invite-display-name">
             <Input
               id="invite-display-name"
               type="text"
+              maxLength={80}
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder="Mom"

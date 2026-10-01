@@ -44,7 +44,8 @@ type CreateLoopFormValues = z.infer<typeof createLoopSchema>;
 
 type CreateLoopFormProps = {
   onClose: () => void;
-  onSuccess?: (loopData: CreateConversationPayload) => void;
+  /** Given the new Loop's ID, so the caller can open that Loop. */
+  onSuccess?: (conversationId: string | number | null) => void;
 };
 
 const joinModes: Array<{
@@ -164,7 +165,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         setError("root.server", { message: result.message });
         return;
       }
-      onSuccess?.(payload);
+      onSuccess?.(result.conversationId);
       onClose();
     } catch {
       setError("root.server", {

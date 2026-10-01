@@ -2,12 +2,11 @@
 
 import { CreateLoopForm } from "./CreateLoopForm";
 import { Modal } from "@/components/ui";
-import type { CreateConversationPayload } from "@/lib/chat/conversations";
 
 type CreateLoopModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (loopData: CreateConversationPayload) => void;
+  onSuccess?: (conversationId: string | number | null) => void;
 };
 
 export function CreateLoopModal({

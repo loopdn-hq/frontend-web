@@ -923,9 +923,17 @@ export async function authorizedRequest(
   return response;
 }
 
+/**
+ * Create a group. On success, `conversationId` is the new Loop's ID - null
+ * only if the response somehow carried none, since the Loop exists either way
+ * and reporting a failure would invite creating it twice.
+ */
 export async function createConversation(
   payload: CreateConversationPayload,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; conversationId: string | number | null }
+  | { ok: false; message: string }
+> {
   const body: ApiObject = {
     name: payload.name,
     settings: payload.settings,
@@ -948,7 +956,11 @@ export async function createConversation(
         message: getErrorMessage(data) ?? "Unable to create this Loop.",
       };
     }
-    return { ok: true };
+    const id = getObjectData(data)?.id;
+    return {
+      ok: true,
+      conversationId: typeof id === "string" || typeof id === "number" ? id : null,
+    };
   } catch (error) {
     return {
       ok: false,
@@ -1495,7 +1507,10 @@ export async function fetchConversationParticipants(
 
     for (; page <= MAX_PARTICIPANT_PAGES; page++) {
       const response = await authorizedRequest(
-        `/chat/conversations/${conversationId}/participants/?page=${page}&size=${size}`,
+        // `page_size`, the name ParticipantPagination reads. It ignored
+        // `size` and served its default of 10, which the short-page check
+        // below then took for the last page - so no Loop showed an 11th member.
+        `/chat/conversations/${conversationId}/participants/?page=${page}&page_size=${size}`,
       );
       const data = await response.json().catch(() => null);
       if (!response.ok) {
