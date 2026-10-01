@@ -959,7 +959,8 @@ export async function createConversation(
     const id = getObjectData(data)?.id;
     return {
       ok: true,
-      conversationId: typeof id === "string" || typeof id === "number" ? id : null,
+      conversationId:
+        typeof id === "string" || typeof id === "number" ? id : null,
     };
   } catch (error) {
     return {
