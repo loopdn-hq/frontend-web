@@ -1,7 +1,8 @@
-import { ExternalLink, Users } from "lucide-react";
+import { ClipboardList, ExternalLink, Users } from "lucide-react";
 
 /** What the card's button does. The same values as a creative's `cta_kind`. */
-export type SponsoredCtaKind = "call" | "text" | "link" | "group_join";
+export type SponsoredCtaKind =
+  "call" | "text" | "link" | "group_join" | "lead_form";
 
 /**
  * A creative as a member would see it in a group's chat: a labelled card,
@@ -11,7 +12,8 @@ export type SponsoredCtaKind = "call" | "text" | "link" | "group_join";
  * "Sponsored" the same way.
  *
  * `ctaHref` makes the button a real link, opened in a new tab with no
- * referrer; without it (a preview) the button is only drawn.
+ * referrer; `onCta` makes it a button that does something in the app (a lead
+ * form). Without either - a preview - the button is only drawn.
  */
 export function SponsoredCard({
   companyName,
@@ -21,6 +23,7 @@ export function SponsoredCard({
   ctaLabel,
   ctaKind,
   ctaHref,
+  onCta,
 }: {
   companyName: string;
   headline: string;
@@ -29,8 +32,14 @@ export function SponsoredCard({
   ctaLabel: string;
   ctaKind: SponsoredCtaKind;
   ctaHref?: string;
+  onCta?: () => void;
 }) {
-  const Icon = ctaKind === "group_join" ? Users : ExternalLink;
+  const Icon =
+    ctaKind === "group_join"
+      ? Users
+      : ctaKind === "lead_form"
+        ? ClipboardList
+        : ExternalLink;
   const button = (
     <>
       <Icon className="h-4 w-4" aria-hidden />
@@ -63,7 +72,15 @@ export function SponsoredCard({
         </p>
       </div>
       <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
-        {ctaHref ? (
+        {onCta ? (
+          <button
+            type="button"
+            onClick={onCta}
+            className={`${buttonClass} hover:underline`}
+          >
+            {button}
+          </button>
+        ) : ctaHref ? (
           <a
             href={ctaHref}
             target="_blank"

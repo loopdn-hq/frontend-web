@@ -17,20 +17,17 @@ import type { StepKey } from "./steps";
 
 /**
  * Call and text stay hidden until each campaign can have its own tracking
- * number (backend plan, decision 3). The server refuses them too.
+ * number (backend plan, decision 3), and bookings until something can tell
+ * Loopd'n a booking happened (decision 38). The server refuses them too.
  */
-const OFFERED: CampaignObjective[] = [
-  "website",
-  "lead",
-  "booking",
-  "group_join",
-];
+const OFFERED: CampaignObjective[] = ["website", "lead", "group_join"];
 
-/** A link button or a group-join button: what an objective's ads carry. */
+/** The button an objective's ads carry: a link, a group join, or the form. */
 function buttonOf(
   objective: CampaignObjective,
-): "link" | "group_join" | "other" {
+): "link" | "group_join" | "lead_form" | "other" {
   if (objective === "group_join") return "group_join";
+  if (objective === "lead") return "lead_form";
   if (objective === "call" || objective === "text") return "other";
   return "link";
 }

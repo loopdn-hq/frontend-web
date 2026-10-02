@@ -167,7 +167,13 @@ export type ReachEstimate =
   | { available: true; groups: ReachRange; members: ReachRange }
   | { available: false; reason: string };
 
-export type CreativeCtaKind = "call" | "text" | "link" | "group_join";
+export type CreativeCtaKind =
+  | "call"
+  | "text"
+  | "link"
+  | "group_join"
+  /** Loopd'n's own lead form: no address; the member sends their details. */
+  | "lead_form";
 
 export type CreativeStatus =
   "draft" | "pending_review" | "approved" | "rejected";
@@ -277,8 +283,16 @@ export type ReportDay = {
   reach: number | null;
   /** Counted clicks: once per card, never a repeat or a link scanner. */
   clicks: number;
+  /** What the objective asked for that day (see `ResultKind`). */
+  results: number;
   spendCents: number;
 };
+
+/**
+ * What a campaign's results are: a website campaign's are its clicks, a lead
+ * campaign's the leads sent through its form.
+ */
+export type ResultKind = "clicks" | "leads" | "joins" | "calls" | "texts";
 
 /**
  * A campaign's results, from the daily totals - aggregates only. `reach` is
@@ -288,14 +302,17 @@ export type ReportDay = {
 export type CampaignReport = {
   currency: string;
   reachShownFrom: number;
+  result: ResultKind;
   totals: {
     served: number;
     viewed: number;
     reach: number | null;
     clicks: number;
+    results: number;
     spendCents: number;
     costPer1000ViewsCents: number | null;
     costPerClickCents: number | null;
+    costPerResultCents: number | null;
   };
   days: ReportDay[];
 };
@@ -322,5 +339,20 @@ export type CompanyReport = {
     clicks: number;
     reach: number | null;
     spendCents: number;
+    result: ResultKind;
+    results: number;
+    costPerResultCents: number | null;
   }[];
+};
+
+/** One lead: exactly what a member chose to send, and through which campaign. */
+export type Lead = {
+  id: number;
+  campaignId: number;
+  campaignName: string;
+  name: string;
+  phone: string;
+  email: string;
+  message: string;
+  createdAt: string | null;
 };

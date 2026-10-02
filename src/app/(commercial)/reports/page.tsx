@@ -15,6 +15,7 @@ import {
   campaignName,
   formatCents,
   formatClickRate,
+  RESULT_LABEL,
 } from "@/lib/commercial/format";
 import type { Company, CompanyReport } from "@/lib/commercial/types";
 
@@ -38,8 +39,8 @@ export default function CommercialReportsPage() {
       <CompanyNotice />
       {/* Keyed by company: a switch starts afresh. */}
       {company && <Report key={company.id} company={company} />}
-      <NotBuiltYet title="Results">
-        Leads, group joins, calls and texts, with the cost of each.
+      <NotBuiltYet title="More results">
+        Group joins, calls and texts, with the cost of each.
       </NotBuiltYet>
       <NotBuiltYet title="By group category and region">
         Where your results came from, in aggregate only: small slices come back
@@ -122,13 +123,14 @@ function Report({ company }: { company: Company }) {
           <Empty>No submitted campaigns yet.</Empty>
         ) : (
           <div className="-mx-4 overflow-x-auto sm:mx-0">
-            <table className="w-full min-w-[38rem] text-left text-sm">
+            <table className="w-full min-w-[44rem] text-left text-sm">
               <thead className="text-xs text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-2 font-medium sm:px-2">Campaign</th>
                   <th className="px-2 py-2 font-medium">Status</th>
                   <th className="px-2 py-2 text-right font-medium">Views</th>
                   <th className="px-2 py-2 text-right font-medium">Clicks</th>
+                  <th className="px-2 py-2 text-right font-medium">Results</th>
                   <th className="px-2 py-2 text-right font-medium">
                     People reached
                   </th>
@@ -156,6 +158,18 @@ function Report({ company }: { company: Company }) {
                     </td>
                     <td className="px-2 py-2.5 text-right tabular-nums">
                       {row.clicks.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2.5 text-right tabular-nums">
+                      {row.results.toLocaleString()}{" "}
+                      <span className="text-slate-500 dark:text-slate-400">
+                        {RESULT_LABEL[row.result].many.toLowerCase()}
+                      </span>
+                      {row.costPerResultCents !== null && (
+                        <span className="block text-xs text-slate-500 dark:text-slate-400">
+                          {money(row.costPerResultCents)} per{" "}
+                          {RESULT_LABEL[row.result].one}
+                        </span>
+                      )}
                     </td>
                     <td className="px-2 py-2.5 text-right text-slate-600 tabular-nums dark:text-slate-300">
                       {row.viewed === 0

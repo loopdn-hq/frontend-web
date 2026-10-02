@@ -282,7 +282,13 @@ export function ReviewDetail({
                   ctaKind={creative.ctaKind}
                 />
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Button opens <ExternalAddress href={creative.ctaTarget} />
+                  {creative.ctaKind === "lead_form" ? (
+                    "Button opens Loopd'n's lead form"
+                  ) : (
+                    <>
+                      Button opens <ExternalAddress href={creative.ctaTarget} />
+                    </>
+                  )}
                 </p>
                 {flags.map((flag) => (
                   <FindingLine key={flag.code} finding={flag} />

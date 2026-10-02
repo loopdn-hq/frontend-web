@@ -13,10 +13,12 @@
  * screen for a second, with the tab showing (decision 9). That report is what
  * the company pays for; a card that was never really seen is never counted.
  * Its button goes through the server's click address, which counts the click
- * (once per card) and sends the member on with nothing about them added.
+ * (once per card) and sends the member on with nothing about them added - or,
+ * for a lead campaign, opens Loopd'n's own form (LeadFormModal).
  */
 import { useEffect, useRef, useState } from "react";
 import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
+import { LeadFormModal } from "./LeadFormModal";
 import {
   fetchSponsoredCard,
   reportSponsoredView,
@@ -76,6 +78,7 @@ export function useSponsoredSlot({
 
 export function SponsoredSlot({ card }: { card: SponsoredCardData }) {
   const box = useRef<HTMLDivElement>(null);
+  const [formOpen, setFormOpen] = useState(false);
 
   useEffect(() => {
     const element = box.current;
@@ -130,8 +133,16 @@ export function SponsoredSlot({ card }: { card: SponsoredCardData }) {
         imageUrl={card.imageUrl}
         ctaLabel={card.ctaLabel}
         ctaKind={card.ctaKind}
-        ctaHref={card.clickUrl}
+        ctaHref={card.clickUrl ?? undefined}
+        onCta={card.formToken ? () => setFormOpen(true) : undefined}
       />
+      {card.formToken && (
+        <LeadFormModal
+          formToken={card.formToken}
+          isOpen={formOpen}
+          onClose={() => setFormOpen(false)}
+        />
+      )}
     </div>
   );
 }

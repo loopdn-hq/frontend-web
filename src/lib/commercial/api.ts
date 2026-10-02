@@ -21,6 +21,7 @@ import {
   isObject,
   isPresent,
   jsonBody,
+  pageInfo,
   rowsOf,
   type ApiObject,
 } from "@/lib/api/envelope";
@@ -50,8 +51,10 @@ import type {
   Industry,
   Markets,
   ReachEstimate,
+  Lead,
   ReachRange,
   ReportDay,
+  ResultKind,
 } from "./types";
 
 /** A call under /api/v1/commercial/. */
@@ -852,8 +855,21 @@ function normalizeDay(row: unknown): ReportDay | null {
     viewed: asNumber(row.viewed),
     reach: asNullableNumber(row.reach),
     clicks: asNumber(row.clicks),
+    results: asNumber(row.results),
     spendCents: asNumber(row.spend_cents),
   };
+}
+
+const RESULT_KINDS: ResultKind[] = [
+  "clicks",
+  "leads",
+  "joins",
+  "calls",
+  "texts",
+];
+
+function resultKindOf(value: unknown): ResultKind {
+  return RESULT_KINDS.find((kind) => kind === value) ?? "clicks";
 }
 
 function totalsOf(value: unknown) {
@@ -863,9 +879,11 @@ function totalsOf(value: unknown) {
     viewed: asNumber(totals.viewed),
     reach: asNullableNumber(totals.reach),
     clicks: asNumber(totals.clicks),
+    results: asNumber(totals.results),
     spendCents: asNumber(totals.spend_cents),
     costPer1000ViewsCents: asNullableNumber(totals.cost_per_1000_views_cents),
     costPerClickCents: asNullableNumber(totals.cost_per_click_cents),
+    costPerResultCents: asNullableNumber(totals.cost_per_result_cents),
   };
 }
 
@@ -885,6 +903,7 @@ export async function fetchCampaignReport(
     data: {
       currency: asText(data.currency),
       reachShownFrom: asNumber(data.reach_shown_from),
+      result: resultKindOf(data.result),
       totals: totalsOf(data.totals),
       days: (Array.isArray(data.days) ? data.days : [])
         .map(normalizeDay)
@@ -937,10 +956,52 @@ export async function fetchCompanyReport(
                 clicks: asNumber(row.clicks),
                 reach: asNullableNumber(row.reach),
                 spendCents: asNumber(row.spend_cents),
+                result: resultKindOf(row.result),
+                results: asNumber(row.results),
+                costPerResultCents: asNullableNumber(row.cost_per_result_cents),
               }
             : null,
         )
         .filter(isPresent),
     },
   };
+}
+
+// ---- Leads -----------------------------------------------------------
+
+export type LeadPage = { items: Lead[]; count: number; hasMore: boolean };
+
+/**
+ * What members sent through the company's lead forms, newest first, twenty
+ * a page. `campaignId` narrows to one campaign.
+ */
+export async function fetchLeads(
+  companyId: number,
+  { page = 1, campaignId }: { page?: number; campaignId?: number } = {},
+): Promise<CompanyResult<LeadPage>> {
+  const query = new URLSearchParams({ page: String(page) });
+  if (campaignId) query.set("campaign", String(campaignId));
+  const result = await request(
+    `/companies/${companyId}/leads/?${query}`,
+    {},
+    "Couldn't load your leads.",
+  );
+  if (!result.ok) return result;
+  const items = rowsOf(result.data)
+    .map((row): Lead | null =>
+      isObject(row) && typeof row.id === "number"
+        ? {
+            id: row.id,
+            campaignId: asNumber(row.campaign),
+            campaignName: asText(row.campaign_name),
+            name: asText(row.name),
+            phone: asText(row.phone),
+            email: asText(row.email),
+            message: asText(row.message),
+            createdAt: asNullableText(row.created_at),
+          }
+        : null,
+    )
+    .filter(isPresent);
+  return { ok: true, data: { items, ...pageInfo(result.data, items.length) } };
 }

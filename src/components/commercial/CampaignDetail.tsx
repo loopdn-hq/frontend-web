@@ -11,6 +11,7 @@ import {
   ChevronLeft,
   CirclePause,
   CircleStop,
+  ClipboardList,
   Clock,
   Coins,
   History as HistoryIcon,
@@ -658,7 +659,11 @@ function CreativeCard({
               />
               <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                 <CreativeStatusBadge status={creative.status} />
-                <span className="break-all">Opens {creative.ctaTarget}</span>
+                <span className="break-all">
+                  {creative.ctaKind === "lead_form"
+                    ? "Opens a Loopd'n form"
+                    : `Opens ${creative.ctaTarget}`}
+                </span>
               </div>
               {creative.reviewNotes && (
                 <Alert variant="error">{creative.reviewNotes}</Alert>
@@ -711,15 +716,22 @@ function WideCreative({
             {creative.ctaLabel}
             <ArrowRight className="h-4 w-4" aria-hidden />
           </span>
-          <a
-            href={creative.ctaTarget}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex min-w-0 items-center gap-1.5 text-sm text-sky-600 hover:underline dark:text-sky-400"
-          >
-            <Link2 className="h-4 w-4 shrink-0" aria-hidden />
-            <span className="truncate">{creative.ctaTarget}</span>
-          </a>
+          {creative.ctaKind === "lead_form" ? (
+            <p className="flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300">
+              <ClipboardList className="h-4 w-4 shrink-0" aria-hidden />
+              Opens a Loopd&apos;n form: people choose what to send you.
+            </p>
+          ) : (
+            <a
+              href={creative.ctaTarget}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex min-w-0 items-center gap-1.5 text-sm text-sky-600 hover:underline dark:text-sky-400"
+            >
+              <Link2 className="h-4 w-4 shrink-0" aria-hidden />
+              <span className="truncate">{creative.ctaTarget}</span>
+            </a>
+          )}
         </div>
       </div>
     </div>

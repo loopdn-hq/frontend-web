@@ -112,7 +112,9 @@ export function CreativesStep({ campaign, company, onSaved, goTo }: StepProps) {
                 ctaKind={creative.ctaKind}
               />
               <p className="truncate text-xs text-slate-500 dark:text-slate-400">
-                Opens {creative.ctaTarget}
+                {creative.ctaKind === "lead_form"
+                  ? "Opens a Loopd'n form"
+                  : `Opens ${creative.ctaTarget}`}
               </p>
               <div className="flex gap-2">
                 <Button
@@ -192,11 +194,14 @@ function CreativeEditor({
 }) {
   const id = useId();
   const groupJoin = campaign.objective === "group_join";
+  // A lead campaign's button opens Loopd'n's own form: no address to give.
+  const leadForm = campaign.objective === "lead";
 
   const [headline, setHeadline] = useState(creative?.headline ?? "");
   const [body, setBody] = useState(creative?.body ?? "");
   const [ctaLabel, setCtaLabel] = useState(
-    creative?.ctaLabel ?? (groupJoin ? "Join the group" : "Learn more"),
+    creative?.ctaLabel ??
+      (groupJoin ? "Join the group" : leadForm ? "Get a quote" : "Learn more"),
   );
   const [ctaTarget, setCtaTarget] = useState(creative?.ctaTarget ?? "");
   const [image, setImage] = useState<File | null>(null);
@@ -240,7 +245,7 @@ function CreativeEditor({
     if (!headline.trim()) found.headline = "Write a headline.";
     if (!body.trim()) found.body = "Write what the ad says.";
     if (!ctaLabel.trim()) found.ctaLabel = "Label the button.";
-    if (!ctaTarget.trim()) {
+    if (!leadForm && !ctaTarget.trim()) {
       found.ctaTarget = groupJoin
         ? "Paste your group's Loopd'n link."
         : "Enter where the button goes.";
@@ -252,7 +257,7 @@ function CreativeEditor({
       headline: headline.trim(),
       body: body.trim(),
       ctaLabel: ctaLabel.trim(),
-      ctaTarget: withScheme(ctaTarget),
+      ctaTarget: leadForm ? "" : withScheme(ctaTarget),
     };
     if (image) input.image = image;
     else if (removeImage) input.image = null;
@@ -380,28 +385,49 @@ function CreativeEditor({
                 onChange={(event) => setCtaLabel(event.target.value)}
               />
             </Field>
-            <Field
-              label={groupJoin ? "Your group's Loopd'n link" : "Where it goes"}
-              htmlFor={`${id}-target`}
-              hint={
-                groupJoin
-                  ? "The link to your group on Loopd'n."
-                  : "Must start with https://."
-              }
-              error={errors.ctaTarget}
-            >
-              <Input
-                id={`${id}-target`}
-                type="url"
-                inputMode="url"
-                value={ctaTarget}
-                placeholder={
-                  groupJoin ? "https://loopdn.com/…" : "https://www.example.com"
+            {leadForm ? (
+              <div className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/50 dark:text-slate-300">
+                <p className="font-medium text-slate-900 dark:text-slate-100">
+                  Opens a Loopd&apos;n form
+                </p>
+                <p className="mt-0.5">
+                  People send their name, phone or email and a message, and
+                  choose what to share. You&apos;ll find them under Leads.
+                </p>
+                {errors.ctaTarget && (
+                  <p className="mt-1 text-rose-600 dark:text-rose-400">
+                    {errors.ctaTarget}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <Field
+                label={
+                  groupJoin ? "Your group's Loopd'n link" : "Where it goes"
                 }
-                state={errors.ctaTarget ? "error" : "default"}
-                onChange={(event) => setCtaTarget(event.target.value)}
-              />
-            </Field>
+                htmlFor={`${id}-target`}
+                hint={
+                  groupJoin
+                    ? "The link to your group on Loopd'n."
+                    : "Must start with https://."
+                }
+                error={errors.ctaTarget}
+              >
+                <Input
+                  id={`${id}-target`}
+                  type="url"
+                  inputMode="url"
+                  value={ctaTarget}
+                  placeholder={
+                    groupJoin
+                      ? "https://loopdn.com/…"
+                      : "https://www.example.com"
+                  }
+                  state={errors.ctaTarget ? "error" : "default"}
+                  onChange={(event) => setCtaTarget(event.target.value)}
+                />
+              </Field>
+            )}
           </div>
         </fieldset>
 
@@ -416,7 +442,9 @@ function CreativeEditor({
               body={body}
               imageUrl={shownImage}
               ctaLabel={ctaLabel}
-              ctaKind={groupJoin ? "group_join" : "link"}
+              ctaKind={
+                groupJoin ? "group_join" : leadForm ? "lead_form" : "link"
+              }
             />
           </div>
         </div>

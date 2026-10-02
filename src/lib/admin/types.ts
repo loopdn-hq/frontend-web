@@ -62,7 +62,7 @@ export type ReviewCreative = {
   body: string;
   imageUrl: string | null;
   ctaLabel: string;
-  ctaKind: "call" | "text" | "link" | "group_join";
+  ctaKind: "call" | "text" | "link" | "group_join" | "lead_form";
   ctaTarget: string;
   status: string;
   reviewNotes: string;

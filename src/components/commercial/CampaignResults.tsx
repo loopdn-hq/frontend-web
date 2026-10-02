@@ -5,7 +5,11 @@ import { BarChart3 } from "lucide-react";
 import { DailyBars } from "@/components/commercial/DailyBars";
 import { Skeleton, SkeletonRegion } from "@/components/ui";
 import { fetchCampaignReport } from "@/lib/commercial/api";
-import { formatCents, formatClickRate } from "@/lib/commercial/format";
+import {
+  formatCents,
+  formatClickRate,
+  RESULT_LABEL,
+} from "@/lib/commercial/format";
 import type { CampaignDetail, CampaignReport } from "@/lib/commercial/types";
 
 /**
@@ -39,7 +43,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignDetail }) {
     return (
       <Note title="Results will appear here once your campaign starts running.">
         After it&apos;s approved and running, you&apos;ll see views, people
-        reached, clicks and what you spent.
+        reached, clicks, results and what you spent.
       </Note>
     );
   }
@@ -77,17 +81,26 @@ export function CampaignResults({ campaign }: { campaign: CampaignDetail }) {
           }
         />
         <Stat label="Clicks" value={totals.clicks.toLocaleString()} />
-        <Stat
-          label="Click rate"
-          value={formatClickRate(totals.clicks, totals.viewed)}
-        />
+        {/* A website campaign's result is its click; any other's is what it
+            asked for - a lead - with the cost of one. */}
+        {report.result === "clicks" ? (
+          <Stat
+            label="Click rate"
+            value={formatClickRate(totals.clicks, totals.viewed)}
+          />
+        ) : (
+          <Stat
+            label={RESULT_LABEL[report.result].many}
+            value={totals.results.toLocaleString()}
+          />
+        )}
         <Stat label="Spent" value={money(totals.spendCents)} />
         <Stat
-          label="Cost per click"
+          label={`Cost per ${RESULT_LABEL[report.result].one}`}
           value={
-            totals.costPerClickCents === null
+            totals.costPerResultCents === null
               ? "-"
-              : money(totals.costPerClickCents)
+              : money(totals.costPerResultCents)
           }
         />
       </dl>

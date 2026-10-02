@@ -5,6 +5,7 @@ import type {
   CampaignStatus,
   CreativeStatus,
   ReachRange,
+  ResultKind,
 } from "./types";
 import { formatCents } from "@/lib/format/money";
 
@@ -76,7 +77,7 @@ export const CAMPAIGN_OBJECTIVE_HINT: Record<CampaignObjective, string> = {
   call: "People call you from the ad.",
   text: "People text you from the ad.",
   website: "Send people to your website.",
-  lead: "Collect interest through your sign-up or contact page.",
+  lead: "People send you their details through a short Loopd'n form.",
   booking: "Send people to your booking page.",
   group_join: "Invite people to join your Loopd'n group.",
 };
@@ -99,3 +100,12 @@ export function formatClickRate(clicks: number, viewed: number): string {
   const rate = (clicks / viewed) * 100;
   return `${rate.toLocaleString(undefined, { maximumFractionDigits: rate < 10 ? 1 : 0 })}%`;
 }
+
+/** What a campaign's results are called, plural and singular. */
+export const RESULT_LABEL: Record<ResultKind, { many: string; one: string }> = {
+  clicks: { many: "Clicks", one: "click" },
+  leads: { many: "Leads", one: "lead" },
+  joins: { many: "Group joins", one: "join" },
+  calls: { many: "Calls", one: "call" },
+  texts: { many: "Texts", one: "text" },
+};
