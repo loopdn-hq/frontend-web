@@ -5,8 +5,11 @@ import { Loader2 } from "lucide-react";
 import { toCents } from "@/components/commercial/builder/steps";
 import { Alert, Button, Field, Input, Modal, useToast } from "@/components/ui";
 import {
+  cancelCampaign,
   deleteCampaign,
   increaseBudget,
+  pauseCampaign,
+  resumeCampaign,
   withdrawCampaign,
 } from "@/lib/commercial/api";
 import { useCompany } from "@/lib/commercial/CompanyProvider";
@@ -15,9 +18,10 @@ import type { Campaign, CampaignDetail } from "@/lib/commercial/types";
 
 /**
  * The owner's moves a campaign list and a campaign page both offer: delete a
- * draft, withdraw one from review. Each asks first, then says what happened.
- * The server decides whether the move is allowed; these only offer it when
- * the status says it should be.
+ * draft, withdraw one from review, pause, resume, cancel, add budget. The ones
+ * that can't be taken back ask first; each says what happened. The server
+ * decides whether the move is allowed; these only offer it when the status
+ * says it should be.
  */
 
 export function DeleteDraftButton({
@@ -278,6 +282,136 @@ export function AddBudgetButton({
             />
           </Field>
         </div>
+      </Modal>
+    </>
+  );
+}
+
+/**
+ * Pause a running campaign, or resume a paused one. No question first: both
+ * are undone by the other, and the money stays set aside either way.
+ */
+export function PauseResumeButton({
+  campaign,
+  onChanged,
+}: {
+  campaign: Campaign;
+  onChanged: (campaign: CampaignDetail) => void;
+}) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const pausing = campaign.status === "running";
+
+  async function move() {
+    setBusy(true);
+    const result = await (pausing ? pauseCampaign : resumeCampaign)(
+      campaign.id,
+    );
+    setBusy(false);
+    if (!result.ok) {
+      toast({
+        title: pausing ? "Couldn't pause it" : "Couldn't resume it",
+        description: result.message,
+        tone: "error",
+      });
+      return;
+    }
+    toast(
+      pausing
+        ? {
+            title: "Campaign paused",
+            description:
+              "It isn't shown while it's paused. Its budget stays set aside.",
+          }
+        : { title: "Campaign resumed", description: "It's running again." },
+    );
+    onChanged(result.data);
+  }
+
+  return (
+    <Button variant="secondary" size="md" onClick={move} disabled={busy}>
+      {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+      {pausing ? "Pause" : "Resume"}
+    </Button>
+  );
+}
+
+/**
+ * End an approved, running or paused campaign for good. Asks first: it can't
+ * be undone, and says how much comes back to the balance.
+ */
+export function CancelCampaignButton({
+  campaign,
+  onCancelled,
+}: {
+  campaign: Campaign;
+  onCancelled: (campaign: CampaignDetail) => void;
+}) {
+  const toast = useToast();
+  const { reload } = useCompany();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const left = formatCents(campaign.reservedCents, campaign.currency);
+
+  async function confirm() {
+    setBusy(true);
+    const result = await cancelCampaign(campaign.id);
+    setBusy(false);
+    if (!result.ok) {
+      setError(result.message);
+      return;
+    }
+    setOpen(false);
+    toast({
+      title: "Campaign cancelled",
+      description:
+        campaign.reservedCents > 0
+          ? `${left} is back in your balance.`
+          : "It won't be shown again.",
+    });
+    reload();
+    onCancelled(result.data);
+  }
+
+  return (
+    <>
+      <Button
+        variant="ghost"
+        size="md"
+        onClick={() => {
+          setError(null);
+          setOpen(true);
+        }}
+      >
+        Cancel campaign
+      </Button>
+      <Modal
+        isOpen={open}
+        onClose={() => !busy && setOpen(false)}
+        title="Cancel this campaign?"
+        description={
+          campaign.reservedCents > 0
+            ? `It stops for good and won't be shown again. The ${left} it hasn't spent goes back to your balance.`
+            : "It stops for good and won't be shown again."
+        }
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => setOpen(false)}
+              disabled={busy}
+            >
+              Keep it
+            </Button>
+            <Button variant="danger" onClick={confirm} disabled={busy}>
+              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
+              Cancel campaign
+            </Button>
+          </div>
+        }
+      >
+        {error && <Alert variant="error">{error}</Alert>}
       </Modal>
     </>
   );

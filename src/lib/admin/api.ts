@@ -20,6 +20,7 @@ import {
 import type {
   CampaignStatus,
   Finding,
+  GroupMatch,
   Rejection,
   ReviewAudience,
   ReviewCampaign,
@@ -239,4 +240,44 @@ export async function rejectCampaign(
       "Couldn't send the campaign back.",
     ),
   );
+}
+
+/**
+ * Does group `groupId` match this campaign's audience, and if not, why not -
+ * each rule named. For "why isn't my ad showing there"; never shown to a
+ * company.
+ */
+export async function checkGroupMatch(
+  campaignId: number,
+  groupId: number,
+): Promise<ApiResult<GroupMatch>> {
+  const result = await request(
+    `/campaigns/${campaignId}/match/?group=${groupId}`,
+    {},
+    "Couldn't check that group.",
+  );
+  if (!result.ok) return result;
+  const data = isObject(result.data) ? result.data : {};
+  const group = isObject(data.group) ? data.group : {};
+  return {
+    ok: true,
+    data: {
+      group: {
+        id: asNumber(group.id),
+        name: asText(group.name),
+        memberCount: asNumber(group.member_count),
+      },
+      matches: data.matches === true,
+      checks: list(data.checks, (row) =>
+        isObject(row)
+          ? {
+              code: asText(row.code),
+              label: asText(row.label),
+              passed: row.passed === true,
+              detail: asText(row.detail),
+            }
+          : null,
+      ),
+    },
+  };
 }

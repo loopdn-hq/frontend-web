@@ -97,3 +97,18 @@ export type Rejection = {
   note: string;
   creatives: { id: number; note: string }[];
 };
+
+/** One rule of the audience, held against one group. */
+export type MatchCheck = {
+  code: string;
+  label: string;
+  passed: boolean;
+  detail: string;
+};
+
+/** Does a group match a campaign's audience - and if not, which rule says no. */
+export type GroupMatch = {
+  group: { id: number; name: string; memberCount: number };
+  matches: boolean;
+  checks: MatchCheck[];
+};

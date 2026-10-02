@@ -32,6 +32,7 @@ import {
 } from "@/lib/admin/format";
 import type { Finding, ReviewCampaign } from "@/lib/admin/types";
 import { cn } from "@/lib/ui/cn";
+import { GroupMatchCheck } from "./GroupMatchCheck";
 import { RejectDialog } from "./RejectDialog";
 import { STATUS_TONE } from "./statusTone";
 
@@ -259,6 +260,9 @@ export function ReviewDetail({
             Not chosen.
           </p>
         )}
+        <div className="mt-4 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <GroupMatchCheck campaignId={campaign.id} />
+        </div>
       </Card>
 
       <Card title={`Creatives (${campaign.creatives.length})`}>

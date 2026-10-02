@@ -48,6 +48,8 @@ const SHOWING: { value: CampaignStatus | "all"; label: string }[] = [
   { value: "pending_review", label: "Waiting for review" },
   { value: "approved", label: "Approved" },
   { value: "running", label: "Running" },
+  { value: "paused", label: "Paused" },
+  { value: "ended", label: "Ended" },
   { value: "draft", label: "Drafts" },
   { value: "all", label: "All campaigns" },
 ];

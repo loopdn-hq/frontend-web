@@ -21,6 +21,7 @@ import {
   Phone,
   Shield,
   SlidersHorizontal,
+  Tag,
   UserPlus,
 } from "lucide-react";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
@@ -28,6 +29,7 @@ import { Alert, Button, Select } from "@/components/ui";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { SettingsError, SwitchRow } from "@/components/settings/SettingsRows";
 import { useOptimisticChanges } from "@/components/settings/useOptimisticChanges";
+import { LoopKindAndPlace } from "@/components/home/LoopKindAndPlace";
 import type {
   ConversationMode,
   GroupMemberPermission,
@@ -255,6 +257,22 @@ export function LoopPanelGeneral({
             onChange={(on) => void change("voice_messages_enabled", on)}
           />
         </div>
+      </PanelSection>
+
+      <PanelSection
+        icon={Tag}
+        title="Kind and Place"
+        description="What kind of Loop this is and where. Ads are matched on these two only, never on what members write."
+      >
+        <LoopKindAndPlace
+          category={shown.category}
+          region={shown.region}
+          disabled={!canEdit}
+          categoryBusy={isBusy("category")}
+          regionBusy={isBusy("region")}
+          onCategory={(slug) => void change("category", slug)}
+          onRegion={(code) => void change("region", code)}
+        />
       </PanelSection>
     </div>
   );

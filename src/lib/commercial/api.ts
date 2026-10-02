@@ -698,6 +698,48 @@ export async function withdrawCampaign(
   );
 }
 
+/** Stop a running campaign for now; its budget stays set aside. */
+export async function pauseCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/pause/`,
+      { method: "POST" },
+      "Couldn't pause the campaign.",
+    ),
+  );
+}
+
+/** Start a paused campaign again. */
+export async function resumeCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/resume/`,
+      { method: "POST" },
+      "Couldn't resume the campaign.",
+    ),
+  );
+}
+
+/**
+ * End an approved, running or paused campaign for good. What it hasn't spent
+ * goes back to the available balance.
+ */
+export async function cancelCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/cancel/`,
+      { method: "POST" },
+      "Couldn't cancel the campaign.",
+    ),
+  );
+}
+
 // ---- Money -----------------------------------------------------------
 
 /**

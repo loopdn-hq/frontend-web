@@ -4,10 +4,13 @@ import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  BadgeCheck,
   BarChart3,
   CalendarCheck,
   CalendarDays,
   ChevronLeft,
+  CirclePause,
+  CircleStop,
   Clock,
   Coins,
   History as HistoryIcon,
@@ -26,7 +29,9 @@ import { LoadFailed } from "@/components/app/LoadFailed";
 import { describeAudience } from "@/components/commercial/AudienceSummary";
 import {
   AddBudgetButton,
+  CancelCampaignButton,
   DeleteDraftDialog,
+  PauseResumeButton,
   WithdrawButton,
 } from "@/components/commercial/CampaignActions";
 import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
@@ -199,22 +204,40 @@ export function CampaignDetail({
       )}
 
       {campaign.status === "pending_review" && (
-        <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
-          <Clock
-            className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"
-            aria-hidden
-          />
-          <div className="text-sm">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">
-              Your campaign is being reviewed
-            </p>
-            <p className="mt-0.5 text-slate-600 dark:text-slate-300">
-              Loopd&apos;n is checking that it meets its advertising policies.
-              You can&apos;t edit it while it&apos;s under review; withdraw it
-              to make changes.
-            </p>
-          </div>
-        </div>
+        <Banner
+          icon={Clock}
+          tone="amber"
+          title="Your campaign is being reviewed"
+        >
+          Loopd&apos;n is checking that it meets its advertising policies. You
+          can&apos;t edit it while it&apos;s under review; withdraw it to make
+          changes.
+        </Banner>
+      )}
+
+      {campaign.status === "approved" && (
+        <Banner icon={BadgeCheck} tone="sky" title="Approved">
+          {campaign.startsAt && new Date(campaign.startsAt) > new Date()
+            ? `It starts running on ${formatDate(campaign.startsAt)}.`
+            : "It starts running in a moment."}{" "}
+          Cancel it before then and its budget comes back to your balance.
+        </Banner>
+      )}
+
+      {campaign.status === "paused" && (
+        <Banner icon={CirclePause} tone="amber" title="Paused">
+          It isn&apos;t shown while it&apos;s paused, and its budget stays set
+          aside. Resume it to carry on.
+        </Banner>
+      )}
+
+      {campaign.status === "ended" && (
+        <Banner icon={CircleStop} tone="slate" title="This campaign has ended">
+          {lastEvent?.kind === "cancelled"
+            ? "It was cancelled. "
+            : "Its end date passed. "}
+          Whatever it didn&apos;t spend is back in your balance.
+        </Banner>
       )}
 
       <Overview campaign={campaign} editHref={editAt("budget")} />
@@ -253,6 +276,41 @@ export function CampaignDetail({
         <Card title="History" icon={HistoryIcon}>
           <Timeline events={campaign.events} />
         </Card>
+      </div>
+    </div>
+  );
+}
+
+// ---- Banners -------------------------------------------------------------
+
+const BANNER_TONE = {
+  sky: "border-sky-200 bg-sky-50 text-sky-600 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-400",
+  amber:
+    "border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-400",
+  slate:
+    "border-slate-200 bg-slate-50 text-slate-500 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-400",
+};
+
+/** Where the campaign stands, when that is the first thing to know. */
+function Banner({
+  icon: Icon,
+  tone,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  tone: keyof typeof BANNER_TONE;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`flex gap-3 rounded-2xl border p-4 ${BANNER_TONE[tone]}`}>
+      <Icon className="mt-0.5 h-5 w-5 shrink-0" aria-hidden />
+      <div className="text-sm">
+        <p className="font-semibold text-slate-900 dark:text-slate-100">
+          {title}
+        </p>
+        <p className="mt-0.5 text-slate-600 dark:text-slate-300">{children}</p>
       </div>
     </div>
   );
@@ -355,7 +413,15 @@ function Header({
           />
         )}
         {(campaign.status === "running" || campaign.status === "paused") && (
-          <AddBudgetButton campaign={campaign} onRaised={onChanged} />
+          <>
+            <PauseResumeButton campaign={campaign} onChanged={onChanged} />
+            <AddBudgetButton campaign={campaign} onRaised={onChanged} />
+          </>
+        )}
+        {(campaign.status === "approved" ||
+          campaign.status === "running" ||
+          campaign.status === "paused") && (
+          <CancelCampaignButton campaign={campaign} onCancelled={onChanged} />
         )}
       </div>
     </header>

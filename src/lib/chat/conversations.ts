@@ -43,7 +43,18 @@ export type GroupSettings = {
   sms_delivery_enabled: boolean;
   sms_replies_enabled: boolean;
   voice_messages_enabled: boolean;
+  /**
+   * What kind of group this is (a category's slug) and where it is (a
+   * country, "PH", or one of its regions, "PH-00"). Declared by an admin;
+   * null and "" until then. Ads are matched on these two and nothing else.
+   */
+  category: string | null;
+  region: string;
 };
+
+/** A new group's settings: what kind and where are optional at creation. */
+export type NewGroupSettings = Omit<GroupSettings, "category" | "region"> &
+  Partial<Pick<GroupSettings, "category" | "region">>;
 
 export type CreateConversationInvite = {
   phone_number: string;
@@ -63,7 +74,7 @@ export type CreateConversationPayload = {
    * `members`, an address that matches nobody is not an error.
    */
   invite_email?: string[];
-  settings: GroupSettings;
+  settings: NewGroupSettings;
 };
 
 export type ConversationKind = "group" | "direct";
@@ -877,6 +888,8 @@ function normalizeGroupSettings(item: ApiObject): GroupSettings {
     sms_delivery_enabled: item.sms_delivery_enabled !== false,
     sms_replies_enabled: item.sms_replies_enabled !== false,
     voice_messages_enabled: item.voice_messages_enabled === true,
+    category: typeof item.category === "string" ? item.category : null,
+    region: typeof item.region === "string" ? item.region : "",
   };
 }
 
