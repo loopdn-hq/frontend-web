@@ -6,11 +6,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 import { Alert, Button, Field, Input, Textarea } from "@/components/ui";
+import { AvatarPicker } from "@/components/settings/AvatarPicker";
 import {
   MembersField,
   commitPendingMember,
 } from "@/components/home/MembersField";
 import { toMemberPayload, type MemberEntry } from "@/lib/chat/members";
+import {
+  groupDescriptionSchema,
+  groupNameSchema,
+} from "@/lib/validation/group";
 import {
   createConversation,
   type ConversationMode,
@@ -20,17 +25,8 @@ import {
 } from "@/lib/chat/conversations";
 
 const createLoopSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Loop name is required")
-    .min(3, "Loop name must be at least 3 characters")
-    .max(50, "Loop name must be 50 characters or less"),
-  description: z
-    .string()
-    .trim()
-    .max(500, "Description must be 500 characters or less")
-    .optional(),
+  name: groupNameSchema,
+  description: groupDescriptionSchema.optional(),
   join_mode: z.enum(["open", "code", "approval", "invite"]),
   mode: z.enum(["chat", "broadcast"]),
   add_member_permission: z.enum(["members", "admins"]),
@@ -105,6 +101,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
     register,
     handleSubmit,
     setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<CreateLoopFormValues>({
     resolver: zodResolver(createLoopSchema),
@@ -125,6 +122,9 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
   // string, and the field owns its own per-entry validation.
   const [members, setMembers] = useState<MemberEntry[]>([]);
   const [pendingMember, setPendingMember] = useState("");
+  // Outside the form for the same reason: a File, not a string, and sent
+  // only if one was chosen.
+  const [image, setImage] = useState<File | null>(null);
 
   async function onSubmit(values: CreateLoopFormValues) {
     // Whatever is still sitting in the box counts as typed, so fold it in
@@ -150,6 +150,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         ...(accountMembers.length > 0 ? { members: accountMembers } : {}),
         ...(invite.length > 0 ? { invite } : {}),
         ...(inviteEmail.length > 0 ? { invite_email: inviteEmail } : {}),
+        ...(image ? { image } : {}),
         settings: {
           mode: values.mode,
           join_mode: values.join_mode,
@@ -176,24 +177,45 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      {/* Loop Name */}
-      <Field
-        label="Loop Name *"
-        htmlFor="loop-name"
-        error={errors.name?.message}
-      >
-        <Input
-          id="loop-name"
-          type="text"
-          placeholder="e.g., Family HQ, Neighborhood Watch"
-          {...register("name")}
+      {/* Photo and name side by side, the way the Loop will appear in the
+          chat list. */}
+      <div className="flex items-start gap-4">
+        <AvatarPicker
+          name="Loop"
+          file={image}
+          onPick={(picked) => {
+            clearErrors("root.server");
+            setImage(picked);
+          }}
+          onReject={(message) => setError("root.server", { message })}
+          size={64}
           disabled={isSubmitting}
-          state={errors.name ? "error" : "default"}
+          isGroup
+          pendingNote={null}
         />
-      </Field>
+        <Field
+          label="Loop Name *"
+          htmlFor="loop-name"
+          error={errors.name?.message}
+          className="min-w-0 flex-1"
+        >
+          <Input
+            id="loop-name"
+            type="text"
+            placeholder="e.g., Family HQ, Neighborhood Watch"
+            {...register("name")}
+            disabled={isSubmitting}
+            state={errors.name ? "error" : "default"}
+          />
+        </Field>
+      </div>
 
       {/* Description */}
-      <Field label="Description" htmlFor="loop-description">
+      <Field
+        label="Description"
+        htmlFor="loop-description"
+        error={errors.description?.message}
+      >
         <Textarea
           id="loop-description"
           placeholder="What is this Loop about? (optional)"

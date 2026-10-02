@@ -18,6 +18,7 @@ import {
   Loader2,
   MessageSquare,
   Mic,
+  PenLine,
   Phone,
   Shield,
   SlidersHorizontal,
@@ -30,6 +31,10 @@ import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { SettingsError, SwitchRow } from "@/components/settings/SettingsRows";
 import { useOptimisticChanges } from "@/components/settings/useOptimisticChanges";
 import { LoopKindAndPlace } from "@/components/home/LoopKindAndPlace";
+import {
+  LoopDetailsForm,
+  type LoopDetailsChange,
+} from "@/components/home/LoopDetailsForm";
 import type {
   ConversationMode,
   GroupMemberPermission,
@@ -103,7 +108,21 @@ const WHO_OPTIONS: { value: GroupMemberPermission; label: string }[] = [
 type LoopPanelGeneralProps = {
   settings: GroupSettings;
   onSave?: (change: Partial<GroupSettings>) => Promise<void>;
+  /**
+   * May change the settings below the details - `group.settings.policy`,
+   * which only ever means an admin.
+   */
   canEdit?: boolean;
+  /** The Loop's photo, name and description, as they are now. */
+  details: { name: string; description: string; imageUrl: string | null };
+  /**
+   * May change those three - `group.settings.edit`, which a group can open to
+   * every member with "Who can edit group details?". Separate from `canEdit`
+   * for that reason: a member allowed to rename the group is still not
+   * allowed to change how it works.
+   */
+  canEditDetails?: boolean;
+  onSaveDetails?: (change: LoopDetailsChange) => Promise<void>;
   /**
    * Reads this Loop's join code. Shown under "Who Can Join" while that is how
    * people get in - the design files invitations under a section that is not
@@ -130,6 +149,9 @@ export function LoopPanelGeneral({
   settings,
   onSave,
   canEdit = true,
+  details,
+  canEditDetails = canEdit,
+  onSaveDetails,
   onFetchJoinCode,
   smsNumber = null,
   onProvisionNumber,
@@ -146,13 +168,30 @@ export function LoopPanelGeneral({
           variant="neutral"
           className="mb-5 border border-slate-200 px-4 py-3 dark:border-slate-700"
         >
-          Only admins can change these. You are seeing them as they are.
+          {canEditDetails
+            ? "You can change the photo, name and description. Only admins can change the rest."
+            : "Only admins can change these. You are seeing them as they are."}
         </Alert>
       )}
 
       {error && <SettingsError className="mb-4">{error}</SettingsError>}
 
-      {/* First, because it is the one thing on this screen somebody needs to
+      {/* First, because it is what the Loop is: the rest is how it works. */}
+      <PanelSection
+        icon={PenLine}
+        title="Loop Details"
+        description="The photo, name and description every member sees."
+      >
+        <LoopDetailsForm
+          name={details.name}
+          description={details.description}
+          imageUrl={details.imageUrl}
+          canEdit={canEditDetails}
+          onSave={onSaveDetails}
+        />
+      </PanelSection>
+
+      {/* Next, because it is the one thing on this screen somebody needs to
           give to a person who does not have the app. */}
       <PanelSection
         icon={Phone}

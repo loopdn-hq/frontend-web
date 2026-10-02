@@ -1094,8 +1094,12 @@ export function HomeShell({ mode }: HomeShellProps) {
   );
   const canAddMembers =
     isGroupConversation && allows(selectedConversation, GROUP.addMembers);
-  const canEditGroupSettings =
+  // Two answers, not one: a group can let every member change its name and
+  // photo, but how it works stays with admins (`group.settings.policy`).
+  const canEditGroupDetails =
     isGroupConversation && allows(selectedConversation, GROUP.editSettings);
+  const canEditGroupPolicy =
+    isGroupConversation && allows(selectedConversation, GROUP.editPolicy);
 
   // Get messages for selected loop
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
@@ -4366,10 +4370,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           isOpen={isAdminPanelOpen}
           onClose={() => setIsAdminPanelOpen(false)}
           loopName={selectedConversation?.name ?? "Loop"}
+          loopDescription={selectedConversation?.description ?? ""}
+          loopImageUrl={selectedConversation?.logoImage ?? null}
           settings={groupSettings}
           smsNumber={selectedConversation?.smsNumber ?? null}
           isSettingsLoading={isGroupSettingsLoading}
-          canEditSettings={canEditGroupSettings}
+          canEditSettings={canEditGroupPolicy}
+          canEditDetails={canEditGroupDetails}
           canModerateMembers={allows(selectedConversation, GROUP.removeMembers)}
           activeTab={adminPanelTab}
           onTabChange={handleTabChange}
@@ -4437,6 +4444,17 @@ export function HomeShell({ mode }: HomeShellProps) {
             // The sidebar reads `settings.mode` off the conversations
             // list, so updating only the admin panel's own state left
             // the group filed under Chat until a reload.
+            applyConversationUpdate(result.conversation);
+          }}
+          onSaveDetails={async (change) => {
+            if (!selectedConversationId) return;
+            const result = await updateGroupSettings(
+              selectedConversationId,
+              change,
+            );
+            if (!result.ok) throw new Error(result.message);
+            // The chat list, the header and this panel all read the name and
+            // photo off the conversation, so this one update reaches them all.
             applyConversationUpdate(result.conversation);
           }}
           onFetchJoinCode={async () => {

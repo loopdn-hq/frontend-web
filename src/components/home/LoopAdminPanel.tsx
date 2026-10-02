@@ -20,6 +20,7 @@ import { LogOut, Settings, Users } from "lucide-react";
 import { Alert, Button, Modal } from "@/components/ui";
 import { SettingsHeading } from "@/components/settings/SettingsRows";
 import { LoopPanelGeneral } from "./LoopPanelGeneral";
+import type { LoopDetailsChange } from "./LoopDetailsForm";
 import { LoopPanelMembers } from "./LoopPanelMembers";
 import type {
   ConversationParticipant,
@@ -47,11 +48,16 @@ type LoopAdminPanelProps = {
   isOpen: boolean;
   onClose: () => void;
   loopName: string;
+  loopDescription?: string;
+  loopImageUrl?: string | null;
   settings: GroupSettings | null;
   /** This Loop's own phone number, shown on General. Null until it has one. */
   smsNumber?: GroupNumber | null;
   isSettingsLoading?: boolean;
+  /** The policy settings on General. Admins only, whatever the group says. */
   canEditSettings?: boolean;
+  /** The photo, name and description, which a group can open to members. */
+  canEditDetails?: boolean;
   canModerateMembers?: boolean;
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
@@ -62,6 +68,7 @@ type LoopAdminPanelProps = {
   onApproveRequest?: (participantId: string) => Promise<void>;
   onDeclineRequest?: (participantId: string) => Promise<void>;
   onSaveSettings?: (settings: Partial<GroupSettings>) => Promise<void>;
+  onSaveDetails?: (change: LoopDetailsChange) => Promise<void>;
   onFetchJoinCode?: () => Promise<string>;
   /** Buys the Loop its number. Absent for anybody who may not. */
   onProvisionNumber?: () => Promise<void>;
@@ -78,10 +85,13 @@ export function LoopAdminPanel({
   isOpen,
   onClose,
   loopName,
+  loopDescription = "",
+  loopImageUrl = null,
   settings,
   smsNumber = null,
   isSettingsLoading = false,
   canEditSettings = true,
+  canEditDetails = canEditSettings,
   canModerateMembers = false,
   activeTab,
   onTabChange,
@@ -92,6 +102,7 @@ export function LoopAdminPanel({
   onApproveRequest,
   onDeclineRequest,
   onSaveSettings,
+  onSaveDetails,
   onFetchJoinCode,
   onProvisionNumber,
   onAddMembers,
@@ -190,6 +201,13 @@ export function LoopAdminPanel({
                 settings={settings}
                 onSave={onSaveSettings}
                 canEdit={canEditSettings}
+                details={{
+                  name: loopName,
+                  description: loopDescription,
+                  imageUrl: loopImageUrl,
+                }}
+                canEditDetails={canEditDetails}
+                onSaveDetails={onSaveDetails}
                 onFetchJoinCode={onFetchJoinCode}
                 smsNumber={smsNumber}
                 onProvisionNumber={onProvisionNumber}

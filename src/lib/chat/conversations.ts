@@ -75,6 +75,8 @@ export type CreateConversationPayload = {
    */
   invite_email?: string[];
   settings: NewGroupSettings;
+  /** The group's photo. Sends the whole request as a form - see `groupForm`. */
+  image?: File;
 };
 
 export type ConversationKind = "group" | "direct";
@@ -937,6 +939,63 @@ export async function authorizedRequest(
 }
 
 /**
+ * JSON, or a form when there is a photo to carry.
+ *
+ * No Content-Type on the form: the browser has to write the multipart boundary
+ * into it, and naming the type here produces a body the server cannot split
+ * back apart.
+ */
+function groupRequestBody(
+  fields: ApiObject,
+  image: File | undefined,
+): Pick<RequestInit, "headers" | "body"> {
+  if (!image) {
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    };
+  }
+  const form = groupForm(fields);
+  form.append("image", image);
+  return { body: form };
+}
+
+/**
+ * A group's fields as the form DRF reads back into the same shape as the JSON.
+ *
+ * Multipart has no nesting, so it is spelled out in the keys: a list of
+ * strings is the key repeated (`members`), a list of objects is indexed
+ * (`invite[0]phone_number`), and an object is dotted (`settings.mode`). See
+ * rest_framework/utils/html.py. Null is sent as "" - which DRF reads back as
+ * null for any field that allows it - and undefined is left out, because
+ * FormData would otherwise post the string "undefined".
+ */
+function groupForm(fields: ApiObject, form = new FormData(), prefix = "") {
+  for (const [key, value] of Object.entries(fields)) {
+    const name = prefix ? `${prefix}.${key}` : key;
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (isApiObject(item)) {
+          for (const [field, inner] of Object.entries(item)) {
+            if (inner !== undefined) {
+              form.append(`${name}[${index}]${field}`, String(inner ?? ""));
+            }
+          }
+        } else {
+          form.append(name, String(item));
+        }
+      });
+    } else if (isApiObject(value)) {
+      groupForm(value, form, name);
+    } else {
+      form.append(name, value === null ? "" : String(value));
+    }
+  }
+  return form;
+}
+
+/**
  * Create a group. On success, `conversationId` is the new Loop's ID - null
  * only if the response somehow carried none, since the Loop exists either way
  * and reporting a failure would invite creating it twice.
@@ -959,8 +1018,7 @@ export async function createConversation(
   try {
     const response = await authorizedRequest("/chat/conversations/group/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      ...groupRequestBody(body, payload.image),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -1322,11 +1380,23 @@ export async function provisionGroupNumber(
   }
 }
 
+/**
+ * Change a group: its name, description and photo, or its policy settings.
+ *
+ * The two halves are gated differently server-side. `edit_group_permission`
+ * can let ordinary members change the name, description and photo; the
+ * settings stay with admins regardless (`group.settings.policy`).
+ */
 export async function updateGroupSettings(
   conversationId: string | number,
-  payload: {
+  {
+    image,
+    ...payload
+  }: {
     name?: string;
     description?: string;
+    /** A new photo. Sends the request as a form - see `groupForm`. */
+    image?: File;
     settings?: Partial<GroupSettings>;
   },
 ): Promise<
@@ -1335,11 +1405,7 @@ export async function updateGroupSettings(
   try {
     const response = await authorizedRequest(
       `/chat/conversations/${conversationId}/settings/`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
+      { method: "PATCH", ...groupRequestBody(payload, image) },
     );
     const data = await response.json().catch(() => null);
     const conversationData = getObjectData(data);
