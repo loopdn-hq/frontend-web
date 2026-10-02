@@ -1,10 +1,13 @@
 import { ExternalLink, Users } from "lucide-react";
-import type { CreativeCtaKind } from "@/lib/commercial/types";
+
+/** What the card's button does. The same values as a creative's `cta_kind`. */
+export type SponsoredCtaKind = "call" | "text" | "link" | "group_join";
 
 /**
  * A creative as a member would see it in a group's chat: a labelled card,
- * never a message. The real one is drawn by the chat app (slice 5); this is
- * the company's preview of it, so it says "Sponsored" the same way.
+ * never a message. Shared, outside any one area: the commercial builder and
+ * campaign page preview it, the admin site reviews it, and the chat app will
+ * draw the real one (slice 5) - so all three show "Sponsored" the same way.
  */
 export function SponsoredCard({
   companyName,
@@ -19,7 +22,7 @@ export function SponsoredCard({
   body: string;
   imageUrl: string | null;
   ctaLabel: string;
-  ctaKind: CreativeCtaKind;
+  ctaKind: SponsoredCtaKind;
 }) {
   const Icon = ctaKind === "group_join" ? Users : ExternalLink;
 

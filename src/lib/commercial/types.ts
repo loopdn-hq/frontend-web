@@ -19,6 +19,8 @@
  * gone wrong.
  */
 
+import type { ApiResult } from "@/lib/api/envelope";
+
 /**
  * Active from the moment it is created: Loopd'n reviews campaigns, not
  * companies. Staff can suspend one.
@@ -261,11 +263,7 @@ export type CampaignChanges = Partial<{
 }>;
 
 /**
- * What every lib/commercial call resolves to. Never throws.
- *
- * `fieldErrors` is the server's per-field message, keyed by the API's field
- * name (`contact_email`), when it refused a form.
+ * What every lib/commercial call resolves to. Never throws. The shared shape
+ * (lib/api/envelope.ts), under the name this area has always used.
  */
-export type CompanyResult<T> =
-  | { ok: true; data: T }
-  | { ok: false; message: string; fieldErrors?: Record<string, string> };
+export type CompanyResult<T> = ApiResult<T>;

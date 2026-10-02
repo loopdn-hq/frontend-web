@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useState, type ChangeEvent } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
-import { SponsoredCard } from "@/components/commercial/SponsoredCard";
+import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
 import {
   Alert,
   Button,

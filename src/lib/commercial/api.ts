@@ -9,11 +9,21 @@
 // { ok: false } on any failure rather than throwing, so a page shows LoadFailed
 // or the server's sentence rather than a blank screen.
 //
-// `authorizedRequest` lives in lib/chat for historical reasons; it is the
-// app's one authenticated fetch (bearer token, refresh on 401) and is the only
-// thing this area takes from lib/chat.
+// The request and the helpers that read a response are lib/api/envelope.ts,
+// shared with the admin site's API module.
 
-import { authorizedRequest } from "@/lib/chat/conversations";
+import {
+  apiRequest,
+  asNullableNumber,
+  asNullableText,
+  asNumber,
+  asText,
+  isObject,
+  isPresent,
+  jsonBody,
+  rowsOf,
+  type ApiObject,
+} from "@/lib/api/envelope";
 import type {
   Audience,
   Company,
@@ -41,95 +51,13 @@ import type {
   ReachRange,
 } from "./types";
 
-type ApiObject = Record<string, unknown>;
-
-function isObject(value: unknown): value is ApiObject {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function asText(value: unknown, fallback = ""): string {
-  return typeof value === "string" ? value : fallback;
-}
-
-function asNumber(value: unknown, fallback = 0): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function asNullableNumber(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
-}
-
-function asNullableText(value: unknown): string | null {
-  return typeof value === "string" && value ? value : null;
-}
-
-/**
- * A list endpoint's rows. DRF's PageNumberPagination is on by default, so a
- * list arrives as `{ count, next, previous, results }`; a bare array is
- * accepted too, for a viewset that turns pagination off.
- */
-function rowsOf(data: unknown): unknown[] {
-  if (Array.isArray(data)) return data;
-  if (isObject(data) && Array.isArray(data.results)) return data.results;
-  return [];
-}
-
-/**
- * A refused form's errors, one sentence per field: DRF sends
- * `{ "contact_email": ["Enter a valid email address."] }` under `data`.
- */
-function fieldErrorsOf(data: unknown): Record<string, string> | undefined {
-  if (!isObject(data)) return undefined;
-  const errors: Record<string, string> = {};
-  for (const [field, value] of Object.entries(data)) {
-    const first = Array.isArray(value) ? value[0] : value;
-    if (typeof first === "string") errors[field] = first;
-  }
-  return Object.keys(errors).length > 0 ? errors : undefined;
-}
-
-/**
- * One request, unwrapped from the {code, message, data} envelope.
- *
- * The server's `message` is shown as-is on failure: EnvelopeJSONRenderer
- * already turns a validation error into a sentence.
- */
-async function request(
+/** A call under /api/v1/commercial/. */
+function request(
   path: string,
   init: RequestInit = {},
   fallback: string,
 ): Promise<CompanyResult<unknown>> {
-  try {
-    const response = await authorizedRequest(`/commercial${path}`, init);
-    // A delete answers 204, with nothing to read.
-    if (response.status === 204) return { ok: true, data: null };
-    const payload: unknown = await response.json().catch(() => null);
-
-    if (!response.ok || !isObject(payload)) {
-      const message = isObject(payload) ? asText(payload.message) : "";
-      return {
-        ok: false,
-        message: message || fallback,
-        fieldErrors: isObject(payload)
-          ? fieldErrorsOf(payload.data)
-          : undefined,
-      };
-    }
-
-    return { ok: true, data: payload.data };
-  } catch (error) {
-    return {
-      ok: false,
-      message: error instanceof Error ? error.message : fallback,
-    };
-  }
-}
-
-function jsonBody(body: ApiObject): RequestInit {
-  return {
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
+  return apiRequest(`/commercial${path}`, init, fallback);
 }
 
 // ---- Normalizers ------------------------------------------------------
@@ -302,10 +230,6 @@ function normalizeEstimate(data: unknown): ReachEstimate {
     groups: normalizeRange(row.groups),
     members: normalizeRange(row.members),
   };
-}
-
-function isPresent<T>(value: T | null): value is T {
-  return value !== null;
 }
 
 // ---- Companies ------------------------------------------------------

@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AddFundsDialog } from "@/components/commercial/AddFundsDialog";
 import { AudienceSummary } from "@/components/commercial/AudienceSummary";
-import { SponsoredCard } from "@/components/commercial/SponsoredCard";
+import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
 import { Alert, Button, useToast } from "@/components/ui";
 import { fetchPricing, submitCampaign } from "@/lib/commercial/api";
 import { useCompany } from "@/lib/commercial/CompanyProvider";

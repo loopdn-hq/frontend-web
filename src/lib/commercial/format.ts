@@ -6,19 +6,11 @@ import type {
   CreativeStatus,
   ReachRange,
 } from "./types";
+import { formatCents } from "@/lib/format/money";
 
-/**
- * Money, from cents. Integer cents on the wire, like billing.Wallet, so the
- * only place a decimal ever appears is here.
- *
- * The currency is the company's and is required: every amount belongs to one
- * company, and a default would print pesos as dollars without a word.
- */
-export function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-    cents / 100,
-  );
-}
+// Shared with the admin site (lib/format); re-exported so this area imports
+// all of its formatting from one place.
+export { formatCents };
 
 /** A budget that may not be set yet, on a draft. */
 export function formatBudget(cents: number | null, currency: string): string {

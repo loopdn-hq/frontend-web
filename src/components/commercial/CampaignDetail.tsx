@@ -28,7 +28,7 @@ import {
   DeleteDraftDialog,
   WithdrawButton,
 } from "@/components/commercial/CampaignActions";
-import { SponsoredCard } from "@/components/commercial/SponsoredCard";
+import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
 import {
   CampaignStatusBadge,
   CreativeStatusBadge,
