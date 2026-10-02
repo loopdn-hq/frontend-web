@@ -64,6 +64,7 @@ const NAV_SECTIONS: NavSection[] = [
         label: "Campaign review",
         icon: Megaphone,
         matches: (path) => path.startsWith("/admin/campaigns"),
+        requires: { account: "platform.campaign.review" },
       },
     ],
   },

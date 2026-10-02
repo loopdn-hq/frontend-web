@@ -17,11 +17,8 @@ import { meets } from "@/lib/rbac";
  * this page shows.
  */
 export default function AdminOverviewPage() {
-  const { features, loading } = useAdminFeatures();
-  const canReadPermissions = meets(
-    { account: "platform.permissions.view" },
-    { features, loading },
-  );
+  const context = useAdminFeatures();
+  const may = (feature: string) => meets({ account: feature }, context);
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
@@ -31,14 +28,15 @@ export default function AdminOverviewPage() {
       />
 
       <section className="grid gap-4 sm:grid-cols-2">
-        <Tool
-          href="/admin/campaigns/"
-          icon={Megaphone}
-          title="Campaign review"
-          description="Approve campaigns companies submit, or send them back with notes."
-          status="Coming next"
-        />
-        {canReadPermissions && (
+        {may("platform.campaign.review") && (
+          <Tool
+            href="/admin/campaigns/"
+            icon={Megaphone}
+            title="Campaign review"
+            description="Approve campaigns companies submit, or send them back with notes."
+          />
+        )}
+        {may("platform.permissions.view") && (
           <Tool
             href="/admin/permissions/"
             icon={ShieldCheck}
@@ -56,14 +54,11 @@ function Tool({
   icon: Icon,
   title,
   description,
-  status,
 }: {
   href: string;
   icon: LucideIcon;
   title: string;
   description: string;
-  /** Shown when the tool is not built yet. */
-  status?: string;
 }) {
   return (
     <Link
@@ -78,11 +73,6 @@ function Tool({
           <span className="font-semibold text-slate-900 dark:text-slate-100">
             {title}
           </span>
-          {status && (
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-950 dark:text-amber-400">
-              {status}
-            </span>
-          )}
         </span>
         <span className="mt-1 block text-sm text-slate-600 dark:text-slate-400">
           {description}

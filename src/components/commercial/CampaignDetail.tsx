@@ -15,6 +15,7 @@ import {
   MapPin,
   MessageCircle,
   MoreHorizontal,
+  OctagonAlert,
   Target,
   Users,
   UsersRound,
@@ -159,6 +160,12 @@ export function CampaignDetail({
   }
 
   const companyName = company?.name ?? "Your company";
+  // A draft whose last move was a rejection: say so first, with the reason.
+  const lastEvent = campaign.events[campaign.events.length - 1];
+  const sentBack =
+    campaign.status === "draft" && lastEvent?.kind === "rejected"
+      ? lastEvent
+      : null;
   const draft = campaign.status === "draft";
   // Only a draft can be changed; everything else shows without "Edit".
   const editAt = (step: string) =>
@@ -169,6 +176,27 @@ export function CampaignDetail({
       {back}
 
       <Header campaign={campaign} onChanged={changed} onDeleted={onDeleted} />
+
+      {sentBack && (
+        <div className="flex gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900 dark:bg-rose-950/40">
+          <OctagonAlert
+            className="mt-0.5 h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400"
+            aria-hidden
+          />
+          <div className="text-sm">
+            <p className="font-semibold text-slate-900 dark:text-slate-100">
+              Loopd&apos;n sent this campaign back
+            </p>
+            <p className="mt-0.5 whitespace-pre-line text-slate-700 dark:text-slate-300">
+              {sentBack.note}
+            </p>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">
+              Its budget is back in your balance. Make the changes, then submit
+              it again.
+            </p>
+          </div>
+        </div>
+      )}
 
       {campaign.status === "pending_review" && (
         <div className="flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40">
