@@ -1273,32 +1273,45 @@ export async function searchConversations(
   }
 }
 
-export async function joinConversation(
-  conversationId: string | number,
-): Promise<
+/**
+ * What asking to join came to: in, waiting on an admin, or refused.
+ *
+ * Waiting is a success, not a failure. An approval group does not let anybody
+ * straight in, so the server answers `{status: "pending"}` with no conversation
+ * - the asker is not a member yet and may not see it.
+ */
+export type JoinResult =
   | { ok: true; status: "joined"; conversation: Conversation }
   | { ok: true; status: "pending" }
-  | { ok: false; message: string }
-> {
+  | { ok: false; message: string };
+
+/** Both ways of joining answer in the same shape, so they are read one way. */
+async function readJoinResponse(response: Response): Promise<JoinResult> {
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: getErrorMessage(data) ?? "Unable to join this Loop.",
+    };
+  }
+  const conversationData = getObjectData(data);
+  const normalized = conversationData
+    ? normalizeConversation(conversationData)
+    : null;
+  return normalized
+    ? { ok: true, status: "joined", conversation: normalized }
+    : { ok: true, status: "pending" };
+}
+
+export async function joinConversation(
+  conversationId: string | number,
+): Promise<JoinResult> {
   try {
     const response = await authorizedRequest(
       `/chat/conversations/${conversationId}/join/`,
       { method: "POST" },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      return {
-        ok: false,
-        message: getErrorMessage(data) ?? "Unable to join this Loop.",
-      };
-    }
-    const conversationData = getObjectData(data);
-    const normalized = conversationData
-      ? normalizeConversation(conversationData)
-      : null;
-    return normalized
-      ? { ok: true, status: "joined", conversation: normalized }
-      : { ok: true, status: "pending" };
+    return await readJoinResponse(response);
   } catch (error) {
     return {
       ok: false,
@@ -1533,29 +1546,24 @@ export async function fetchJoinCode(
   }
 }
 
+/**
+ * Join whichever group this code belongs to.
+ *
+ * The code can belong to an approval group, which queues the asker rather
+ * than letting them in. That used to be read as a failure, and since the
+ * reply's only text is its status the person was shown the word "pending" as
+ * an error - while their request sat with the admins all along.
+ */
 export async function joinConversationWithCode(
   code: string,
-): Promise<
-  { ok: true; conversation: Conversation } | { ok: false; message: string }
-> {
+): Promise<JoinResult> {
   try {
     const response = await authorizedRequest("/chat/conversations/join/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
     });
-    const data = await response.json().catch(() => null);
-    const conversationData = getObjectData(data);
-    const normalized = conversationData
-      ? normalizeConversation(conversationData)
-      : null;
-    if (!response.ok || !normalized) {
-      return {
-        ok: false,
-        message: getErrorMessage(data) ?? "Unable to join this Loop.",
-      };
-    }
-    return { ok: true, conversation: normalized };
+    return await readJoinResponse(response);
   } catch (error) {
     return {
       ok: false,

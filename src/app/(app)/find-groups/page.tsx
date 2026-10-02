@@ -274,9 +274,9 @@ export default function FindGroupsPage() {
         <CodeModal
           group={codeFor}
           onClose={() => setCodeFor(null)}
-          onJoined={(group) => {
+          onJoined={(group, status) => {
             setCodeFor(null);
-            settle(group, "joined");
+            settle(group, status === "pending" ? "requested" : "joined");
           }}
         />
       )}
@@ -338,7 +338,8 @@ function CodeModal({
 }: {
   group: DiscoverableGroup;
   onClose: () => void;
-  onJoined: (group: DiscoverableGroup) => void;
+  /** "pending" when the group asks an admin first - the code only queued it. */
+  onJoined: (group: DiscoverableGroup, status: "joined" | "pending") => void;
 }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -361,7 +362,7 @@ function CodeModal({
       setError(result.message);
       return;
     }
-    onJoined(group);
+    onJoined(group, result.status);
   }
 
   return (

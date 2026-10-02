@@ -2120,9 +2120,12 @@ export function HomeShell({ mode }: HomeShellProps) {
     await refreshConversations();
   }
 
-  async function handleJoinLoop(code: string) {
+  async function handleJoinLoop(code: string): Promise<"joined" | "pending"> {
     const result = await joinConversationWithCode(code);
     if (!result.ok) throw new Error(result.message);
+    // An approval group's code queues the request rather than opening the
+    // group, so there is nothing to open yet - the modal says so instead.
+    if (result.status === "pending") return "pending";
 
     setPendingConversation(null);
     setConversations((current) => {
@@ -2138,6 +2141,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       ];
     });
     setSelectedConversationId(result.conversation.id);
+    return "joined";
   }
 
   async function refreshConversations() {
@@ -2212,6 +2216,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     setIsJoiningPending(false);
     if (!result.ok) {
       setPendingJoinError(result.message);
+      return;
+    }
+    if (result.status === "pending") {
+      setPendingJoinRequestSent(true);
       return;
     }
 
