@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { LoadFailed } from "@/components/app/LoadFailed";
 import { describeAudience } from "@/components/commercial/AudienceSummary";
+import { CampaignResults } from "@/components/commercial/CampaignResults";
 import {
   AddBudgetButton,
   CancelCampaignButton,
@@ -235,7 +236,7 @@ export function CampaignDetail({
         <Banner icon={CircleStop} tone="slate" title="This campaign has ended">
           {lastEvent?.kind === "cancelled"
             ? "It was cancelled. "
-            : "Its end date passed. "}
+            : `${lastEvent?.note || "Its end date passed."} `}
           Whatever it didn&apos;t spend is back in your balance.
         </Banner>
       )}
@@ -257,21 +258,7 @@ export function CampaignDetail({
 
       <div className="grid gap-4 @2xl:grid-cols-[3fr_2fr]">
         <Card title="Results">
-          <div className="flex gap-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-            <BarChart3
-              className="mt-0.5 h-5 w-5 shrink-0 text-sky-600 dark:text-sky-400"
-              aria-hidden
-            />
-            <div className="text-sm">
-              <p className="font-semibold text-slate-900 dark:text-slate-100">
-                Results will appear here once your campaign starts running.
-              </p>
-              <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-                After it&apos;s approved and running, you&apos;ll see views,
-                reach, clicks and cost per result.
-              </p>
-            </div>
-          </div>
+          <CampaignResults campaign={campaign} />
         </Card>
         <Card title="History" icon={HistoryIcon}>
           <Timeline events={campaign.events} />

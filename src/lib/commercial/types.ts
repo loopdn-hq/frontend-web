@@ -267,3 +267,53 @@ export type CampaignChanges = Partial<{
  * (lib/api/envelope.ts), under the name this area has always used.
  */
 export type CompanyResult<T> = ApiResult<T>;
+
+/** One day of a campaign's (or a company's) results. */
+export type ReportDay = {
+  day: string;
+  served: number;
+  viewed: number;
+  /** People reached that day; null when too few to show. */
+  reach: number | null;
+  spendCents: number;
+};
+
+/**
+ * A campaign's results, from the daily totals - aggregates only. `reach` is
+ * null when it covers fewer people than `reachShownFrom`, and is never shown
+ * as a number then.
+ */
+export type CampaignReport = {
+  currency: string;
+  reachShownFrom: number;
+  totals: {
+    served: number;
+    viewed: number;
+    reach: number | null;
+    spendCents: number;
+    costPer1000ViewsCents: number | null;
+  };
+  days: ReportDay[];
+};
+
+/** Every campaign of a company: by day, and side by side. */
+export type CompanyReport = {
+  currency: string;
+  reachShownFrom: number;
+  totals: {
+    served: number;
+    viewed: number;
+    spendCents: number;
+    costPer1000ViewsCents: number | null;
+  };
+  days: ReportDay[];
+  campaigns: {
+    id: number;
+    name: string;
+    status: CampaignStatus;
+    objective: CampaignObjective;
+    viewed: number;
+    reach: number | null;
+    spendCents: number;
+  }[];
+};

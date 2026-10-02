@@ -6,8 +6,12 @@ export type SponsoredCtaKind = "call" | "text" | "link" | "group_join";
 /**
  * A creative as a member would see it in a group's chat: a labelled card,
  * never a message. Shared, outside any one area: the commercial builder and
- * campaign page preview it, the admin site reviews it, and the chat app will
- * draw the real one (slice 5) - so all three show "Sponsored" the same way.
+ * campaign page preview it, the admin site reviews it, and the chat app draws
+ * the real one (components/home/SponsoredSlot.tsx) - so all three show
+ * "Sponsored" the same way.
+ *
+ * `ctaHref` makes the button a real link, opened in a new tab with no
+ * referrer; without it (a preview) the button is only drawn.
  */
 export function SponsoredCard({
   companyName,
@@ -16,6 +20,7 @@ export function SponsoredCard({
   imageUrl,
   ctaLabel,
   ctaKind,
+  ctaHref,
 }: {
   companyName: string;
   headline: string;
@@ -23,8 +28,17 @@ export function SponsoredCard({
   imageUrl: string | null;
   ctaLabel: string;
   ctaKind: SponsoredCtaKind;
+  ctaHref?: string;
 }) {
   const Icon = ctaKind === "group_join" ? Users : ExternalLink;
+  const button = (
+    <>
+      <Icon className="h-4 w-4" aria-hidden />
+      {ctaLabel || "Button"}
+    </>
+  );
+  const buttonClass =
+    "inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 dark:text-sky-400";
 
   return (
     <article className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
@@ -49,10 +63,19 @@ export function SponsoredCard({
         </p>
       </div>
       <div className="border-t border-slate-100 px-3 py-2 dark:border-slate-800">
-        <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-sky-600 dark:text-sky-400">
-          <Icon className="h-4 w-4" aria-hidden />
-          {ctaLabel || "Button"}
-        </span>
+        {ctaHref ? (
+          <a
+            href={ctaHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            referrerPolicy="no-referrer"
+            className={`${buttonClass} hover:underline`}
+          >
+            {button}
+          </a>
+        ) : (
+          <span className={buttonClass}>{button}</span>
+        )}
       </div>
     </article>
   );

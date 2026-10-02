@@ -35,7 +35,9 @@ import type {
   CampaignEvent,
   CampaignObjective,
   CampaignPacing,
+  CampaignReport,
   CampaignStatus,
+  CompanyReport,
   CompanyResult,
   Creative,
   Pricing,
@@ -49,6 +51,7 @@ import type {
   Markets,
   ReachEstimate,
   ReachRange,
+  ReportDay,
 } from "./types";
 
 /** A call under /api/v1/commercial/. */
@@ -837,4 +840,101 @@ export async function increaseBudget(
       "Couldn't raise the budget.",
     ),
   );
+}
+
+// ---- Results ---------------------------------------------------------
+
+function normalizeDay(row: unknown): ReportDay | null {
+  if (!isObject(row)) return null;
+  return {
+    day: asText(row.day),
+    served: asNumber(row.served),
+    viewed: asNumber(row.viewed),
+    reach: asNullableNumber(row.reach),
+    spendCents: asNumber(row.spend_cents),
+  };
+}
+
+function totalsOf(value: unknown) {
+  const totals = isObject(value) ? value : {};
+  return {
+    served: asNumber(totals.served),
+    viewed: asNumber(totals.viewed),
+    reach: asNullableNumber(totals.reach),
+    spendCents: asNumber(totals.spend_cents),
+    costPer1000ViewsCents: asNullableNumber(totals.cost_per_1000_views_cents),
+  };
+}
+
+/** A campaign's results: totals and each day, from the daily roll-up. */
+export async function fetchCampaignReport(
+  campaignId: number,
+): Promise<CompanyResult<CampaignReport>> {
+  const result = await request(
+    `/campaigns/${campaignId}/report/`,
+    {},
+    "Couldn't load the results.",
+  );
+  if (!result.ok) return result;
+  const data = isObject(result.data) ? result.data : {};
+  return {
+    ok: true,
+    data: {
+      currency: asText(data.currency),
+      reachShownFrom: asNumber(data.reach_shown_from),
+      totals: totalsOf(data.totals),
+      days: (Array.isArray(data.days) ? data.days : [])
+        .map(normalizeDay)
+        .filter(isPresent),
+    },
+  };
+}
+
+/** Every campaign of the company: totals, each day, and side by side. */
+export async function fetchCompanyReport(
+  companyId: number,
+): Promise<CompanyResult<CompanyReport>> {
+  const result = await request(
+    `/companies/${companyId}/report/`,
+    {},
+    "Couldn't load the results.",
+  );
+  if (!result.ok) return result;
+  const data = isObject(result.data) ? result.data : {};
+  const totals = totalsOf(data.totals);
+  return {
+    ok: true,
+    data: {
+      currency: asText(data.currency),
+      reachShownFrom: asNumber(data.reach_shown_from),
+      // No reach across campaigns: people don't add up.
+      totals: {
+        served: totals.served,
+        viewed: totals.viewed,
+        spendCents: totals.spendCents,
+        costPer1000ViewsCents: totals.costPer1000ViewsCents,
+      },
+      days: (Array.isArray(data.days) ? data.days : [])
+        .map(normalizeDay)
+        .filter(isPresent),
+      campaigns: (Array.isArray(data.campaigns) ? data.campaigns : [])
+        .map((row) =>
+          isObject(row) && typeof row.id === "number"
+            ? {
+                id: row.id,
+                name: asText(row.name),
+                status: asText(row.status, "running") as CampaignStatus,
+                objective: asText(
+                  row.objective,
+                  "website",
+                ) as CampaignObjective,
+                viewed: asNumber(row.viewed),
+                reach: asNullableNumber(row.reach),
+                spendCents: asNumber(row.spend_cents),
+              }
+            : null,
+        )
+        .filter(isPresent),
+    },
+  };
 }

@@ -21,6 +21,7 @@ type Errors = {
   daily?: string;
   start?: string;
   end?: string;
+  pacing?: string;
   form?: string;
 };
 
@@ -30,7 +31,7 @@ const FIELD_OF: Record<string, keyof Errors> = {
   daily_budget_cents: "daily",
   starts_at: "start",
   ends_at: "end",
-  pacing: "form",
+  pacing: "pacing",
 };
 
 /**
@@ -103,6 +104,11 @@ export function BudgetStep({ campaign, company, onSaved, goTo }: StepProps) {
     if (endMode === "date" && !endDate) found.end = "Choose an end date.";
     else if (endMode === "date" && endDate < earliestEnd) {
       found.end = "The campaign must end after it starts.";
+    }
+    // Nothing to spread over: no last day, and no daily amount.
+    if (pacing === "standard" && endMode !== "date" && !capped) {
+      found.pacing =
+        "Spread evenly needs an end date or a daily cap. Add one, or choose As fast as possible.";
     }
     return { found, totalCents, dailyCents };
   }
@@ -249,7 +255,8 @@ export function BudgetStep({ campaign, company, onSaved, goTo }: StepProps) {
             {
               value: "standard",
               label: CAMPAIGN_PACING_LABEL.standard,
-              description: "Spread the budget across the campaign's days.",
+              description:
+                "Spread the budget across the campaign's days. Needs an end date or a daily cap.",
             },
             {
               value: "accelerated",
@@ -259,6 +266,11 @@ export function BudgetStep({ campaign, company, onSaved, goTo }: StepProps) {
             },
           ]}
         />
+        {errors.pacing && (
+          <p role="alert" className="text-sm text-rose-600 dark:text-rose-400">
+            {errors.pacing}
+          </p>
+        )}
       </div>
     </StepFrame>
   );

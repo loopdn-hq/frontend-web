@@ -2,6 +2,7 @@
 
 import { allows, GROUP } from "@/lib/rbac";
 import {
+  Fragment,
   useState,
   useCallback,
   useEffect,
@@ -122,6 +123,7 @@ import { LoopdnLogo } from "@/components/app/LoopdnLogo";
 import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
+import { SponsoredSlot, useSponsoredSlot } from "./SponsoredSlot";
 import {
   Archive,
   Check,
@@ -1138,6 +1140,16 @@ export function HomeShell({ mode }: HomeShellProps) {
         : [],
     [loopMessages, selectedConversationId],
   );
+
+  // A sponsored card for this member, after the newest message (slice 5).
+  const sponsored = useSponsoredSlot({
+    conversationId: selectedConversationId,
+    isGroup: isGroupConversation,
+    lastMessageId:
+      isMessagesLoading || currentMessages.length === 0
+        ? null
+        : currentMessages[currentMessages.length - 1].id,
+  });
 
   const thread = useMemo(() => {
     const rows: (
@@ -3606,19 +3618,23 @@ export function HomeShell({ mode }: HomeShellProps) {
                     </span>
                   </div>
                 ) : (
-                  <MessageBubble
-                    key={row.key}
-                    message={row.message}
-                    startsRun={row.startsRun}
-                    isLastOwn={row.message.id === lastOwnMessageId}
-                    readers={readersOf(row.message.id)}
-                    readableCount={readableBy.length}
-                    isMenuOpen={messageMenu?.id === row.message.id}
-                    onOpenMenu={openMessageMenu}
-                    currentUsername={currentUsername}
-                    onToggleReaction={handleToggleReaction}
-                    reactionBusy={actionBusy === "reaction"}
-                  />
+                  <Fragment key={row.key}>
+                    <MessageBubble
+                      message={row.message}
+                      startsRun={row.startsRun}
+                      isLastOwn={row.message.id === lastOwnMessageId}
+                      readers={readersOf(row.message.id)}
+                      readableCount={readableBy.length}
+                      isMenuOpen={messageMenu?.id === row.message.id}
+                      onOpenMenu={openMessageMenu}
+                      currentUsername={currentUsername}
+                      onToggleReaction={handleToggleReaction}
+                      reactionBusy={actionBusy === "reaction"}
+                    />
+                    {sponsored?.afterMessageId === String(row.message.id) && (
+                      <SponsoredSlot card={sponsored.card} />
+                    )}
+                  </Fragment>
                 ),
               )
             )}
