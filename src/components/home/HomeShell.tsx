@@ -93,6 +93,8 @@ import {
   MessageThreadSkeleton,
   PinnedMessageBar,
   ReactionBar,
+  VoiceNotePreview,
+  VoiceRecordingBar,
   type ComposerContext,
   type ThreadMessage,
 } from "./message";
@@ -855,11 +857,24 @@ export function HomeShell({ mode }: HomeShellProps) {
   // fetch without the effect needing to be pulled apart.
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  // When the recording began, or null when nothing is recording. A time
+  // rather than a flag because the recording bar counts up from it.
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(
+    null,
+  );
+  const isRecordingVoice = recordingStartedAt !== null;
   const [voiceRecordError, setVoiceRecordError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  // Recordings stopped to be thrown away. `onstop` fires either way, and this
+  // is how it knows not to keep the file. Per recorder rather than one flag,
+  // so a discard can never leak onto the next recording.
+  const discardedRecordersRef = useRef(new WeakSet<MediaRecorder>());
+  // How long each recorded note is, for the preview. Keyed by the File so it
+  // goes when the attachment does; Chrome's recordings carry no length of
+  // their own.
+  const voiceDurationsRef = useRef(new WeakMap<File, number>());
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
@@ -882,6 +897,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       recordedChunksRef.current = [];
 
       const recorder = new MediaRecorder(stream);
+      const startedAt = Date.now();
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunksRef.current.push(event.data);
       };
@@ -890,6 +906,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         recordedChunksRef.current = [];
+        if (discardedRecordersRef.current.has(recorder)) return;
         if (blob.size === 0) return;
 
         const extension = mimeType.includes("ogg") ? "ogg" : "webm";
@@ -898,12 +915,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           `voice-message-${Date.now()}.${extension}`,
           { type: mimeType },
         );
+        voiceDurationsRef.current.set(file, (Date.now() - startedAt) / 1000);
         setMessageAttachments((current) => [...current, file]);
       };
 
       mediaRecorderRef.current = recorder;
       recorder.start();
-      setIsRecordingVoice(true);
+      setRecordingStartedAt(startedAt);
     } catch {
       setVoiceRecordError("Microphone access was denied.");
       stopVoiceStream();
@@ -913,12 +931,21 @@ export function HomeShell({ mode }: HomeShellProps) {
   const handleStopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
-    setIsRecordingVoice(false);
+    setRecordingStartedAt(null);
   }, []);
+
+  const handleDiscardRecording = useCallback(() => {
+    if (mediaRecorderRef.current) {
+      discardedRecordersRef.current.add(mediaRecorderRef.current);
+    }
+    handleStopRecording();
+  }, [handleStopRecording]);
 
   // Release the microphone if the component unmounts mid-recording.
   useEffect(() => {
+    const discarded = discardedRecordersRef.current;
     return () => {
+      if (mediaRecorderRef.current) discarded.add(mediaRecorderRef.current);
       mediaRecorderRef.current?.stop();
       stopVoiceStream();
     };
@@ -3708,11 +3735,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                     {voiceRecordError}
                   </p>
                 )}
-                {isRecordingVoice && (
-                  <p className="flex items-center gap-2 px-2 pb-2 text-xs text-rose-600">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
-                    Recording voice message...
-                  </p>
+                {recordingStartedAt !== null && (
+                  <VoiceRecordingBar
+                    startedAt={recordingStartedAt}
+                    onDiscard={handleDiscardRecording}
+                  />
                 )}
                 {composerContext && (
                   <ComposerContextBar
@@ -3722,23 +3749,33 @@ export function HomeShell({ mode }: HomeShellProps) {
                 )}
                 {messageAttachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-2 pb-2">
-                    {messageAttachments.map((file, index) => (
-                      <button
-                        key={`${file.name}-${file.lastModified}`}
-                        type="button"
-                        onClick={() =>
-                          setMessageAttachments((current) =>
-                            current.filter(
-                              (_, fileIndex) => fileIndex !== index,
-                            ),
-                          )
-                        }
-                        className="max-w-full truncate rounded-lg bg-tint px-2 py-1 text-xs text-ink-muted hover:bg-rose-100 hover:text-rose-700"
-                        title="Remove attachment"
-                      >
-                        {file.name} ×
-                      </button>
-                    ))}
+                    {messageAttachments.map((file, index) => {
+                      const remove = () =>
+                        setMessageAttachments((current) =>
+                          current.filter((_, fileIndex) => fileIndex !== index),
+                        );
+                      // A voice note can be played back before it goes; any
+                      // other file is a name to check and a way to drop it.
+                      return file.type.startsWith("audio/") ? (
+                        <VoiceNotePreview
+                          key={`${file.name}-${file.lastModified}`}
+                          file={file}
+                          durationSeconds={voiceDurationsRef.current.get(file)}
+                          onRemove={remove}
+                          disabled={isSendingMessage}
+                        />
+                      ) : (
+                        <button
+                          key={`${file.name}-${file.lastModified}`}
+                          type="button"
+                          onClick={remove}
+                          className="max-w-full truncate rounded-lg bg-tint px-2 py-1 text-xs text-ink-muted hover:bg-rose-100 hover:text-rose-700"
+                          title="Remove attachment"
+                        >
+                          {file.name} ×
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {canPostMessage ? (

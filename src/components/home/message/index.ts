@@ -11,6 +11,7 @@ export { MessageThreadSkeleton } from "./MessageThreadSkeleton";
 export { ReactionBar } from "./ReactionBar";
 export { MessageInfoModal } from "./MessageInfoModal";
 export { ComposerContextBar, type ComposerContext } from "./ComposerContextBar";
+export { VoiceNotePreview, VoiceRecordingBar } from "./VoiceNoteComposer";
 export { PinnedMessageBar } from "./PinnedMessageBar";
 export { ForwardMessageModal } from "./ForwardMessageModal";
 export { DeleteMessageDialog } from "./DeleteMessageDialog";
