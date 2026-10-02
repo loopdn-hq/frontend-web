@@ -135,7 +135,9 @@ export function AudienceStep({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {categories.length === 0
             ? "None chosen: any kind of group."
-            : `${categories.length} chosen.`}
+            : categories.length === options.categories.length
+              ? "All chosen: the same as any kind of group."
+              : `${categories.length} chosen.`}
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {options.categories.map((category) => (
@@ -161,7 +163,9 @@ export function AudienceStep({
         <p className="text-xs text-slate-500 dark:text-slate-400">
           {regions.length === 0
             ? `None chosen: anywhere in ${country}.`
-            : `${regions.length} chosen.`}
+            : regions.length === allRegions.length
+              ? `All chosen: the same as anywhere in ${country}.`
+              : `${regions.length} chosen.`}
           {regions.length > 0 && (
             <>
               {" "}
