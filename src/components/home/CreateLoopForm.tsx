@@ -188,6 +188,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
             setImage(picked);
           }}
           onReject={(message) => setError("root.server", { message })}
+          onRemove={() => setImage(null)}
           size={64}
           disabled={isSubmitting}
           isGroup

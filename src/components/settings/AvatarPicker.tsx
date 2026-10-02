@@ -28,6 +28,7 @@ export function AvatarPicker({
   file,
   onPick,
   onReject,
+  onRemove,
   size = 96,
   disabled = false,
   isGroup = false,
@@ -40,6 +41,12 @@ export function AvatarPicker({
   onPick: (file: File) => void;
   /** Told why a file was refused before it was ever offered to the server. */
   onReject: (message: string) => void;
+  /**
+   * Offers "Remove photo" while one is shown. The parent decides what that
+   * means - drop a choice not yet saved, or take away the saved one - since
+   * it owns both.
+   */
+  onRemove?: () => void;
   size?: number;
   disabled?: boolean;
   /** A Loop's photo: the group glyph when empty, and the square groups wear. */
@@ -114,6 +121,17 @@ export function AvatarPicker({
           tabIndex={-1}
         />
       </div>
+
+      {onRemove && (preview || currentUrl) && (
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={disabled}
+          className="text-xs font-medium text-slate-500 transition hover:text-rose-600 disabled:opacity-50 dark:text-slate-400 dark:hover:text-rose-400"
+        >
+          Remove photo
+        </button>
+      )}
 
       {file && pendingNote && (
         <p className="text-xs text-slate-500 dark:text-slate-400">

@@ -26,7 +26,8 @@ import {
 export type LoopDetailsChange = {
   name?: string;
   description?: string;
-  image?: File;
+  /** A new photo, or null to remove the current one. */
+  image?: File | null;
 };
 
 type LoopDetailsFormProps = {
@@ -48,6 +49,9 @@ export function LoopDetailsForm({
   const [draftName, setDraftName] = useState(name);
   const [draftDescription, setDraftDescription] = useState(description);
   const [image, setImage] = useState<File | null>(null);
+  // Removing waits for Save like every other change here, so a slip of the
+  // finger is undone with Discard rather than by finding the photo again.
+  const [removeImage, setRemoveImage] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,12 +71,14 @@ export function LoopDetailsForm({
 
   const nameChanged = draftName.trim() !== name;
   const descriptionChanged = draftDescription.trim() !== description;
-  const isDirty = nameChanged || descriptionChanged || image !== null;
+  const isDirty =
+    nameChanged || descriptionChanged || image !== null || removeImage;
 
   function discard() {
     setDraftName(name);
     setDraftDescription(description);
     setImage(null);
+    setRemoveImage(false);
     setError(null);
   }
 
@@ -95,6 +101,7 @@ export function LoopDetailsForm({
       change.description = parsed.data;
     }
     if (image) change.image = image;
+    else if (removeImage) change.image = null;
 
     setIsSaving(true);
     setSaved(false);
@@ -104,6 +111,7 @@ export function LoopDetailsForm({
       // Cleared so the picker falls back to the URL the server just returned
       // rather than offering to upload what is already uploaded.
       setImage(null);
+      setRemoveImage(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
     } catch (err) {
@@ -132,13 +140,21 @@ export function LoopDetailsForm({
         {canEdit ? (
           <AvatarPicker
             name={name}
-            currentUrl={imageUrl}
+            currentUrl={removeImage ? null : imageUrl}
             file={image}
             onPick={(picked) => {
               setError(null);
               setImage(picked);
+              setRemoveImage(false);
             }}
             onReject={setError}
+            // Drops a photo chosen but not saved; the saved one, if there is
+            // one, goes too - "Remove" means no photo, not the previous one.
+            onRemove={() => {
+              setError(null);
+              setImage(null);
+              setRemoveImage(Boolean(imageUrl));
+            }}
             size={64}
             disabled={isSaving}
             isGroup

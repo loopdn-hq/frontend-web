@@ -939,7 +939,10 @@ export async function authorizedRequest(
 }
 
 /**
- * JSON, or a form when there is a photo to carry.
+ * JSON, or a form when there is a photo to carry - or to take away.
+ *
+ * `image` undefined leaves the photo alone; null removes it, sent as an empty
+ * `image` field, which DRF reads back as null (`GroupSettingsSerializer`).
  *
  * No Content-Type on the form: the browser has to write the multipart boundary
  * into it, and naming the type here produces a body the server cannot split
@@ -947,16 +950,16 @@ export async function authorizedRequest(
  */
 function groupRequestBody(
   fields: ApiObject,
-  image: File | undefined,
+  image: File | null | undefined,
 ): Pick<RequestInit, "headers" | "body"> {
-  if (!image) {
+  if (image === undefined) {
     return {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(fields),
     };
   }
   const form = groupForm(fields);
-  form.append("image", image);
+  form.append("image", image ?? "");
   return { body: form };
 }
 
@@ -1395,8 +1398,11 @@ export async function updateGroupSettings(
   }: {
     name?: string;
     description?: string;
-    /** A new photo. Sends the request as a form - see `groupForm`. */
-    image?: File;
+    /**
+     * A new photo, or null to remove it. Either sends the request as a form -
+     * see `groupForm`.
+     */
+    image?: File | null;
     settings?: Partial<GroupSettings>;
   },
 ): Promise<
