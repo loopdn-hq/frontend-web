@@ -54,6 +54,8 @@ import {
   nudgeConversationMember,
   provisionGroupNumber,
   removeConversationMember,
+  fetchBlockedMembers,
+  unblockConversationMember,
   respondToJoinRequest,
   searchMemberCandidates,
   sendConversationMessage,
@@ -4587,6 +4589,28 @@ export function HomeShell({ mode }: HomeShellProps) {
             );
             if (!result.ok) throw new Error(result.message);
             await refreshConversations();
+          }}
+          // Same standing as blocking: whoever may remove and block may see
+          // who is blocked and lift it.
+          onFetchBlockedMembers={
+            allows(selectedConversation, GROUP.removeMembers)
+              ? async () => {
+                  if (!selectedConversationId) return [];
+                  const result = await fetchBlockedMembers(
+                    selectedConversationId,
+                  );
+                  if (!result.ok) throw new Error(result.message);
+                  return result.members;
+                }
+              : undefined
+          }
+          onUnblockMember={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await unblockConversationMember(
+              selectedConversationId,
+              participantId,
+            );
+            if (!result.ok) throw new Error(result.message);
           }}
         />
       )}

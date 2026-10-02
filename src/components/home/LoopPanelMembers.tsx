@@ -5,9 +5,9 @@
  *
  * The member list the app already holds is ACTIVE rows only - that is what
  * `GET /conversations/<id>/participants/` returns, deliberately, since somebody
- * who left or was removed is not a member. Two consequences are visible here:
- * the blocked count cannot be shown (see `BLOCKED_UNAVAILABLE`), and nothing in
- * this list is ever a blocked person, so there is no unblock action on a row.
+ * who left or was removed is not a member. So nothing in this list is ever a
+ * blocked person: they have their own list, behind "Blocked members", which is
+ * where an admin unblocks them.
  */
 import { useMemo, useState } from "react";
 import {
@@ -38,16 +38,6 @@ import type { ConversationParticipant } from "@/lib/chat/conversations";
  */
 type MemberRole = "admin" | "member";
 
-/**
- * Why the blocked count reads as a dash rather than zero.
- *
- * Zero would be a claim, and a wrong one as soon as an admin blocks somebody:
- * the block is written (a participant row goes to BLOCKED) but no endpoint
- * reads those rows back, so the app cannot know the number. A dash says "not
- * known" where 0 would say "none".
- */
-const BLOCKED_UNAVAILABLE = "Not available yet - needs an API to list them.";
-
 const FILTER_OPTIONS = [
   { value: "all", label: "All roles" },
   { value: "admin", label: "Admins" },
@@ -75,6 +65,12 @@ type LoopPanelMembersProps = {
   isLoading?: boolean;
   pendingRequestCount?: number;
   onOpenPendingRequests?: () => void;
+  /**
+   * How many are blocked, or null while that is not known yet. Admins only:
+   * nobody else may see who is blocked, so for them it is never shown.
+   */
+  blockedCount?: number | null;
+  onOpenBlocked?: () => void;
   onAddMembers?: () => void;
   onUpdateMemberRole?: (memberId: string, role: MemberRole) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
@@ -90,6 +86,8 @@ export function LoopPanelMembers({
   isLoading = false,
   pendingRequestCount = 0,
   onOpenPendingRequests,
+  blockedCount = null,
+  onOpenBlocked,
   onAddMembers,
   onUpdateMemberRole,
   onRemoveMember,
@@ -240,15 +238,16 @@ export function LoopPanelMembers({
           label="Admins"
           tone="amber"
         />
-        {/* A dash, not a zero - the list this screen has cannot contain a
-            blocked member, so the number is unknown rather than none. */}
-        <StatCard
-          icon={Ban}
-          value="-"
-          label="Blocked"
-          tone="rose"
-          title={BLOCKED_UNAVAILABLE}
-        />
+        {/* A dash, not a zero, until the list arrives - zero would be a claim.
+            Admins only, because only they may see who is blocked. */}
+        {canModerate && (
+          <StatCard
+            icon={Ban}
+            value={blockedCount ?? "-"}
+            label="Blocked"
+            tone="rose"
+          />
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -385,7 +384,7 @@ export function LoopPanelMembers({
             <p className="text-xs leading-snug text-slate-600 dark:text-slate-400">
               You can change a member&apos;s role, remove them from the group,
               or block them if needed. Removing lets them be added back;
-              blocking does not.
+              blocking keeps them out until an admin unblocks them.
             </p>
           </div>
           <button
@@ -400,12 +399,14 @@ export function LoopPanelMembers({
       )}
 
       <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
-        <div>
-          <LinkRow label="Blocked members" value="-" onClick={() => {}} />
-          <p className="px-4 pb-3 text-xs text-slate-500 dark:text-slate-400">
-            {BLOCKED_UNAVAILABLE}
-          </p>
-        </div>
+        {canModerate && (
+          <LinkRow
+            label="Blocked members"
+            value={blockedCount ?? "-"}
+            onClick={() => onOpenBlocked?.()}
+            disabled={!onOpenBlocked}
+          />
+        )}
         <LinkRow
           label={`Pending requests (${pendingRequestCount})`}
           onClick={() => onOpenPendingRequests?.()}

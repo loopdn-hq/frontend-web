@@ -1938,6 +1938,85 @@ export async function removeConversationMember(
 }
 
 /**
+ * Who an admin has blocked from this group. Admins only.
+ *
+ * One row per blocked identity: somebody blocked under both their account and
+ * their number appears twice, and both must be lifted to let them back.
+ */
+export async function fetchBlockedMembers(
+  conversationId: string | number,
+): Promise<
+  | { ok: true; members: ConversationParticipant[] }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/blocked/`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load blocked members.",
+      };
+    }
+    return {
+      ok: true,
+      members: getConversationItems(data)
+        .map(normalizeParticipant)
+        .filter(
+          (participant): participant is ConversationParticipant =>
+            participant !== null,
+        ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Lift a block. The person is NOT put back in the group - they may now be
+ * added again, or rejoin however the group's join mode allows.
+ */
+export async function unblockConversationMember(
+  conversationId: string | number,
+  participantId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/unblock/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to unblock this member.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
  * Mark a conversation read, optionally only up to a given message.
  *
  * Fire-and-forget by design: the badge is already cleared optimistically, and
