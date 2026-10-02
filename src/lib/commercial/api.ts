@@ -4,10 +4,10 @@
 // either, which would break this dashboard for exactly the people most likely
 // to run one. That is why a company is /companies/, never /advertisers/.
 //
-// Companies, the active company, industries and markets are live (slice 0 of
-// backend/docs/campaigns_final_plan.md). The campaign routes are not built
-// yet; their calls resolve to { ok: false } on the 404, like every call here on
-// any failure, so a page shows LoadFailed rather than a blank screen.
+// Companies and the active company (slice 0 of backend/docs/campaigns_final_plan.md),
+// and building and submitting a campaign (slice 1). Every call resolves to
+// { ok: false } on any failure rather than throwing, so a page shows LoadFailed
+// or the server's sentence rather than a blank screen.
 //
 // `authorizedRequest` lives in lib/chat for historical reasons; it is the
 // app's one authenticated fetch (bearer token, refresh on 401) and is the only
@@ -15,16 +15,30 @@
 
 import { authorizedRequest } from "@/lib/chat/conversations";
 import type {
+  Audience,
   Company,
   CompanyInput,
   CompanyStatus,
   Campaign,
+  CampaignChanges,
+  CampaignDetail,
+  CampaignEvent,
   CampaignObjective,
   CampaignPacing,
   CampaignStatus,
   CompanyResult,
+  Creative,
+  Pricing,
+  Transaction,
+  TransactionKind,
+  CreativeCtaKind,
+  CreativeInput,
+  CreativeStatus,
+  GroupCategory,
   Industry,
   Markets,
+  ReachEstimate,
+  ReachRange,
 } from "./types";
 
 type ApiObject = Record<string, unknown>;
@@ -87,6 +101,8 @@ async function request(
 ): Promise<CompanyResult<unknown>> {
   try {
     const response = await authorizedRequest(`/commercial${path}`, init);
+    // A delete answers 204, with nothing to read.
+    if (response.status === 204) return { ok: true, data: null };
     const payload: unknown = await response.json().catch(() => null);
 
     if (!response.ok || !isObject(payload)) {
@@ -136,6 +152,7 @@ function normalizeCompany(row: unknown): Company | null {
     logoUrl: asNullableText(row.logo_url),
     status: asText(row.status, "active") as CompanyStatus,
     balanceCents: asNumber(row.balance_cents),
+    reservedCents: asNumber(row.reserved_cents),
     createdAt: asNullableText(row.created_at),
   };
 }
@@ -155,10 +172,17 @@ function normalizeMarkets(data: unknown): Markets {
       code: asText(row.code),
       name: asText(row.name, asText(row.code)),
       defaultCurrency: asText(row.default_currency),
+      regions: (Array.isArray(row.regions) ? row.regions : [])
+        .filter(isObject)
+        .map((region) => ({
+          code: asText(region.code),
+          name: asText(region.name, asText(region.code)),
+        })),
     })),
     currencies: currencies.filter(isObject).map((row) => ({
       code: asText(row.code),
       name: asText(row.name, asText(row.code)),
+      minTopUpCents: asNumber(row.min_top_up_cents),
     })),
   };
 }
@@ -170,13 +194,113 @@ function normalizeCampaign(row: unknown): Campaign | null {
     companyId: asNumber(row.company),
     name: asText(row.name),
     objective: asText(row.objective, "website") as CampaignObjective,
+    placement: "chat",
     status: asText(row.status, "draft") as CampaignStatus,
     pacing: asText(row.pacing, "standard") as CampaignPacing,
-    totalBudgetCents: asNumber(row.total_budget_cents),
+    totalBudgetCents: asNullableNumber(row.total_budget_cents),
     dailyBudgetCents: asNullableNumber(row.daily_budget_cents),
+    currency: asText(row.currency, "USD"),
+    country: asText(row.country),
+    cpmCents: asNullableNumber(row.cpm_cents),
+    reservedCents: asNumber(row.reserved_cents),
+    spentCents: asNumber(row.spent_cents),
     startsAt: asNullableText(row.starts_at),
     endsAt: asNullableText(row.ends_at),
     createdAt: asNullableText(row.created_at),
+  };
+}
+
+function normalizeAudience(row: unknown): Audience | null {
+  if (!isObject(row)) return null;
+  const texts = (value: unknown) =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === "string")
+      : [];
+  return {
+    categories: texts(row.categories),
+    regions: texts(row.regions),
+    minGroupSize: asNullableNumber(row.min_group_size),
+    maxGroupSize: asNullableNumber(row.max_group_size),
+  };
+}
+
+function normalizeCreative(row: unknown): Creative | null {
+  if (!isObject(row) || typeof row.id !== "number") return null;
+  return {
+    id: row.id,
+    campaignId: asNumber(row.campaign),
+    headline: asText(row.headline),
+    body: asText(row.body),
+    imageUrl: asNullableText(row.image_url),
+    ctaLabel: asText(row.cta_label),
+    ctaKind: asText(row.cta_kind, "link") as CreativeCtaKind,
+    ctaTarget: asText(row.cta_target),
+    status: asText(row.status, "draft") as CreativeStatus,
+    reviewNotes: asText(row.review_notes),
+  };
+}
+
+function normalizeEvent(row: unknown): CampaignEvent | null {
+  if (!isObject(row) || typeof row.kind !== "string") return null;
+  return {
+    kind: row.kind,
+    label: asText(row.kind_label, row.kind),
+    by: asNullableText(row.by),
+    note: asText(row.note),
+    createdAt: asNullableText(row.created_at),
+  };
+}
+
+function normalizeCampaignDetail(row: unknown): CampaignDetail | null {
+  const campaign = normalizeCampaign(row);
+  if (!campaign || !isObject(row)) return null;
+  return {
+    ...campaign,
+    audience: normalizeAudience(row.targeting),
+    creatives: (Array.isArray(row.creatives) ? row.creatives : [])
+      .map(normalizeCreative)
+      .filter(isPresent),
+    events: (Array.isArray(row.events) ? row.events : [])
+      .map(normalizeEvent)
+      .filter(isPresent),
+    deletable: row.deletable === true,
+  };
+}
+
+function normalizeTransaction(row: unknown): Transaction | null {
+  if (!isObject(row) || typeof row.id !== "number") return null;
+  return {
+    id: row.id,
+    kind: asText(row.kind, "adjustment") as TransactionKind,
+    label: asText(row.kind_label, asText(row.kind)),
+    campaignId: asNullableNumber(row.campaign),
+    campaignName: asNullableText(row.campaign_name),
+    availableChangeCents: asNumber(row.amount_cents),
+    availableAfterCents: asNumber(row.balance_after_cents),
+    reservedChangeCents: asNumber(row.reserved_change_cents),
+    reservedAfterCents: asNumber(row.reserved_after_cents),
+    description: asText(row.description),
+    createdAt: asNullableText(row.created_at),
+  };
+}
+
+function normalizeRange(value: unknown): ReachRange {
+  const row = isObject(value) ? value : {};
+  return { low: asNumber(row.low), high: asNullableNumber(row.high) };
+}
+
+function normalizeEstimate(data: unknown): ReachEstimate {
+  const row = isObject(data) ? data : {};
+  if (row.available !== true) {
+    return {
+      available: false,
+      reason: asText(row.reason, "Audience is too small."),
+    };
+  }
+  return {
+    available: true,
+    groups: normalizeRange(row.groups),
+    members: normalizeRange(row.members),
   };
 }
 
@@ -357,32 +481,394 @@ export async function fetchMarkets(): Promise<CompanyResult<Markets>> {
 
 // ---- Campaigns --------------------------------------------------------
 
-export async function fetchCampaigns(
-  companyId: number,
-): Promise<CompanyResult<Campaign[]>> {
+/** One page of a company's campaigns, newest first. */
+export type CampaignPage = {
+  campaigns: Campaign[];
+  count: number;
+  hasMore: boolean;
+};
+
+/**
+ * A company's campaigns, twenty a page, newest first. The company is always
+ * named: the server never falls back to the active company to decide whose
+ * to return. `status` narrows to one status, `search` by name.
+ */
+export async function fetchCampaignPage({
+  companyId,
+  page = 1,
+  status,
+  search = "",
+}: {
+  companyId: number;
+  page?: number;
+  status?: CampaignStatus;
+  search?: string;
+}): Promise<CompanyResult<CampaignPage>> {
+  const query = new URLSearchParams({
+    company: String(companyId),
+    page: String(page),
+  });
+  if (status) query.set("status", status);
+  if (search.trim()) query.set("search", search.trim());
   const result = await request(
-    `/campaigns/?company=${companyId}`,
+    `/campaigns/?${query}`,
     {},
     "Couldn't load your campaigns.",
   );
   if (!result.ok) return result;
+
+  const campaigns = rowsOf(result.data)
+    .map(normalizeCampaign)
+    .filter(isPresent);
+  const data = isObject(result.data) ? result.data : {};
   return {
     ok: true,
-    data: rowsOf(result.data).map(normalizeCampaign).filter(isPresent),
+    data: {
+      campaigns,
+      count: asNumber(data.count, campaigns.length),
+      hasMore: typeof data.next === "string" && data.next !== "",
+    },
   };
 }
 
-export async function fetchCampaign(
-  campaignId: number,
-): Promise<CompanyResult<Campaign>> {
-  const result = await request(
-    `/campaigns/${campaignId}/`,
-    {},
-    "Couldn't load this campaign.",
-  );
+function campaignFrom(
+  result: CompanyResult<unknown>,
+): CompanyResult<CampaignDetail> {
   if (!result.ok) return result;
-  const campaign = normalizeCampaign(result.data);
+  const campaign = normalizeCampaignDetail(result.data);
   return campaign
     ? { ok: true, data: campaign }
     : { ok: false, message: "Unexpected response from the server." };
+}
+
+/** One campaign, with its audience, creatives and history. */
+export async function fetchCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/`,
+      {},
+      "Couldn't load this campaign.",
+    ),
+  );
+}
+
+/** The builder's first step: starts a draft for the named company. */
+export async function createCampaign(input: {
+  companyId: number;
+  objective: CampaignObjective;
+  name: string;
+}): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      "/campaigns/",
+      {
+        method: "POST",
+        ...jsonBody({
+          company: input.companyId,
+          objective: input.objective,
+          name: input.name,
+        }),
+      },
+      "Couldn't start the campaign.",
+    ),
+  );
+}
+
+/** Save one builder step of a draft. Only the fields given are sent. */
+export async function updateCampaign(
+  campaignId: number,
+  changes: CampaignChanges,
+): Promise<CompanyResult<CampaignDetail>> {
+  const fields: ApiObject = {};
+  if (changes.name !== undefined) fields.name = changes.name;
+  if (changes.objective !== undefined) fields.objective = changes.objective;
+  if (changes.pacing !== undefined) fields.pacing = changes.pacing;
+  if (changes.totalBudgetCents !== undefined) {
+    fields.total_budget_cents = changes.totalBudgetCents;
+  }
+  if (changes.dailyBudgetCents !== undefined) {
+    fields.daily_budget_cents = changes.dailyBudgetCents;
+  }
+  if (changes.startsAt !== undefined) fields.starts_at = changes.startsAt;
+  if (changes.endsAt !== undefined) fields.ends_at = changes.endsAt;
+
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/`,
+      { method: "PATCH", ...jsonBody(fields) },
+      "Couldn't save the campaign.",
+    ),
+  );
+}
+
+/** Delete a draft. One that has ever moved money cannot be. */
+export async function deleteCampaign(
+  campaignId: number,
+): Promise<CompanyResult<null>> {
+  const result = await request(
+    `/campaigns/${campaignId}/`,
+    { method: "DELETE" },
+    "Couldn't delete the campaign.",
+  );
+  return result.ok ? { ok: true, data: null } : result;
+}
+
+function audienceBody(audience: Audience): ApiObject {
+  return {
+    categories: audience.categories,
+    regions: audience.regions,
+    min_group_size: audience.minGroupSize,
+    max_group_size: audience.maxGroupSize,
+  };
+}
+
+/** Save the audience step. Saving it, even as "any", marks the step done. */
+export async function saveAudience(
+  campaignId: number,
+  audience: Audience,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/targeting/`,
+      { method: "PUT", ...jsonBody(audienceBody(audience)) },
+      "Couldn't save the audience.",
+    ),
+  );
+}
+
+/** Ranges, or "too small" - never a count, never a group. */
+export async function estimateReach(
+  companyId: number,
+  audience: Audience,
+): Promise<CompanyResult<ReachEstimate>> {
+  const result = await request(
+    "/reach-estimate/",
+    {
+      method: "POST",
+      ...jsonBody({ company: companyId, ...audienceBody(audience) }),
+    },
+    "Couldn't estimate the reach.",
+  );
+  if (!result.ok) return result;
+  return { ok: true, data: normalizeEstimate(result.data) };
+}
+
+/** The group categories an audience can choose from, in the plan's order. */
+export async function fetchCategories(): Promise<
+  CompanyResult<GroupCategory[]>
+> {
+  const result = await request(
+    "/categories/",
+    {},
+    "Couldn't load the group categories.",
+  );
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: rowsOf(result.data)
+      .filter(isObject)
+      .map((row) => ({
+        slug: asText(row.slug),
+        label: asText(row.label, asText(row.slug)),
+      }))
+      .filter((category) => category.slug !== ""),
+  };
+}
+
+/** Multipart when there is an image to upload; JSON otherwise, as for a logo. */
+function creativeBody(input: Partial<CreativeInput>): RequestInit {
+  const fields: ApiObject = {};
+  if (input.headline !== undefined) fields.headline = input.headline;
+  if (input.body !== undefined) fields.body = input.body;
+  if (input.ctaLabel !== undefined) fields.cta_label = input.ctaLabel;
+  if (input.ctaTarget !== undefined) fields.cta_target = input.ctaTarget;
+
+  if (input.image instanceof File) {
+    const form = new FormData();
+    for (const [key, value] of Object.entries(fields)) {
+      form.append(key, String(value));
+    }
+    form.append("image", input.image);
+    return { body: form };
+  }
+
+  if (input.image === null) fields.image = null;
+  return jsonBody(fields);
+}
+
+function creativeFrom(result: CompanyResult<unknown>): CompanyResult<Creative> {
+  if (!result.ok) return result;
+  const creative = normalizeCreative(result.data);
+  return creative
+    ? { ok: true, data: creative }
+    : { ok: false, message: "Unexpected response from the server." };
+}
+
+/** Add a whole creative; the button kind follows the campaign's objective. */
+export async function addCreative(
+  campaignId: number,
+  input: CreativeInput,
+): Promise<CompanyResult<Creative>> {
+  return creativeFrom(
+    await request(
+      `/campaigns/${campaignId}/creatives/`,
+      { method: "POST", ...creativeBody(input) },
+      "Couldn't add the creative.",
+    ),
+  );
+}
+
+export async function updateCreative(
+  creativeId: number,
+  input: Partial<CreativeInput>,
+): Promise<CompanyResult<Creative>> {
+  return creativeFrom(
+    await request(
+      `/creatives/${creativeId}/`,
+      { method: "PATCH", ...creativeBody(input) },
+      "Couldn't save the creative.",
+    ),
+  );
+}
+
+export async function deleteCreative(
+  creativeId: number,
+): Promise<CompanyResult<null>> {
+  const result = await request(
+    `/creatives/${creativeId}/`,
+    { method: "DELETE" },
+    "Couldn't remove the creative.",
+  );
+  return result.ok ? { ok: true, data: null } : result;
+}
+
+/**
+ * Send a draft to review. When something is missing the server names every
+ * piece in `fieldErrors`, keyed by step: `name`, `audience`,
+ * `total_budget_cents`, `creatives` and so on.
+ */
+export async function submitCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/submit/`,
+      { method: "POST" },
+      "Couldn't submit the campaign.",
+    ),
+  );
+}
+
+/** Take a campaign back from review, to change it. */
+export async function withdrawCampaign(
+  campaignId: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/withdraw/`,
+      { method: "POST" },
+      "Couldn't withdraw the campaign.",
+    ),
+  );
+}
+
+// ---- Money -----------------------------------------------------------
+
+/**
+ * The price per 1,000 views now, for the company's currency - for the
+ * builder's "about N views". Null when Loopd'n doesn't sell in it yet. A
+ * campaign's own price is fixed when it is submitted.
+ */
+export async function fetchPricing(
+  companyId: number,
+): Promise<CompanyResult<Pricing | null>> {
+  const result = await request(
+    `/pricing/?company=${companyId}`,
+    {},
+    "Couldn't load the price.",
+  );
+  if (!result.ok) return result;
+  if (!isObject(result.data)) return { ok: true, data: null };
+  return {
+    ok: true,
+    data: {
+      currency: asText(result.data.currency),
+      cpmCents: asNumber(result.data.cpm_cents),
+    },
+  };
+}
+
+/**
+ * Start a Stripe Checkout that adds `amountCents` to the company's balance.
+ * Resolves to the page to send the person to. The balance moves only once
+ * Stripe confirms the payment, never on the way back.
+ */
+export async function startCheckout(
+  companyId: number,
+  input: { amountCents: number; successUrl: string; cancelUrl: string },
+): Promise<CompanyResult<string>> {
+  const result = await request(
+    `/companies/${companyId}/checkout/`,
+    {
+      method: "POST",
+      ...jsonBody({
+        amount_cents: input.amountCents,
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+      }),
+    },
+    "Couldn't start the payment.",
+  );
+  if (!result.ok) return result;
+  const url = isObject(result.data) ? asText(result.data.checkout_url) : "";
+  return url
+    ? { ok: true, data: url }
+    : { ok: false, message: "Unexpected response from the server." };
+}
+
+export type TransactionPage = {
+  transactions: Transaction[];
+  hasMore: boolean;
+};
+
+/** The company's ledger, twenty a page, newest first. */
+export async function fetchTransactions(
+  companyId: number,
+  page = 1,
+): Promise<CompanyResult<TransactionPage>> {
+  const result = await request(
+    `/companies/${companyId}/transactions/?page=${page}`,
+    {},
+    "Couldn't load your transactions.",
+  );
+  if (!result.ok) return result;
+  const data = isObject(result.data) ? result.data : {};
+  return {
+    ok: true,
+    data: {
+      transactions: rowsOf(result.data)
+        .map(normalizeTransaction)
+        .filter(isPresent),
+      hasMore: typeof data.next === "string" && data.next !== "",
+    },
+  };
+}
+
+/** Raise a running or paused campaign's total budget; only ever up. */
+export async function increaseBudget(
+  campaignId: number,
+  totalBudgetCents: number,
+): Promise<CompanyResult<CampaignDetail>> {
+  return campaignFrom(
+    await request(
+      `/campaigns/${campaignId}/budget/`,
+      {
+        method: "POST",
+        ...jsonBody({ total_budget_cents: totalBudgetCents }),
+      },
+      "Couldn't raise the budget.",
+    ),
+  );
 }

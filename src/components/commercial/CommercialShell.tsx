@@ -74,8 +74,8 @@ const NAV_SECTIONS: NavSection[] = [
         href: "/campaigns/",
         label: "Campaigns",
         icon: Megaphone,
-        // /campaign/?id= is one campaign and /campaigns/new/ makes one: both
-        // are still "Campaigns".
+        // /campaigns/new/ makes one, and /campaign/ is the old address of
+        // one: both are still "Campaigns".
         matches: (path) => /^\/campaigns?(\/|$)/.test(path),
       },
     ],
