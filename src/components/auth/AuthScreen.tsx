@@ -23,7 +23,9 @@ import {
 } from "@/lib/auth/client";
 import {
   homePath,
+  isAdminSite,
   isCommercialSite,
+  useIsAdminSite,
   useIsCommercialSite,
 } from "@/lib/config/site";
 import {
@@ -67,6 +69,9 @@ const panelSubTitle: Record<AuthMode, string> = {
 export function AuthScreen({ initialMode }: AuthScreenProps) {
   const router = useRouter();
   const commercialSite = useIsCommercialSite();
+  // The admin site signs people in and nothing else: an admin account is an
+  // ordinary account that has been given the admin role, never one made here.
+  const adminSite = useIsAdminSite();
   const [authMode, setAuthMode] = useState<AuthMode>(initialMode);
 
   const [generalError, setGeneralError] = useState<string>("");
@@ -90,11 +95,12 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
         }
 
         // New Google accounts have no phone_number yet - collect one before home,
-        // except on the commercial site, where a phone is optional. The page
-        // they asked for stays remembered: /verify-phone/ goes there at the end
-        // of that chain.
+        // except on the commercial site, where a phone is optional, and the
+        // admin site, which only signs in (the frame then says it isn't an
+        // admin account). The page they asked for stays remembered:
+        // /verify-phone/ goes there at the end of that chain.
         router.push(
-          result.isNewAccount && !isCommercialSite()
+          result.isNewAccount && !isCommercialSite() && !isAdminSite()
             ? "/add-phone/"
             : (consumePostAuthRedirect() ?? homePath()),
         );
@@ -317,17 +323,19 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
               >
                 Log In
               </Link>
-              <Link
-                href="/signup/"
-                onClick={() => switchMode("signup")}
-                className={`flex h-[42px] flex-1 items-center justify-center rounded-[10px] text-center text-[16px] leading-[138%] font-medium capitalize transition ${
-                  authMode === "signup"
-                    ? "bg-white text-black"
-                    : "text-[#05205A]/60 hover:text-[#05205A]"
-                } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
-              >
-                Sign Up
-              </Link>
+              {!adminSite && (
+                <Link
+                  href="/signup/"
+                  onClick={() => switchMode("signup")}
+                  className={`flex h-[42px] flex-1 items-center justify-center rounded-[10px] text-center text-[16px] leading-[138%] font-medium capitalize transition ${
+                    authMode === "signup"
+                      ? "bg-white text-black"
+                      : "text-[#05205A]/60 hover:text-[#05205A]"
+                  } ${isSubmitting ? "pointer-events-none cursor-not-allowed opacity-50" : ""}`}
+                >
+                  Sign Up
+                </Link>
+              )}
             </div>
 
             <h2 className="text-[30px] leading-none font-medium tracking-[-0.03em] text-[#05205A]">
@@ -342,7 +350,9 @@ export function AuthScreen({ initialMode }: AuthScreenProps) {
             >
               {commercialSite && authMode === "signup"
                 ? "Create an account with your email. A phone number is optional."
-                : panelSubTitle[authMode]}
+                : adminSite
+                  ? "Sign in with your Loopd'n admin account."
+                  : panelSubTitle[authMode]}
             </p>
 
             {/* 23px, per Frame 22's gap between the Welcome block and the

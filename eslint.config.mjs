@@ -44,6 +44,22 @@ const KEEP_COMMERCIAL_OUT = {
 // billing wallet, which must never be confused with a company's ad balance.
 // `authorizedRequest` is the one thing taken from lib/chat, and LoadFailed the
 // one thing taken from components/app.
+// The admin site (admin.loopdn.com, every page under /admin/) is Loopd'n's own
+// admin tools: a third product in the same build, kept apart from both of the
+// others the same way. See docs/admin-site.md.
+const ADMIN_FILES = [
+  "src/app/(admin)/**",
+  "src/components/admin/**",
+  "src/lib/admin/**",
+];
+
+const KEEP_ADMIN_OUT = {
+  group: ["@/app/(admin)/**", "@/components/admin/**", "@/lib/admin/**"],
+  message:
+    "The admin site is separate from chat and commercial. If they need something " +
+    "from it, move that thing to a shared folder (components/ui, lib/rbac, ...).",
+};
+
 const KEEP_CHAT_OUT = {
   group: [
     "@/app/(app)/**",
@@ -84,11 +100,16 @@ const eslintConfig = defineConfig([
     files: ["src/**/*.{ts,tsx}"],
     // src/app/page.tsx is `/` on both sites, so it is the one file outside the
     // commercial area that renders it; it gets the Tauri boundary alone, below.
-    ignores: ["src/lib/desktop/**", "src/app/page.tsx", ...COMMERCIAL_FILES],
+    ignores: [
+      "src/lib/desktop/**",
+      "src/app/page.tsx",
+      ...COMMERCIAL_FILES,
+      ...ADMIN_FILES,
+    ],
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TAURI_BOUNDARY, KEEP_COMMERCIAL_OUT] },
+        { patterns: [TAURI_BOUNDARY, KEEP_COMMERCIAL_OUT, KEEP_ADMIN_OUT] },
       ],
     },
   },
@@ -103,7 +124,34 @@ const eslintConfig = defineConfig([
     rules: {
       "no-restricted-imports": [
         "error",
-        { patterns: [TAURI_BOUNDARY, KEEP_CHAT_OUT] },
+        { patterns: [TAURI_BOUNDARY, KEEP_CHAT_OUT, KEEP_ADMIN_OUT] },
+      ],
+    },
+  },
+  {
+    // The admin site takes the same two things from chat that commercial
+    // does (LoadFailed, authorizedRequest), and nothing from commercial.
+    files: ADMIN_FILES.map((glob) => `${glob}/*.{ts,tsx}`),
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            TAURI_BOUNDARY,
+            {
+              ...KEEP_CHAT_OUT,
+              message:
+                "The admin site must not depend on the chat app. Use a shared " +
+                "folder (components/ui, lib/rbac, ...) or add the piece under admin/.",
+            },
+            {
+              ...KEEP_COMMERCIAL_OUT,
+              message:
+                "The admin site must not depend on the commercial area. Use a " +
+                "shared folder, or add the piece under admin/.",
+            },
+          ],
+        },
       ],
     },
   },
