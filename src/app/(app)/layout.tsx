@@ -21,14 +21,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const { session, isLoaded } = useAuth();
   const { features, loading: featuresLoading } = useFeatures();
 
-  // A commercial account has no chat: it holds `ads.access` and not
+  // A commercial account has no chat: it holds `commercial.access` and not
   // `chat.access`, so everything here would be empty or refused. Send it to its
   // own site instead. Signing in is per site (tokens live in this origin's
   // storage), so it signs in once more there. Not in the desktop app, which is
   // chat only and has no commercial site to go to.
   const commercialOnly =
     !featuresLoading &&
-    features.has("ads.access") &&
+    features.has("commercial.access") &&
     !features.has("chat.access");
 
   useEffect(() => {
