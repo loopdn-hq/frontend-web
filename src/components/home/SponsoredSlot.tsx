@@ -12,6 +12,8 @@
  * `SponsoredSlot` reports the view once at least half the card has been on
  * screen for a second, with the tab showing (decision 9). That report is what
  * the company pays for; a card that was never really seen is never counted.
+ * Its button goes through the server's click address, which counts the click
+ * (once per card) and sends the member on with nothing about them added.
  */
 import { useEffect, useRef, useState } from "react";
 import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
@@ -128,7 +130,7 @@ export function SponsoredSlot({ card }: { card: SponsoredCardData }) {
         imageUrl={card.imageUrl}
         ctaLabel={card.ctaLabel}
         ctaKind={card.ctaKind}
-        ctaHref={card.ctaTarget}
+        ctaHref={card.clickUrl}
       />
     </div>
   );

@@ -92,3 +92,10 @@ export const CREATIVE_STATUS_LABEL: Record<CreativeStatus, string> = {
   approved: "Approved",
   rejected: "Rejected",
 };
+
+/** Clicks as a share of views: "2.5%", or "-" before any view. */
+export function formatClickRate(clicks: number, viewed: number): string {
+  if (viewed === 0) return "-";
+  const rate = (clicks / viewed) * 100;
+  return `${rate.toLocaleString(undefined, { maximumFractionDigits: rate < 10 ? 1 : 0 })}%`;
+}

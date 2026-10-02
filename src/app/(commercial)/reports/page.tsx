@@ -11,7 +11,11 @@ import { CampaignStatusBadge } from "@/components/commercial/StatusBadge";
 import { Skeleton, SkeletonRegion } from "@/components/ui";
 import { fetchCompanyReport } from "@/lib/commercial/api";
 import { useCompany } from "@/lib/commercial/CompanyProvider";
-import { campaignName, formatCents } from "@/lib/commercial/format";
+import {
+  campaignName,
+  formatCents,
+  formatClickRate,
+} from "@/lib/commercial/format";
 import type { Company, CompanyReport } from "@/lib/commercial/types";
 
 /**
@@ -34,8 +38,8 @@ export default function CommercialReportsPage() {
       <CompanyNotice />
       {/* Keyed by company: a switch starts afresh. */}
       {company && <Report key={company.id} company={company} />}
-      <NotBuiltYet title="Clicks and results">
-        Clicks, calls, texts, leads and group joins, with the cost of each.
+      <NotBuiltYet title="Results">
+        Leads, group joins, calls and texts, with the cost of each.
       </NotBuiltYet>
       <NotBuiltYet title="By group category and region">
         Where your results came from, in aggregate only: small slices come back
@@ -94,16 +98,12 @@ function Report({ company }: { company: Company }) {
     <>
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Views" value={totals.viewed.toLocaleString()} />
-        <Stat label="Times shown" value={totals.served.toLocaleString()} />
-        <Stat label="Spent" value={money(totals.spendCents)} />
+        <Stat label="Clicks" value={totals.clicks.toLocaleString()} />
         <Stat
-          label="Per 1,000 views"
-          value={
-            totals.costPer1000ViewsCents === null
-              ? "-"
-              : money(totals.costPer1000ViewsCents)
-          }
+          label="Click rate"
+          value={formatClickRate(totals.clicks, totals.viewed)}
         />
+        <Stat label="Spent" value={money(totals.spendCents)} />
       </section>
 
       <Panel title="Views by day">
@@ -122,12 +122,13 @@ function Report({ company }: { company: Company }) {
           <Empty>No submitted campaigns yet.</Empty>
         ) : (
           <div className="-mx-4 overflow-x-auto sm:mx-0">
-            <table className="w-full min-w-[32rem] text-left text-sm">
+            <table className="w-full min-w-[38rem] text-left text-sm">
               <thead className="text-xs text-slate-500 dark:text-slate-400">
                 <tr>
                   <th className="px-4 py-2 font-medium sm:px-2">Campaign</th>
                   <th className="px-2 py-2 font-medium">Status</th>
                   <th className="px-2 py-2 text-right font-medium">Views</th>
+                  <th className="px-2 py-2 text-right font-medium">Clicks</th>
                   <th className="px-2 py-2 text-right font-medium">
                     People reached
                   </th>
@@ -152,6 +153,9 @@ function Report({ company }: { company: Company }) {
                     </td>
                     <td className="px-2 py-2.5 text-right tabular-nums">
                       {row.viewed.toLocaleString()}
+                    </td>
+                    <td className="px-2 py-2.5 text-right tabular-nums">
+                      {row.clicks.toLocaleString()}
                     </td>
                     <td className="px-2 py-2.5 text-right text-slate-600 tabular-nums dark:text-slate-300">
                       {row.viewed === 0

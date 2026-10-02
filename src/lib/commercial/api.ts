@@ -851,6 +851,7 @@ function normalizeDay(row: unknown): ReportDay | null {
     served: asNumber(row.served),
     viewed: asNumber(row.viewed),
     reach: asNullableNumber(row.reach),
+    clicks: asNumber(row.clicks),
     spendCents: asNumber(row.spend_cents),
   };
 }
@@ -861,8 +862,10 @@ function totalsOf(value: unknown) {
     served: asNumber(totals.served),
     viewed: asNumber(totals.viewed),
     reach: asNullableNumber(totals.reach),
+    clicks: asNumber(totals.clicks),
     spendCents: asNumber(totals.spend_cents),
     costPer1000ViewsCents: asNullableNumber(totals.cost_per_1000_views_cents),
+    costPerClickCents: asNullableNumber(totals.cost_per_click_cents),
   };
 }
 
@@ -911,8 +914,10 @@ export async function fetchCompanyReport(
       totals: {
         served: totals.served,
         viewed: totals.viewed,
+        clicks: totals.clicks,
         spendCents: totals.spendCents,
         costPer1000ViewsCents: totals.costPer1000ViewsCents,
+        costPerClickCents: totals.costPerClickCents,
       },
       days: (Array.isArray(data.days) ? data.days : [])
         .map(normalizeDay)
@@ -929,6 +934,7 @@ export async function fetchCompanyReport(
                   "website",
                 ) as CampaignObjective,
                 viewed: asNumber(row.viewed),
+                clicks: asNumber(row.clicks),
                 reach: asNullableNumber(row.reach),
                 spendCents: asNumber(row.spend_cents),
               }

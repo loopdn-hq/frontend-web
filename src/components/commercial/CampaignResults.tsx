@@ -5,7 +5,7 @@ import { BarChart3 } from "lucide-react";
 import { DailyBars } from "@/components/commercial/DailyBars";
 import { Skeleton, SkeletonRegion } from "@/components/ui";
 import { fetchCampaignReport } from "@/lib/commercial/api";
-import { formatCents } from "@/lib/commercial/format";
+import { formatCents, formatClickRate } from "@/lib/commercial/format";
 import type { CampaignDetail, CampaignReport } from "@/lib/commercial/types";
 
 /**
@@ -39,7 +39,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignDetail }) {
     return (
       <Note title="Results will appear here once your campaign starts running.">
         After it&apos;s approved and running, you&apos;ll see views, people
-        reached, spend and cost per 1,000 views.
+        reached, clicks and what you spent.
       </Note>
     );
   }
@@ -66,7 +66,7 @@ export function CampaignResults({ campaign }: { campaign: CampaignDetail }) {
 
   return (
     <div className="space-y-4">
-      <dl className="grid grid-cols-2 gap-3 @2xl:grid-cols-4">
+      <dl className="grid grid-cols-2 gap-3 @2xl:grid-cols-3">
         <Stat label="Views" value={totals.viewed.toLocaleString()} />
         <Stat
           label="People reached"
@@ -76,21 +76,27 @@ export function CampaignResults({ campaign }: { campaign: CampaignDetail }) {
               : totals.reach.toLocaleString()
           }
         />
+        <Stat label="Clicks" value={totals.clicks.toLocaleString()} />
+        <Stat
+          label="Click rate"
+          value={formatClickRate(totals.clicks, totals.viewed)}
+        />
         <Stat label="Spent" value={money(totals.spendCents)} />
         <Stat
-          label="Per 1,000 views"
+          label="Cost per click"
           value={
-            totals.costPer1000ViewsCents === null
+            totals.costPerClickCents === null
               ? "-"
-              : money(totals.costPer1000ViewsCents)
+              : money(totals.costPerClickCents)
           }
         />
       </dl>
       <DailyBars rows={report.days} />
       <p className="text-xs text-slate-500 dark:text-slate-400">
         Updated every few minutes. A view is half the card on screen for at
-        least a second. Small numbers of people aren&apos;t shown, to keep
-        members private.
+        least a second; a click is counted once per card, never a repeat or a
+        link scanner. Small numbers of people aren&apos;t shown, to keep members
+        private.
       </p>
     </div>
   );

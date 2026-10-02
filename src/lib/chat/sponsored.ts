@@ -22,7 +22,11 @@ export type SponsoredCardData = {
   imageUrl: string | null;
   ctaLabel: string;
   ctaKind: SponsoredCtaKind;
-  ctaTarget: string;
+  /**
+   * The button's address: the server's /c/{token}/, which counts the click
+   * and sends the member on to the company's page.
+   */
+  clickUrl: string;
 };
 
 /** A card for this member in this group, or null - which is the usual answer. */
@@ -36,7 +40,11 @@ export async function fetchSponsoredCard(
   );
   if (!result.ok) return result;
   const data = result.data;
-  if (!isObject(data) || typeof data.token !== "string") {
+  if (
+    !isObject(data) ||
+    typeof data.token !== "string" ||
+    typeof data.click_url !== "string"
+  ) {
     return { ok: true, data: null };
   }
   const company = isObject(data.company) ? data.company : {};
@@ -51,7 +59,7 @@ export async function fetchSponsoredCard(
       imageUrl: asNullableText(creative.image_url),
       ctaLabel: asText(creative.cta_label),
       ctaKind: asText(creative.cta_kind, "link") as SponsoredCtaKind,
-      ctaTarget: asText(creative.cta_target),
+      clickUrl: data.click_url,
     },
   };
 }

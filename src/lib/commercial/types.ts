@@ -275,6 +275,8 @@ export type ReportDay = {
   viewed: number;
   /** People reached that day; null when too few to show. */
   reach: number | null;
+  /** Counted clicks: once per card, never a repeat or a link scanner. */
+  clicks: number;
   spendCents: number;
 };
 
@@ -290,8 +292,10 @@ export type CampaignReport = {
     served: number;
     viewed: number;
     reach: number | null;
+    clicks: number;
     spendCents: number;
     costPer1000ViewsCents: number | null;
+    costPerClickCents: number | null;
   };
   days: ReportDay[];
 };
@@ -303,8 +307,10 @@ export type CompanyReport = {
   totals: {
     served: number;
     viewed: number;
+    clicks: number;
     spendCents: number;
     costPer1000ViewsCents: number | null;
+    costPerClickCents: number | null;
   };
   days: ReportDay[];
   campaigns: {
@@ -313,6 +319,7 @@ export type CompanyReport = {
     status: CampaignStatus;
     objective: CampaignObjective;
     viewed: number;
+    clicks: number;
     reach: number | null;
     spendCents: number;
   }[];
