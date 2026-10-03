@@ -11,7 +11,9 @@ import { reactionLabel } from "@/lib/chat/reactions";
  * last message you sent, and two things in that space overlap.
  *
  * Each pill is a button - clicking one is how you join or leave that reaction,
- * which is the shortest path and the one people reach for first.
+ * which is the shortest path and the one people reach for first. With the
+ * group's Reactions switch off they stay, as plain labels: what members already
+ * said is still shown, it just cannot be added to.
  */
 
 type MessageReactionsProps = {
@@ -20,6 +22,8 @@ type MessageReactionsProps = {
   onToggle: (emoji: string, reacted: boolean) => void;
   /** Disabled while a change is in flight, so a double click cannot race. */
   busy?: boolean;
+  /** Shown but not clickable: the group's Reactions switch is off. */
+  readOnly?: boolean;
 };
 
 export function MessageReactions({
@@ -27,8 +31,36 @@ export function MessageReactions({
   currentUsername,
   onToggle,
   busy = false,
+  readOnly = false,
 }: MessageReactionsProps) {
   if (reactions.length === 0) return null;
+
+  if (readOnly) {
+    return (
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {reactions.map((reaction) => {
+          const mine = hasReacted(reaction, currentUsername);
+          return (
+            <span
+              key={reaction.emoji}
+              title={reaction.usernames.join(", ")}
+              aria-label={`${reactionLabel(reaction.emoji)}, ${reaction.count}${
+                mine ? ", including you" : ""
+              }`}
+              className={`flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-2xs leading-none ${
+                mine
+                  ? "border-brand bg-tint text-ink"
+                  : "border-line bg-canvas text-ink-muted"
+              }`}
+            >
+              <span aria-hidden>{reaction.emoji}</span>
+              <span className="tabular-nums">{reaction.count}</span>
+            </span>
+          );
+        })}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-1.5 flex flex-wrap gap-1">

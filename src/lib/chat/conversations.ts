@@ -43,6 +43,13 @@ export type GroupSettings = {
   sms_delivery_enabled: boolean;
   sms_replies_enabled: boolean;
   voice_messages_enabled: boolean;
+  /** Photos and every other non-audio file. Off for everybody, admins too. */
+  media_enabled: boolean;
+  /**
+   * Whether anybody may ADD a reaction. Reactions already left stay visible
+   * either way - off is about what happens next.
+   */
+  reactions_enabled: boolean;
   /**
    * What kind of group this is (a category's slug) and where it is (a
    * country, "PH", or one of its regions, "PH-00"). Declared by an admin;
@@ -890,6 +897,10 @@ function normalizeGroupSettings(item: ApiObject): GroupSettings {
     sms_delivery_enabled: item.sms_delivery_enabled !== false,
     sms_replies_enabled: item.sms_replies_enabled !== false,
     voice_messages_enabled: item.voice_messages_enabled === true,
+    // `!== false`, not `=== true`: a server from before these existed sends
+    // nothing, and they were effectively on there.
+    media_enabled: item.media_enabled !== false,
+    reactions_enabled: item.reactions_enabled !== false,
     category: typeof item.category === "string" ? item.category : null,
     region: typeof item.region === "string" ? item.region : "",
   };
@@ -1457,6 +1468,12 @@ export async function addConversationMembers(
   conversationId: string | number,
   members: string[],
   inviteEmails: string[] = [],
+  /**
+   * What the people being added may read: everything said before ("all"), or
+   * only what is said from now on ("new"). The admin's choice, asked as they
+   * add; it touches nobody already in the group.
+   */
+  history: "all" | "new" = "all",
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const response = await authorizedRequest(
@@ -1464,7 +1481,7 @@ export async function addConversationMembers(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members, invite_email: inviteEmails }),
+        body: JSON.stringify({ members, invite_email: inviteEmails, history }),
       },
     );
     const data = await response.json().catch(() => null);

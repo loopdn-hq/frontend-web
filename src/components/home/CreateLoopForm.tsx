@@ -34,6 +34,8 @@ const createLoopSchema = z.object({
   sms_delivery_enabled: z.boolean(),
   sms_replies_enabled: z.boolean(),
   voice_messages_enabled: z.boolean(),
+  media_enabled: z.boolean(),
+  reactions_enabled: z.boolean(),
 });
 
 type CreateLoopFormValues = z.infer<typeof createLoopSchema>;
@@ -115,6 +117,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       sms_delivery_enabled: true,
       sms_replies_enabled: true,
       voice_messages_enabled: true,
+      media_enabled: true,
+      reactions_enabled: true,
     },
   });
 
@@ -159,6 +163,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           sms_delivery_enabled: values.sms_delivery_enabled,
           sms_replies_enabled: values.sms_replies_enabled,
           voice_messages_enabled: values.voice_messages_enabled,
+          media_enabled: values.media_enabled,
+          reactions_enabled: values.reactions_enabled,
         },
       };
       const result = await createConversation(payload);
@@ -404,7 +410,41 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
               Voice Messages
             </p>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Allow members to send voice notes and recordings
+              Allow voice notes and audio files in this Loop
+            </p>
+          </div>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+          <input
+            type="checkbox"
+            {...register("media_enabled")}
+            disabled={isSubmitting}
+            className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+          />
+          <div>
+            <p className="font-medium text-slate-900 dark:text-slate-100">
+              Photos &amp; Files
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Allow photos, documents and other files in this Loop
+            </p>
+          </div>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+          <input
+            type="checkbox"
+            {...register("reactions_enabled")}
+            disabled={isSubmitting}
+            className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+          />
+          <div>
+            <p className="font-medium text-slate-900 dark:text-slate-100">
+              Reactions
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Allow emoji reactions on messages
             </p>
           </div>
         </label>

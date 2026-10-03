@@ -14,6 +14,7 @@ import {
   Check,
   Copy,
   CornerUpLeft,
+  ImageIcon,
   Info,
   Loader2,
   MessageSquare,
@@ -22,6 +23,7 @@ import {
   Phone,
   Shield,
   SlidersHorizontal,
+  Smile,
   Tag,
   UserPlus,
 } from "lucide-react";
@@ -289,11 +291,29 @@ export function LoopPanelGeneral({
           <SwitchRow
             icon={<Mic className="h-4 w-4" />}
             label="Voice Messages"
-            description="Allow members to send voice notes and recordings"
+            description="Allow voice notes and audio files in this Loop. Off hides the microphone for everyone, admins too."
             checked={shown.voice_messages_enabled}
             busy={isBusy("voice_messages_enabled")}
             disabled={!canEdit}
             onChange={(on) => void change("voice_messages_enabled", on)}
+          />
+          <SwitchRow
+            icon={<ImageIcon className="h-4 w-4" />}
+            label="Photos & Files"
+            description="Allow photos, documents and other files in this Loop. Off hides the attach button for everyone, admins too."
+            checked={shown.media_enabled}
+            busy={isBusy("media_enabled")}
+            disabled={!canEdit}
+            onChange={(on) => void change("media_enabled", on)}
+          />
+          <SwitchRow
+            icon={<Smile className="h-4 w-4" />}
+            label="Reactions"
+            description="Allow emoji reactions on messages. Off stops new ones for everyone, admins too; reactions already left stay visible."
+            checked={shown.reactions_enabled}
+            busy={isBusy("reactions_enabled")}
+            disabled={!canEdit}
+            onChange={(on) => void change("reactions_enabled", on)}
           />
         </div>
       </PanelSection>

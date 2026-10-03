@@ -1129,6 +1129,16 @@ export function HomeShell({ mode }: HomeShellProps) {
     isGroupConversation && allows(selectedConversation, GROUP.editSettings);
   const canEditGroupPolicy =
     isGroupConversation && allows(selectedConversation, GROUP.editPolicy);
+  // The group's "Voice Messages" switch. Only an explicit off hides the
+  // microphone: a one-to-one conversation has no settings, and voice notes
+  // are always allowed there. The server refuses them too, whatever is shown.
+  const voiceMessagesAllowed =
+    selectedConversation?.settings?.voice_messages_enabled !== false;
+  // Its siblings, read the same way and refused server-side the same way.
+  // Reactions off leaves the ones already left on show, just not clickable.
+  const mediaAllowed = selectedConversation?.settings?.media_enabled !== false;
+  const reactionsAllowed =
+    selectedConversation?.settings?.reactions_enabled !== false;
 
   // Get messages for selected loop
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
@@ -2095,6 +2105,7 @@ export function HomeShell({ mode }: HomeShellProps) {
   async function handleAddMembers(
     members: string[],
     inviteEmails: string[] = [],
+    history: "all" | "new" = "all",
   ) {
     if (!selectedConversationId) return;
     // An invited address is a row in the group like anybody else, so it
@@ -2118,6 +2129,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       selectedConversationId,
       members,
       inviteEmails,
+      history,
     );
     if (!result.ok) throw new Error(result.message);
     await refreshConversations();
@@ -3671,6 +3683,7 @@ export function HomeShell({ mode }: HomeShellProps) {
                       currentUsername={currentUsername}
                       onToggleReaction={handleToggleReaction}
                       reactionBusy={actionBusy === "reaction"}
+                      reactionsEnabled={reactionsAllowed}
                     />
                     {sponsored?.afterMessageId === String(row.message.id) && (
                       <SponsoredSlot card={sponsored.card} />
@@ -3798,59 +3811,68 @@ export function HomeShell({ mode }: HomeShellProps) {
                       {/* An edit changes words and nothing else - the endpoint
                           takes only text - so the two controls that produce
                           files are out while one is in progress rather than
-                          accepting input that would be dropped. */}
-                      <label
-                        className={`flex items-center text-ink-faint transition ${
-                          isEditing
-                            ? "cursor-not-allowed opacity-40"
-                            : "cursor-pointer hover:text-ink-muted"
-                        }`}
-                        title={
-                          isEditing
-                            ? "Not available while editing"
-                            : "Attach files"
-                        }
-                      >
-                        <LinkIcon className="h-5 w-5" aria-hidden />
-                        <input
-                          type="file"
-                          multiple
-                          aria-label="Attach files"
-                          onChange={(event) =>
-                            setMessageAttachments(
-                              Array.from(event.target.files ?? []),
-                            )
+                          accepting input that would be dropped. The attach
+                          button goes entirely while the group's Photos & Files
+                          switch is off. */}
+                      {mediaAllowed && (
+                        <label
+                          className={`flex items-center text-ink-faint transition ${
+                            isEditing
+                              ? "cursor-not-allowed opacity-40"
+                              : "cursor-pointer hover:text-ink-muted"
+                          }`}
+                          title={
+                            isEditing
+                              ? "Not available while editing"
+                              : "Attach files"
+                          }
+                        >
+                          <LinkIcon className="h-5 w-5" aria-hidden />
+                          <input
+                            type="file"
+                            multiple
+                            aria-label="Attach files"
+                            onChange={(event) =>
+                              setMessageAttachments(
+                                Array.from(event.target.files ?? []),
+                              )
+                            }
+                            disabled={isSendingMessage || isEditing}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      {/* Kept while a recording is running even if the switch
+                          goes off meanwhile, or there would be no way to stop
+                          it - the send is refused with the reason either way. */}
+                      {(voiceMessagesAllowed || isRecordingVoice) && (
+                        <button
+                          type="button"
+                          onClick={
+                            isRecordingVoice
+                              ? handleStopRecording
+                              : handleStartRecording
                           }
                           disabled={isSendingMessage || isEditing}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={
-                          isRecordingVoice
-                            ? handleStopRecording
-                            : handleStartRecording
-                        }
-                        disabled={isSendingMessage || isEditing}
-                        className={`transition disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-ink-faint hover:text-ink-muted"}`}
-                        title={
-                          isRecordingVoice
-                            ? "Stop recording"
-                            : "Record a voice message"
-                        }
-                        aria-label={
-                          isRecordingVoice
-                            ? "Stop recording"
-                            : "Record a voice message"
-                        }
-                      >
-                        {isRecordingVoice ? (
-                          <Square className="h-5 w-5 fill-current" />
-                        ) : (
-                          <Mic className="h-5 w-5" />
-                        )}
-                      </button>
+                          className={`transition disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-ink-faint hover:text-ink-muted"}`}
+                          title={
+                            isRecordingVoice
+                              ? "Stop recording"
+                              : "Record a voice message"
+                          }
+                          aria-label={
+                            isRecordingVoice
+                              ? "Stop recording"
+                              : "Record a voice message"
+                          }
+                        >
+                          {isRecordingVoice ? (
+                            <Square className="h-5 w-5 fill-current" />
+                          ) : (
+                            <Mic className="h-5 w-5" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     <input
                       type="text"
@@ -4114,7 +4136,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         // own: one floating surface per message, and the menu already knows how
         // to anchor, dismiss and take focus.
         header={
-          menuMessage ? (
+          menuMessage && reactionsAllowed ? (
             <ReactionBar
               mine={menuMessage.reactions
                 .filter((reaction) => hasReacted(reaction, currentUsername))

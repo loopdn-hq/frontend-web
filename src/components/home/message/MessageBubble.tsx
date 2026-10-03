@@ -77,6 +77,8 @@ type MessageBubbleProps = {
   ) => void;
   /** A reaction on this message is in flight. */
   reactionBusy?: boolean;
+  /** False when the group's Reactions switch is off: pills show, read-only. */
+  reactionsEnabled?: boolean;
 };
 
 // How long a touch has to be held before it counts as "show me the actions".
@@ -106,6 +108,7 @@ export function MessageBubble({
   currentUsername,
   onToggleReaction,
   reactionBusy = false,
+  reactionsEnabled = true,
 }: MessageBubbleProps) {
   const longPress = useRef<number | null>(null);
   const isDeleted = message.deletedAt !== null;
@@ -353,6 +356,7 @@ export function MessageBubble({
               reactions={message.reactions}
               currentUsername={currentUsername}
               busy={reactionBusy}
+              readOnly={!reactionsEnabled}
               onToggle={(emoji, reacted) =>
                 onToggleReaction(message.id, emoji, reacted)
               }
