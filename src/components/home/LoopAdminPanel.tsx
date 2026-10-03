@@ -77,8 +77,6 @@ type LoopAdminPanelProps = {
   /** Buys the Loop its number. Absent for anybody who may not. */
   onProvisionNumber?: () => Promise<void>;
   onAddMembers?: () => void;
-  /** Opens "Invite by WhatsApp" from the Members tab. */
-  onInviteByWhatsApp?: () => void;
   onUpdateMemberRole?: (memberId: string, newRole: MemberRole) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
   onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
@@ -119,7 +117,6 @@ export function LoopAdminPanel({
   onFetchJoinCode,
   onProvisionNumber,
   onAddMembers,
-  onInviteByWhatsApp,
   onUpdateMemberRole,
   onBlockMember,
   onNudgeMember,
@@ -316,7 +313,6 @@ export function LoopAdminPanel({
                 onFetchBlockedMembers ? () => setIsBlockedOpen(true) : undefined
               }
               onAddMembers={onAddMembers}
-              onInviteByWhatsApp={onInviteByWhatsApp}
               onUpdateMemberRole={onUpdateMemberRole}
               onRemoveMember={onRemoveMember}
               // The blocked count moves with every block, so it is re-read

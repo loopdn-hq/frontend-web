@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/whatsapp/api", () => ({
   inviteByWhatsApp: vi.fn(),
   fetchConnections: vi.fn(),
+  fetchGroupWhatsApp: vi.fn(),
 }));
 
 const connect = vi.fn();
@@ -26,9 +27,25 @@ vi.mock("@/lib/whatsapp/useWhatsAppConfig", () => ({
   resetWhatsAppConfigForTests: vi.fn(),
 }));
 
-import { InviteByWhatsAppModal } from "@/components/whatsapp/InviteByWhatsAppModal";
-import { fetchConnections, inviteByWhatsApp } from "@/lib/whatsapp/api";
-import type { InviteResult, WhatsAppConnection } from "@/lib/whatsapp/types";
+import { InviteByWhatsAppForm } from "@/components/whatsapp/InviteByWhatsAppForm";
+import {
+  fetchConnections,
+  fetchGroupWhatsApp,
+  inviteByWhatsApp,
+} from "@/lib/whatsapp/api";
+import type {
+  GroupWhatsAppState,
+  InviteResult,
+  WhatsAppConnection,
+} from "@/lib/whatsapp/types";
+
+const NOT_ON_WHATSAPP: GroupWhatsAppState = {
+  connected: false,
+  channel: null,
+  isAdmin: true,
+  myConsent: null,
+  myNumberVerified: true,
+};
 
 const INVITED: InviteResult = {
   outcome: "invited",
@@ -49,33 +66,89 @@ function refusal(reason: string, message: string) {
   };
 }
 
-function open(
-  props: Partial<Parameters<typeof InviteByWhatsAppModal>[0]> = {},
-) {
+function open(props: Partial<Parameters<typeof InviteByWhatsAppForm>[0]> = {}) {
   return render(
-    <InviteByWhatsAppModal
-      isOpen
-      onClose={vi.fn()}
-      conversationId={9}
-      {...props}
-    />,
+    <InviteByWhatsAppForm onClose={vi.fn()} conversationId={9} {...props} />,
   );
 }
 
+// find, not get: the form waits on the check for a number to send from.
 async function fillNewPerson() {
-  await userEvent.type(screen.getByLabelText(/^phone number$/i), "5550001111");
+  await userEvent.type(
+    await screen.findByLabelText(/^phone number$/i),
+    "5550001111",
+  );
   await userEvent.type(screen.getByLabelText(/their name/i), "Sam");
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // Somebody with a number of their own, so the form is what opens.
+  vi.mocked(fetchConnections).mockResolvedValue({
+    ok: true,
+    data: [{ id: 3 } as WhatsAppConnection],
+  });
+  vi.mocked(fetchGroupWhatsApp).mockResolvedValue({
+    ok: true,
+    data: NOT_ON_WHATSAPP,
+  });
 });
 
-describe("InviteByWhatsAppModal", () => {
+describe("InviteByWhatsAppForm", () => {
+  it("asks to connect first when there is no number to send from", async () => {
+    vi.mocked(fetchConnections).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(inviteByWhatsApp).mockResolvedValue({ ok: true, data: INVITED });
+    connect.mockResolvedValue({ id: 7 } as WhatsAppConnection);
+
+    open();
+    const connectButton = await screen.findByRole("button", {
+      name: /connect whatsapp business/i,
+    });
+    expect(screen.queryByLabelText(/^phone number$/i)).not.toBeInTheDocument();
+    await userEvent.click(connectButton);
+
+    // Connected: the form appears, and sends from the number just connected.
+    await fillNewPerson();
+    await userEvent.click(
+      screen.getByRole("button", { name: /send invitation/i }),
+    );
+    await waitFor(() => expect(inviteByWhatsApp).toHaveBeenCalledTimes(1));
+    expect(vi.mocked(inviteByWhatsApp).mock.calls[0][1]).toMatchObject({
+      connection: 7,
+    });
+  });
+
+  it("stays on connect when the person cancels the connect flow", async () => {
+    vi.mocked(fetchConnections).mockResolvedValue({ ok: true, data: [] });
+    connect.mockResolvedValue(null);
+
+    open();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /connect whatsapp business/i }),
+    );
+
+    await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
+    expect(screen.queryByLabelText(/^phone number$/i)).not.toBeInTheDocument();
+  });
+
+  it("skips connect in a group already on somebody else's number", async () => {
+    vi.mocked(fetchConnections).mockResolvedValue({ ok: true, data: [] });
+    vi.mocked(fetchGroupWhatsApp).mockResolvedValue({
+      ok: true,
+      data: { ...NOT_ON_WHATSAPP, connected: true },
+    });
+
+    open();
+    expect(await screen.findByLabelText(/^phone number$/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /connect whatsapp business/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("requires a name, because a number alone shows the group a bare number", async () => {
     open();
     await userEvent.type(
-      screen.getByLabelText(/^phone number$/i),
+      await screen.findByLabelText(/^phone number$/i),
       "5550001111",
     );
     await userEvent.click(
@@ -210,13 +283,16 @@ describe("InviteByWhatsAppModal", () => {
   it("offers the member picker only to an admin", async () => {
     const members = [{ id: "5", name: "Sam", role: "member" } as never];
     open({ members, canInviteMembers: false });
+    await screen.findByLabelText(/^phone number$/i);
     expect(
       screen.queryByRole("radio", { name: /someone in the group/i }),
     ).not.toBeInTheDocument();
 
     open({ members, canInviteMembers: true });
     expect(
-      screen.getAllByRole("radio", { name: /someone in the group/i })[0],
+      (
+        await screen.findAllByRole("radio", { name: /someone in the group/i })
+      )[0],
     ).toBeInTheDocument();
   });
 });

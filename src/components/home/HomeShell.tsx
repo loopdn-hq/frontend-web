@@ -125,7 +125,6 @@ import { useAppShell } from "@/lib/app/AppShellProvider";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
 import { LoopdnLogo } from "@/components/app/LoopdnLogo";
 import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
-import { InviteByWhatsAppModal } from "@/components/whatsapp/InviteByWhatsAppModal";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
 import { SponsoredSlot, useSponsoredSlot } from "./SponsoredSlot";
@@ -502,7 +501,6 @@ export function HomeShell({ mode }: HomeShellProps) {
   const [isJoinLoopOpen, setIsJoinLoopOpen] = useState(false);
   const [isAddMembersOpen, setIsAddMembersOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
-  const [isWhatsAppInviteOpen, setIsWhatsAppInviteOpen] = useState(false);
   const [groupSettings, setGroupSettings] = useState<GroupSettings | null>(
     null,
   );
@@ -4436,22 +4434,6 @@ export function HomeShell({ mode }: HomeShellProps) {
         </Modal>
       )}
 
-      {/* Its own block, not inside the admin panel's: the invitation modal
-          opens from the Members tab but outlives a closed panel, and the
-          panel's condition is a single expression. */}
-      {selectedConversationId && (
-        <InviteByWhatsAppModal
-          isOpen={isWhatsAppInviteOpen}
-          onClose={() => setIsWhatsAppInviteOpen(false)}
-          conversationId={selectedConversationId}
-          members={selectedConversation?.participants ?? []}
-          canInviteMembers={selectedConversation?.isAdmin === true}
-          onInvited={() => {
-            void refreshConversations();
-          }}
-        />
-      )}
-
       {isAdminPanelOpen && selectedConversationId && (
         <LoopAdminPanel
           isOpen={isAdminPanelOpen}
@@ -4472,7 +4454,6 @@ export function HomeShell({ mode }: HomeShellProps) {
           members={selectedConversation?.participants ?? []}
           viewerUsername={currentUsername}
           onAddMembers={canAddMembers ? handleOpenAddMembers : undefined}
-          onInviteByWhatsApp={() => setIsWhatsAppInviteOpen(true)}
           pendingRequests={(
             pendingRequestsByLoop.get(selectedConversationId) ?? []
           ).map((request) => ({
@@ -4665,12 +4646,17 @@ export function HomeShell({ mode }: HomeShellProps) {
       {selectedConversationId && selectedConversation && (
         <AddMembersModal
           isOpen={isAddMembersOpen}
+          conversationId={selectedConversationId}
           groupName={selectedConversation.name}
-          currentMemberCount={selectedConversation.participants.length}
+          members={selectedConversation.participants}
+          canInviteMembers={selectedConversation.isAdmin === true}
           onClose={() => setIsAddMembersOpen(false)}
           onAddMembers={handleAddMembers}
           onSearchMembers={handleSearchMembers}
           onInvitePhone={handleInvitePhone}
+          onWhatsAppInvited={() => {
+            void refreshConversations();
+          }}
         />
       )}
     </>
