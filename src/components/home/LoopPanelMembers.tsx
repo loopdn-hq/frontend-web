@@ -14,6 +14,7 @@ import {
   Ban,
   Crown,
   EllipsisVertical,
+  MessageCircle,
   Search,
   UserPlus,
   Users,
@@ -72,6 +73,8 @@ type LoopPanelMembersProps = {
   blockedCount?: number | null;
   onOpenBlocked?: () => void;
   onAddMembers?: () => void;
+  /** Opens "Invite by WhatsApp". Absent when the deployment has no WhatsApp. */
+  onInviteByWhatsApp?: () => void;
   onUpdateMemberRole?: (memberId: string, role: MemberRole) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
@@ -89,6 +92,7 @@ export function LoopPanelMembers({
   blockedCount = null,
   onOpenBlocked,
   onAddMembers,
+  onInviteByWhatsApp,
   onUpdateMemberRole,
   onRemoveMember,
   onBlockMember,
@@ -222,12 +226,25 @@ export function LoopPanelMembers({
             Manage members of {loopName}
           </p>
         </div>
-        {onAddMembers && (
-          <Button type="button" size="sm" onClick={onAddMembers}>
-            <UserPlus className="mr-1.5 h-4 w-4" />
-            Add members
-          </Button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {onInviteByWhatsApp && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={onInviteByWhatsApp}
+            >
+              <MessageCircle className="mr-1.5 h-4 w-4 text-emerald-600" />
+              Invite by WhatsApp
+            </Button>
+          )}
+          {onAddMembers && (
+            <Button type="button" size="sm" onClick={onAddMembers}>
+              <UserPlus className="mr-1.5 h-4 w-4" />
+              Add members
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">

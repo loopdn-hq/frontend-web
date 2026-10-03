@@ -16,9 +16,10 @@
  */
 import { useEffect, useEffectEvent, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { LogOut, Settings, Users } from "lucide-react";
+import { LogOut, MessageCircle, Settings, Users } from "lucide-react";
 import { Alert, Button, Modal } from "@/components/ui";
 import { SettingsHeading } from "@/components/settings/SettingsRows";
+import { GroupWhatsAppPanel } from "@/components/whatsapp/GroupWhatsAppPanel";
 import { LoopPanelGeneral } from "./LoopPanelGeneral";
 import type { LoopDetailsChange } from "./LoopDetailsForm";
 import { LoopPanelMembers } from "./LoopPanelMembers";
@@ -28,7 +29,7 @@ import type {
   GroupSettings,
 } from "@/lib/chat/conversations";
 
-export type AdminTab = "general" | "members";
+export type AdminTab = "general" | "members" | "whatsapp";
 
 type MemberRole = "admin" | "member";
 
@@ -42,10 +43,13 @@ type PendingRequest = {
 const RAIL: { value: AdminTab; label: string; icon: LucideIcon }[] = [
   { value: "general", label: "General", icon: Settings },
   { value: "members", label: "Members", icon: Users },
+  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
 ];
 
 type LoopAdminPanelProps = {
   isOpen: boolean;
+  /** Which group this is, for the WhatsApp tab's own requests. */
+  conversationId?: string | number | null;
   onClose: () => void;
   loopName: string;
   loopDescription?: string;
@@ -73,6 +77,8 @@ type LoopAdminPanelProps = {
   /** Buys the Loop its number. Absent for anybody who may not. */
   onProvisionNumber?: () => Promise<void>;
   onAddMembers?: () => void;
+  /** Opens "Invite by WhatsApp" from the Members tab. */
+  onInviteByWhatsApp?: () => void;
   onUpdateMemberRole?: (memberId: string, newRole: MemberRole) => Promise<void>;
   onBlockMember?: (memberId: string) => Promise<void>;
   onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
@@ -89,6 +95,7 @@ type LoopAdminPanelProps = {
 
 export function LoopAdminPanel({
   isOpen,
+  conversationId,
   onClose,
   loopName,
   loopDescription = "",
@@ -112,6 +119,7 @@ export function LoopAdminPanel({
   onFetchJoinCode,
   onProvisionNumber,
   onAddMembers,
+  onInviteByWhatsApp,
   onUpdateMemberRole,
   onBlockMember,
   onNudgeMember,
@@ -266,6 +274,10 @@ export function LoopAdminPanel({
               }}
               onBack={() => setIsBlockedOpen(false)}
             />
+          ) : activeTab === "whatsapp" ? (
+            conversationId ? (
+              <GroupWhatsAppPanel conversationId={conversationId} />
+            ) : null
           ) : activeTab === "general" ? (
             settings ? (
               <LoopPanelGeneral
@@ -304,6 +316,7 @@ export function LoopAdminPanel({
                 onFetchBlockedMembers ? () => setIsBlockedOpen(true) : undefined
               }
               onAddMembers={onAddMembers}
+              onInviteByWhatsApp={onInviteByWhatsApp}
               onUpdateMemberRole={onUpdateMemberRole}
               onRemoveMember={onRemoveMember}
               // The blocked count moves with every block, so it is re-read

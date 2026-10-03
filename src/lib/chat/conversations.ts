@@ -247,7 +247,7 @@ export type ConversationAttachment = {
 };
 
 /** Which channel a message arrived on. Mirrors Message.Source on the server. */
-export type MessageSource = "app" | "sms" | "email" | "system";
+export type MessageSource = "app" | "sms" | "email" | "whatsapp" | "system";
 
 /**
  * The message a reply answers, as much of it as a quote needs.
@@ -837,7 +837,10 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
 
   const rawSource = item.source;
   const source: MessageSource =
-    rawSource === "sms" || rawSource === "email" || rawSource === "system"
+    rawSource === "sms" ||
+    rawSource === "email" ||
+    rawSource === "whatsapp" ||
+    rawSource === "system"
       ? rawSource
       : "app";
 
