@@ -14,13 +14,14 @@
  * is worse than one that is not there yet, so they are left out rather than
  * shown greyed. General already holds the permissions and feature switches.
  */
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { LogOut, MessageCircle, Settings, Users } from "lucide-react";
 import { Alert, Button, Modal } from "@/components/ui";
 import { SettingsHeading } from "@/components/settings/SettingsRows";
 import { GroupWhatsAppPanel } from "@/components/whatsapp/GroupWhatsAppPanel";
 import { LoopPanelGeneral } from "./LoopPanelGeneral";
+import type { LoopDetailsChange } from "./LoopDetailsForm";
 import { LoopPanelMembers } from "./LoopPanelMembers";
 import type {
   ConversationParticipant,
@@ -51,11 +52,16 @@ type LoopAdminPanelProps = {
   conversationId?: string | number | null;
   onClose: () => void;
   loopName: string;
+  loopDescription?: string;
+  loopImageUrl?: string | null;
   settings: GroupSettings | null;
   /** This Loop's own phone number, shown on General. Null until it has one. */
   smsNumber?: GroupNumber | null;
   isSettingsLoading?: boolean;
+  /** The policy settings on General. Admins only, whatever the group says. */
   canEditSettings?: boolean;
+  /** The photo, name and description, which a group can open to members. */
+  canEditDetails?: boolean;
   canModerateMembers?: boolean;
   activeTab: AdminTab;
   onTabChange: (tab: AdminTab) => void;
@@ -66,6 +72,7 @@ type LoopAdminPanelProps = {
   onApproveRequest?: (participantId: string) => Promise<void>;
   onDeclineRequest?: (participantId: string) => Promise<void>;
   onSaveSettings?: (settings: Partial<GroupSettings>) => Promise<void>;
+  onSaveDetails?: (change: LoopDetailsChange) => Promise<void>;
   onFetchJoinCode?: () => Promise<string>;
   /** Buys the Loop its number. Absent for anybody who may not. */
   onProvisionNumber?: () => Promise<void>;
@@ -76,6 +83,12 @@ type LoopAdminPanelProps = {
   onBlockMember?: (memberId: string) => Promise<void>;
   onNudgeMember?: (memberId: string, channel: string) => Promise<void>;
   onRemoveMember?: (memberId: string) => Promise<void>;
+  /**
+   * Who is blocked from this group. Passed only to somebody who may manage
+   * members, so its absence is what hides the blocked count and list.
+   */
+  onFetchBlockedMembers?: () => Promise<ConversationParticipant[]>;
+  onUnblockMember?: (participantId: string) => Promise<void>;
   isLoading?: boolean;
   onLeaveLoop?: () => Promise<{ ok: true } | { ok: false; message: string }>;
 };
@@ -85,10 +98,13 @@ export function LoopAdminPanel({
   conversationId,
   onClose,
   loopName,
+  loopDescription = "",
+  loopImageUrl = null,
   settings,
   smsNumber = null,
   isSettingsLoading = false,
   canEditSettings = true,
+  canEditDetails = canEditSettings,
   canModerateMembers = false,
   activeTab,
   onTabChange,
@@ -99,6 +115,7 @@ export function LoopAdminPanel({
   onApproveRequest,
   onDeclineRequest,
   onSaveSettings,
+  onSaveDetails,
   onFetchJoinCode,
   onProvisionNumber,
   onAddMembers,
@@ -107,18 +124,73 @@ export function LoopAdminPanel({
   onBlockMember,
   onNudgeMember,
   onRemoveMember,
+  onFetchBlockedMembers,
+  onUnblockMember,
   isLoading = false,
   onLeaveLoop,
 }: LoopAdminPanelProps) {
-  // The one view that opens over a screen rather than beside it, reached from
-  // the "Pending requests" row on Members.
+  // The two views that open over a screen rather than beside it, reached from
+  // the "Pending requests" and "Blocked members" rows on Members.
   const [isRequestsOpen, setIsRequestsOpen] = useState(false);
+  const [isBlockedOpen, setIsBlockedOpen] = useState(false);
+  // Null until the first answer, so Members shows a dash rather than claiming
+  // nobody is blocked while it is still asking.
+  const [blocked, setBlocked] = useState<ConversationParticipant[] | null>(
+    null,
+  );
+  const [blockedError, setBlockedError] = useState("");
+
+  function showBlocked(rows: ConversationParticipant[]) {
+    setBlocked(rows);
+    setBlockedError("");
+  }
+
+  function showBlockedError(err: unknown) {
+    setBlockedError(
+      err instanceof Error && err.message
+        ? err.message
+        : "Could not load blocked members.",
+    );
+  }
+
+  /** Re-read after a block or an unblock, so the count never lags. */
+  async function refreshBlocked() {
+    if (!onFetchBlockedMembers) return;
+    try {
+      showBlocked(await onFetchBlockedMembers());
+    } catch (err) {
+      showBlockedError(err);
+    }
+  }
+
+  // Read whenever Members is shown, so the count is current each time an
+  // admin looks. An effect event because the fetcher is a new function on
+  // every render of HomeShell, and depending on it would refetch on each one.
+  const fetchBlocked = useEffectEvent(() => onFetchBlockedMembers?.());
+  useEffect(() => {
+    if (!isOpen || activeTab !== "members") return;
+    // Dropped if the panel closes first, rather than landing on a screen
+    // that is no longer there.
+    let cancelled = false;
+    fetchBlocked()?.then(
+      (rows) => {
+        if (!cancelled) showBlocked(rows);
+      },
+      (err: unknown) => {
+        if (!cancelled) showBlockedError(err);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, activeTab]);
   const [isLeaveOpen, setIsLeaveOpen] = useState(false);
   const [isLeaving, setIsLeaving] = useState(false);
   const [leaveError, setLeaveError] = useState("");
 
   function showTab(tab: AdminTab) {
     setIsRequestsOpen(false);
+    setIsBlockedOpen(false);
     onTabChange(tab);
   }
 
@@ -192,6 +264,16 @@ export function LoopAdminPanel({
               onDecline={onDeclineRequest}
               onBack={() => setIsRequestsOpen(false)}
             />
+          ) : isBlockedOpen ? (
+            <BlockedMembers
+              members={blocked}
+              loadError={blockedError}
+              onUnblock={async (participantId) => {
+                await onUnblockMember?.(participantId);
+                await refreshBlocked();
+              }}
+              onBack={() => setIsBlockedOpen(false)}
+            />
           ) : activeTab === "whatsapp" ? (
             conversationId ? (
               <GroupWhatsAppPanel conversationId={conversationId} />
@@ -202,6 +284,13 @@ export function LoopAdminPanel({
                 settings={settings}
                 onSave={onSaveSettings}
                 canEdit={canEditSettings}
+                details={{
+                  name: loopName,
+                  description: loopDescription,
+                  imageUrl: loopImageUrl,
+                }}
+                canEditDetails={canEditDetails}
+                onSaveDetails={onSaveDetails}
                 onFetchJoinCode={onFetchJoinCode}
                 smsNumber={smsNumber}
                 onProvisionNumber={onProvisionNumber}
@@ -222,11 +311,23 @@ export function LoopAdminPanel({
               isLoading={isLoading}
               pendingRequestCount={pendingRequests.length}
               onOpenPendingRequests={() => setIsRequestsOpen(true)}
+              blockedCount={blocked?.length ?? null}
+              onOpenBlocked={
+                onFetchBlockedMembers ? () => setIsBlockedOpen(true) : undefined
+              }
               onAddMembers={onAddMembers}
               onInviteByWhatsApp={onInviteByWhatsApp}
               onUpdateMemberRole={onUpdateMemberRole}
               onRemoveMember={onRemoveMember}
-              onBlockMember={onBlockMember}
+              // The blocked count moves with every block, so it is re-read
+              // rather than left a step behind.
+              onBlockMember={
+                onBlockMember &&
+                (async (memberId) => {
+                  await onBlockMember(memberId);
+                  await refreshBlocked();
+                })
+              }
               onNudgeMember={onNudgeMember}
             />
           )}
@@ -281,6 +382,101 @@ export function LoopAdminPanel({
         </Modal>
       )}
     </Modal>
+  );
+}
+
+/**
+ * Who is blocked from this Loop, and the way to let each of them back.
+ *
+ * Unblocking does not add anybody: it lifts the ban, and they come back the
+ * usual way - an admin adds them, or they rejoin as the join mode allows. The
+ * description says so, because "Unblock" alone reads as "put them back".
+ */
+function BlockedMembers({
+  members,
+  loadError,
+  onUnblock,
+  onBack,
+}: {
+  members: ConversationParticipant[] | null;
+  loadError: string;
+  onUnblock: (participantId: string) => Promise<void>;
+  onBack: () => void;
+}) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+
+  async function unblock(participantId: string) {
+    setBusyId(participantId);
+    setError("");
+    try {
+      await onUnblock(participantId);
+    } catch (err) {
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Could not unblock them. Try again.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <SettingsHeading
+        title="Blocked members"
+        description="Unblocking lets them back in the usual way - they can be added again, or rejoin if the Loop allows it. They are not added back automatically."
+        backLabel="Members"
+        onBack={onBack}
+      />
+
+      {(error || loadError) && (
+        <Alert variant="error">{error || loadError}</Alert>
+      )}
+
+      {members === null && !loadError && (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Loading blocked members...
+        </p>
+      )}
+
+      {members?.length === 0 && (
+        <p className="rounded-2xl border border-dashed border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
+          Nobody is blocked from this Loop.
+        </p>
+      )}
+
+      <ul className="space-y-2">
+        {members?.map((member) => (
+          <li
+            key={member.id}
+            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-medium text-slate-900 dark:text-slate-100">
+                {member.name}
+              </p>
+              {(member.username || member.phone) && (
+                <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                  {member.username ? `@${member.username}` : member.phone}
+                </p>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="shrink-0"
+              disabled={busyId !== null}
+              onClick={() => void unblock(member.id)}
+            >
+              {busyId === member.id ? "Unblocking..." : "Unblock"}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

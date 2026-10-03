@@ -17,14 +17,14 @@ import { meets, useFeatures } from "@/lib/rbac";
 
 // The account-axis feature backend/rbac/registry.py grants to the `commercial`
 // role. Decides what to SHOW; every /commercial/ API endpoint re-checks.
-const ADS_ACCESS = { account: "ads.access" };
+const COMMERCIAL_ACCESS = { account: "commercial.access" };
 
 /**
  * Everything around a commercial page, on the commercial site.
  *
- *   not the commercial site   -> nothing (CommercialSiteRedirect moves them)
+ *   not the commercial site   -> nothing (SiteRedirect moves them)
  *   not signed in             -> /login/, and back to this page afterwards
- *   no `ads.access`           -> a notice: this is not a commercial account
+ *   no `commercial.access`    -> a notice: this is not a commercial account
  *   otherwise                 -> the page, straight away
  *
  * No sidebar here: CommercialDashboard adds it.
@@ -49,7 +49,7 @@ export function CommercialFrame({ children }: { children: ReactNode }) {
 
   if (!commercialSite || !isLoaded || !session) return null;
   if (loading) return <DashboardSkeleton />;
-  if (!meets(ADS_ACCESS, { features, loading })) {
+  if (!meets(COMMERCIAL_ACCESS, { features, loading })) {
     return <NotACommercialAccount username={session} />;
   }
 

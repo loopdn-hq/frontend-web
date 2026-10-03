@@ -40,8 +40,15 @@ type AddMembersModalProps = {
   groupName: string;
   currentMemberCount: number;
   onClose: () => void;
-  /** Accounts by username, and addresses with no account to invite. */
-  onAddMembers: (members: string[], inviteEmails: string[]) => Promise<void>;
+  /**
+   * Accounts by username, addresses with no account to invite, and what they
+   * may read - everything said before ("all") or only what comes next ("new").
+   */
+  onAddMembers: (
+    members: string[],
+    inviteEmails: string[],
+    history: "all" | "new",
+  ) => Promise<void>;
   /** People who could be added, and what adding each would do. */
   onSearchMembers: (term: string) => Promise<MemberSearchResult>;
   onInvitePhone: (invite: {
@@ -66,6 +73,12 @@ export function AddMembersModal({
   const [smsConsent, setSmsConsent] = useState(false);
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Who is about to be added, held while the admin answers whether they may
+  // see the old messages. Nothing is sent until they do.
+  const [pendingAdd, setPendingAdd] = useState<{
+    members: string[];
+    inviteEmails: string[];
+  } | null>(null);
 
   function handlePhoneNumberChange(nextPhoneNumber: string) {
     setPhoneNumber(nextPhoneNumber);
@@ -90,13 +103,24 @@ export function AddMembersModal({
       return;
     }
 
-    setIsSubmitting(true);
+    // Asked every time rather than only where the group has messages: the
+    // admin's own view is not proof of that, and in an empty group either
+    // answer is harmless.
     setError("");
+    setPendingAdd({ members, inviteEmails });
+  }
+
+  async function confirmAdd(history: "all" | "new") {
+    if (!pendingAdd) return;
+    setIsSubmitting(true);
     try {
-      await onAddMembers(members, inviteEmails);
+      await onAddMembers(pendingAdd.members, pendingAdd.inviteEmails, history);
       setSelected([]);
+      setPendingAdd(null);
       onClose();
     } catch (submissionError) {
+      // Back to the form, where the people are still picked, to say why.
+      setPendingAdd(null);
       setError(
         submissionError instanceof Error
           ? submissionError.message
@@ -301,6 +325,99 @@ export function AddMembersModal({
           </div>
         </form>
       )}
+
+      {pendingAdd && (
+        <HistoryChoice
+          count={pendingAdd.members.length + pendingAdd.inviteEmails.length}
+          groupName={groupName}
+          isSubmitting={isSubmitting}
+          onChoose={(history) => void confirmAdd(history)}
+          onCancel={() => setPendingAdd(null)}
+        />
+      )}
     </Modal>
+  );
+}
+
+/**
+ * The question asked as people are added: may they read what was said before?
+ *
+ * Two answers of equal weight, so neither is styled as the "right" one - it is
+ * the admin's call about their group. Only for the app tab: somebody added by
+ * phone is only ever texted what is sent after they join, so there is nothing
+ * to ask.
+ */
+function HistoryChoice({
+  count,
+  groupName,
+  isSubmitting,
+  onChoose,
+  onCancel,
+}: {
+  count: number;
+  groupName: string;
+  isSubmitting: boolean;
+  onChoose: (history: "all" | "new") => void;
+  onCancel: () => void;
+}) {
+  const who = count === 1 ? "this person" : `these ${count} people`;
+
+  return (
+    <Modal
+      isOpen
+      onClose={() => (isSubmitting ? undefined : onCancel())}
+      title="Can they see old messages?"
+      description={`Choose what ${who} can read in ${groupName}.`}
+      maxWidthClassName="max-w-sm"
+      closeLabel="Go back"
+    >
+      <div className="space-y-2">
+        <HistoryOption
+          label="Allow to see old messages"
+          hint="They can scroll back through everything said before they joined."
+          disabled={isSubmitting}
+          onClick={() => onChoose("all")}
+        />
+        <HistoryOption
+          label="Only show new messages"
+          hint="They only see messages sent from now on."
+          disabled={isSubmitting}
+          onClick={() => onChoose("new")}
+        />
+        {isSubmitting && (
+          <p className="pt-1 text-center text-xs text-slate-500 dark:text-slate-400">
+            Adding...
+          </p>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function HistoryOption({
+  label,
+  hint,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  hint: string;
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="w-full rounded-2xl border border-slate-200 px-4 py-3 text-left transition hover:border-sky-300 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:hover:border-sky-500/60 dark:hover:bg-slate-800"
+    >
+      <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+        {label}
+      </span>
+      <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">
+        {hint}
+      </span>
+    </button>
   );
 }

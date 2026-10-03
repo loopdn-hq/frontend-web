@@ -14,13 +14,17 @@ import {
   Check,
   Copy,
   CornerUpLeft,
+  ImageIcon,
   Info,
   Loader2,
   MessageSquare,
   Mic,
+  PenLine,
   Phone,
   Shield,
   SlidersHorizontal,
+  Smile,
+  Tag,
   UserPlus,
 } from "lucide-react";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
@@ -28,6 +32,11 @@ import { Alert, Button, Select } from "@/components/ui";
 import { useCopyToClipboard } from "@/lib/hooks/useCopyToClipboard";
 import { SettingsError, SwitchRow } from "@/components/settings/SettingsRows";
 import { useOptimisticChanges } from "@/components/settings/useOptimisticChanges";
+import { LoopKindAndPlace } from "@/components/home/LoopKindAndPlace";
+import {
+  LoopDetailsForm,
+  type LoopDetailsChange,
+} from "@/components/home/LoopDetailsForm";
 import type {
   ConversationMode,
   GroupMemberPermission,
@@ -101,7 +110,21 @@ const WHO_OPTIONS: { value: GroupMemberPermission; label: string }[] = [
 type LoopPanelGeneralProps = {
   settings: GroupSettings;
   onSave?: (change: Partial<GroupSettings>) => Promise<void>;
+  /**
+   * May change the settings below the details - `group.settings.policy`,
+   * which only ever means an admin.
+   */
   canEdit?: boolean;
+  /** The Loop's photo, name and description, as they are now. */
+  details: { name: string; description: string; imageUrl: string | null };
+  /**
+   * May change those three - `group.settings.edit`, which a group can open to
+   * every member with "Who can edit group details?". Separate from `canEdit`
+   * for that reason: a member allowed to rename the group is still not
+   * allowed to change how it works.
+   */
+  canEditDetails?: boolean;
+  onSaveDetails?: (change: LoopDetailsChange) => Promise<void>;
   /**
    * Reads this Loop's join code. Shown under "Who Can Join" while that is how
    * people get in - the design files invitations under a section that is not
@@ -128,6 +151,9 @@ export function LoopPanelGeneral({
   settings,
   onSave,
   canEdit = true,
+  details,
+  canEditDetails = canEdit,
+  onSaveDetails,
   onFetchJoinCode,
   smsNumber = null,
   onProvisionNumber,
@@ -144,13 +170,30 @@ export function LoopPanelGeneral({
           variant="neutral"
           className="mb-5 border border-slate-200 px-4 py-3 dark:border-slate-700"
         >
-          Only admins can change these. You are seeing them as they are.
+          {canEditDetails
+            ? "You can change the photo, name and description. Only admins can change the rest."
+            : "Only admins can change these. You are seeing them as they are."}
         </Alert>
       )}
 
       {error && <SettingsError className="mb-4">{error}</SettingsError>}
 
-      {/* First, because it is the one thing on this screen somebody needs to
+      {/* First, because it is what the Loop is: the rest is how it works. */}
+      <PanelSection
+        icon={PenLine}
+        title="Loop Details"
+        description="The photo, name and description every member sees."
+      >
+        <LoopDetailsForm
+          name={details.name}
+          description={details.description}
+          imageUrl={details.imageUrl}
+          canEdit={canEditDetails}
+          onSave={onSaveDetails}
+        />
+      </PanelSection>
+
+      {/* Next, because it is the one thing on this screen somebody needs to
           give to a person who does not have the app. */}
       <PanelSection
         icon={Phone}
@@ -248,13 +291,47 @@ export function LoopPanelGeneral({
           <SwitchRow
             icon={<Mic className="h-4 w-4" />}
             label="Voice Messages"
-            description="Allow members to send voice notes and recordings"
+            description="Allow voice notes and audio files in this Loop. Off hides the microphone for everyone, admins too."
             checked={shown.voice_messages_enabled}
             busy={isBusy("voice_messages_enabled")}
             disabled={!canEdit}
             onChange={(on) => void change("voice_messages_enabled", on)}
           />
+          <SwitchRow
+            icon={<ImageIcon className="h-4 w-4" />}
+            label="Photos & Files"
+            description="Allow photos, documents and other files in this Loop. Off hides the attach button for everyone, admins too."
+            checked={shown.media_enabled}
+            busy={isBusy("media_enabled")}
+            disabled={!canEdit}
+            onChange={(on) => void change("media_enabled", on)}
+          />
+          <SwitchRow
+            icon={<Smile className="h-4 w-4" />}
+            label="Reactions"
+            description="Allow emoji reactions on messages. Off stops new ones for everyone, admins too; reactions already left stay visible."
+            checked={shown.reactions_enabled}
+            busy={isBusy("reactions_enabled")}
+            disabled={!canEdit}
+            onChange={(on) => void change("reactions_enabled", on)}
+          />
         </div>
+      </PanelSection>
+
+      <PanelSection
+        icon={Tag}
+        title="Kind and Place"
+        description="What kind of Loop this is and where. Ads are matched on these two only, never on what members write."
+      >
+        <LoopKindAndPlace
+          category={shown.category}
+          region={shown.region}
+          disabled={!canEdit}
+          categoryBusy={isBusy("category")}
+          regionBusy={isBusy("region")}
+          onCategory={(slug) => void change("category", slug)}
+          onRegion={(code) => void change("region", code)}
+        />
       </PanelSection>
     </div>
   );

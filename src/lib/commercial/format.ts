@@ -1,16 +1,34 @@
-import type { CompanyStatus, CampaignObjective, CampaignStatus } from "./types";
+import type {
+  CompanyStatus,
+  CampaignObjective,
+  CampaignPacing,
+  CampaignStatus,
+  CreativeStatus,
+  ReachRange,
+  ResultKind,
+} from "./types";
+import { formatCents } from "@/lib/format/money";
 
-/**
- * Money, from cents. Integer cents on the wire, like billing.Wallet, so the
- * only place a decimal ever appears is here.
- *
- * The currency is the company's and is required: every amount belongs to one
- * company, and a default would print pesos as dollars without a word.
- */
-export function formatCents(cents: number, currency: string): string {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(
-    cents / 100,
-  );
+// Shared with the admin site (lib/format); re-exported so this area imports
+// all of its formatting from one place.
+export { formatCents };
+
+/** A budget that may not be set yet, on a draft. */
+export function formatBudget(cents: number | null, currency: string): string {
+  return cents === null ? "Not set" : formatCents(cents, currency);
+}
+
+/** A campaign's name, or what to call it before it has one. */
+export function campaignName(campaign: { name: string }): string {
+  return campaign.name.trim() || "Untitled campaign";
+}
+
+/** "1,000–2,500", or "1,000,000+" past the top: never a count. */
+export function formatRange(range: ReachRange): string {
+  const number = (value: number) => value.toLocaleString("en-US");
+  return range.high === null
+    ? `${number(range.low)}+`
+    : `${number(range.low)}–${number(range.high)}`;
 }
 
 export function formatDate(value: string | null): string {
@@ -48,4 +66,46 @@ export const CAMPAIGN_OBJECTIVE_LABEL: Record<CampaignObjective, string> = {
   lead: "Leads",
   booking: "Bookings",
   group_join: "Group joins",
+};
+
+/**
+ * What each objective is for, under its name on the builder's first step.
+ * Call and text are here for completeness; the builder hides them until
+ * tracking numbers exist (backend plan, decision 3).
+ */
+export const CAMPAIGN_OBJECTIVE_HINT: Record<CampaignObjective, string> = {
+  call: "People call you from the ad.",
+  text: "People text you from the ad.",
+  website: "Send people to your website.",
+  lead: "People send you their details through a short Loopd'n form.",
+  booking: "Send people to your booking page.",
+  group_join: "Invite people to join your Loopd'n group.",
+};
+
+export const CAMPAIGN_PACING_LABEL: Record<CampaignPacing, string> = {
+  standard: "Spread evenly",
+  accelerated: "As fast as possible",
+};
+
+export const CREATIVE_STATUS_LABEL: Record<CreativeStatus, string> = {
+  draft: "Draft",
+  pending_review: "Pending review",
+  approved: "Approved",
+  rejected: "Rejected",
+};
+
+/** Clicks as a share of views: "2.5%", or "-" before any view. */
+export function formatClickRate(clicks: number, viewed: number): string {
+  if (viewed === 0) return "-";
+  const rate = (clicks / viewed) * 100;
+  return `${rate.toLocaleString(undefined, { maximumFractionDigits: rate < 10 ? 1 : 0 })}%`;
+}
+
+/** What a campaign's results are called, plural and singular. */
+export const RESULT_LABEL: Record<ResultKind, { many: string; one: string }> = {
+  clicks: { many: "Clicks", one: "click" },
+  leads: { many: "Leads", one: "lead" },
+  joins: { many: "Group joins", one: "join" },
+  calls: { many: "Calls", one: "call" },
+  texts: { many: "Texts", one: "text" },
 };

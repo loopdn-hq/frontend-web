@@ -17,7 +17,7 @@ const nextConfig: NextConfig = {
   // The commercial site is this same app served on a commercial.* host (see
   // src/lib/config/site.ts). Next 16 refuses dev-server requests from any
   // host but localhost unless it is listed here; dev-only either way.
-  allowedDevOrigins: ["commercial.localhost"],
+  allowedDevOrigins: ["commercial.localhost", "admin.localhost"],
 };
 
 export default nextConfig;

@@ -2,6 +2,7 @@
 
 import { allows, GROUP } from "@/lib/rbac";
 import {
+  Fragment,
   useState,
   useCallback,
   useEffect,
@@ -53,6 +54,8 @@ import {
   nudgeConversationMember,
   provisionGroupNumber,
   removeConversationMember,
+  fetchBlockedMembers,
+  unblockConversationMember,
   respondToJoinRequest,
   searchMemberCandidates,
   sendConversationMessage,
@@ -92,6 +95,8 @@ import {
   MessageThreadSkeleton,
   PinnedMessageBar,
   ReactionBar,
+  VoiceNotePreview,
+  VoiceRecordingBar,
   type ComposerContext,
   type ThreadMessage,
 } from "./message";
@@ -123,6 +128,7 @@ import { ConversationCallButtons } from "@/components/calls/ConversationCallButt
 import { InviteByWhatsAppModal } from "@/components/whatsapp/InviteByWhatsAppModal";
 import { ChatAvatar } from "./ChatAvatar";
 import { JoinGroupPanel } from "./JoinGroupPanel";
+import { SponsoredSlot, useSponsoredSlot } from "./SponsoredSlot";
 import {
   Archive,
   Check,
@@ -855,11 +861,24 @@ export function HomeShell({ mode }: HomeShellProps) {
   // fetch without the effect needing to be pulled apart.
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  // When the recording began, or null when nothing is recording. A time
+  // rather than a flag because the recording bar counts up from it.
+  const [recordingStartedAt, setRecordingStartedAt] = useState<number | null>(
+    null,
+  );
+  const isRecordingVoice = recordingStartedAt !== null;
   const [voiceRecordError, setVoiceRecordError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const mediaStreamRef = useRef<MediaStream | null>(null);
+  // Recordings stopped to be thrown away. `onstop` fires either way, and this
+  // is how it knows not to keep the file. Per recorder rather than one flag,
+  // so a discard can never leak onto the next recording.
+  const discardedRecordersRef = useRef(new WeakSet<MediaRecorder>());
+  // How long each recorded note is, for the preview. Keyed by the File so it
+  // goes when the attachment does; Chrome's recordings carry no length of
+  // their own.
+  const voiceDurationsRef = useRef(new WeakMap<File, number>());
   const stopVoiceStream = useCallback(() => {
     mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
     mediaStreamRef.current = null;
@@ -882,6 +901,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       recordedChunksRef.current = [];
 
       const recorder = new MediaRecorder(stream);
+      const startedAt = Date.now();
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) recordedChunksRef.current.push(event.data);
       };
@@ -890,6 +910,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(recordedChunksRef.current, { type: mimeType });
         recordedChunksRef.current = [];
+        if (discardedRecordersRef.current.has(recorder)) return;
         if (blob.size === 0) return;
 
         const extension = mimeType.includes("ogg") ? "ogg" : "webm";
@@ -898,12 +919,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           `voice-message-${Date.now()}.${extension}`,
           { type: mimeType },
         );
+        voiceDurationsRef.current.set(file, (Date.now() - startedAt) / 1000);
         setMessageAttachments((current) => [...current, file]);
       };
 
       mediaRecorderRef.current = recorder;
       recorder.start();
-      setIsRecordingVoice(true);
+      setRecordingStartedAt(startedAt);
     } catch {
       setVoiceRecordError("Microphone access was denied.");
       stopVoiceStream();
@@ -913,12 +935,21 @@ export function HomeShell({ mode }: HomeShellProps) {
   const handleStopRecording = useCallback(() => {
     mediaRecorderRef.current?.stop();
     mediaRecorderRef.current = null;
-    setIsRecordingVoice(false);
+    setRecordingStartedAt(null);
   }, []);
+
+  const handleDiscardRecording = useCallback(() => {
+    if (mediaRecorderRef.current) {
+      discardedRecordersRef.current.add(mediaRecorderRef.current);
+    }
+    handleStopRecording();
+  }, [handleStopRecording]);
 
   // Release the microphone if the component unmounts mid-recording.
   useEffect(() => {
+    const discarded = discardedRecordersRef.current;
     return () => {
+      if (mediaRecorderRef.current) discarded.add(mediaRecorderRef.current);
       mediaRecorderRef.current?.stop();
       stopVoiceStream();
     };
@@ -1094,8 +1125,22 @@ export function HomeShell({ mode }: HomeShellProps) {
   );
   const canAddMembers =
     isGroupConversation && allows(selectedConversation, GROUP.addMembers);
-  const canEditGroupSettings =
+  // Two answers, not one: a group can let every member change its name and
+  // photo, but how it works stays with admins (`group.settings.policy`).
+  const canEditGroupDetails =
     isGroupConversation && allows(selectedConversation, GROUP.editSettings);
+  const canEditGroupPolicy =
+    isGroupConversation && allows(selectedConversation, GROUP.editPolicy);
+  // The group's "Voice Messages" switch. Only an explicit off hides the
+  // microphone: a one-to-one conversation has no settings, and voice notes
+  // are always allowed there. The server refuses them too, whatever is shown.
+  const voiceMessagesAllowed =
+    selectedConversation?.settings?.voice_messages_enabled !== false;
+  // Its siblings, read the same way and refused server-side the same way.
+  // Reactions off leaves the ones already left on show, just not clickable.
+  const mediaAllowed = selectedConversation?.settings?.media_enabled !== false;
+  const reactionsAllowed =
+    selectedConversation?.settings?.reactions_enabled !== false;
 
   // Get messages for selected loop
   // 120px of slack: "near enough the bottom" should survive a part-scrolled
@@ -1140,6 +1185,16 @@ export function HomeShell({ mode }: HomeShellProps) {
         : [],
     [loopMessages, selectedConversationId],
   );
+
+  // A sponsored card for this member, after the newest message (slice 5).
+  const sponsored = useSponsoredSlot({
+    conversationId: selectedConversationId,
+    isGroup: isGroupConversation,
+    lastMessageId:
+      isMessagesLoading || currentMessages.length === 0
+        ? null
+        : currentMessages[currentMessages.length - 1].id,
+  });
 
   const thread = useMemo(() => {
     const rows: (
@@ -2052,6 +2107,7 @@ export function HomeShell({ mode }: HomeShellProps) {
   async function handleAddMembers(
     members: string[],
     inviteEmails: string[] = [],
+    history: "all" | "new" = "all",
   ) {
     if (!selectedConversationId) return;
     // An invited address is a row in the group like anybody else, so it
@@ -2075,6 +2131,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       selectedConversationId,
       members,
       inviteEmails,
+      history,
     );
     if (!result.ok) throw new Error(result.message);
     await refreshConversations();
@@ -2106,9 +2163,12 @@ export function HomeShell({ mode }: HomeShellProps) {
     await refreshConversations();
   }
 
-  async function handleJoinLoop(code: string) {
+  async function handleJoinLoop(code: string): Promise<"joined" | "pending"> {
     const result = await joinConversationWithCode(code);
     if (!result.ok) throw new Error(result.message);
+    // An approval group's code queues the request rather than opening the
+    // group, so there is nothing to open yet - the modal says so instead.
+    if (result.status === "pending") return "pending";
 
     setPendingConversation(null);
     setConversations((current) => {
@@ -2124,6 +2184,7 @@ export function HomeShell({ mode }: HomeShellProps) {
       ];
     });
     setSelectedConversationId(result.conversation.id);
+    return "joined";
   }
 
   async function refreshConversations() {
@@ -2198,6 +2259,10 @@ export function HomeShell({ mode }: HomeShellProps) {
     setIsJoiningPending(false);
     if (!result.ok) {
       setPendingJoinError(result.message);
+      return;
+    }
+    if (result.status === "pending") {
+      setPendingJoinRequestSent(true);
       return;
     }
 
@@ -3608,19 +3673,24 @@ export function HomeShell({ mode }: HomeShellProps) {
                     </span>
                   </div>
                 ) : (
-                  <MessageBubble
-                    key={row.key}
-                    message={row.message}
-                    startsRun={row.startsRun}
-                    isLastOwn={row.message.id === lastOwnMessageId}
-                    readers={readersOf(row.message.id)}
-                    readableCount={readableBy.length}
-                    isMenuOpen={messageMenu?.id === row.message.id}
-                    onOpenMenu={openMessageMenu}
-                    currentUsername={currentUsername}
-                    onToggleReaction={handleToggleReaction}
-                    reactionBusy={actionBusy === "reaction"}
-                  />
+                  <Fragment key={row.key}>
+                    <MessageBubble
+                      message={row.message}
+                      startsRun={row.startsRun}
+                      isLastOwn={row.message.id === lastOwnMessageId}
+                      readers={readersOf(row.message.id)}
+                      readableCount={readableBy.length}
+                      isMenuOpen={messageMenu?.id === row.message.id}
+                      onOpenMenu={openMessageMenu}
+                      currentUsername={currentUsername}
+                      onToggleReaction={handleToggleReaction}
+                      reactionBusy={actionBusy === "reaction"}
+                      reactionsEnabled={reactionsAllowed}
+                    />
+                    {sponsored?.afterMessageId === String(row.message.id) && (
+                      <SponsoredSlot card={sponsored.card} />
+                    )}
+                  </Fragment>
                 ),
               )
             )}
@@ -3682,11 +3752,11 @@ export function HomeShell({ mode }: HomeShellProps) {
                     {voiceRecordError}
                   </p>
                 )}
-                {isRecordingVoice && (
-                  <p className="flex items-center gap-2 px-2 pb-2 text-xs text-rose-600">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-rose-600" />
-                    Recording voice message...
-                  </p>
+                {recordingStartedAt !== null && (
+                  <VoiceRecordingBar
+                    startedAt={recordingStartedAt}
+                    onDiscard={handleDiscardRecording}
+                  />
                 )}
                 {composerContext && (
                   <ComposerContextBar
@@ -3696,23 +3766,33 @@ export function HomeShell({ mode }: HomeShellProps) {
                 )}
                 {messageAttachments.length > 0 && (
                   <div className="flex flex-wrap gap-2 px-2 pb-2">
-                    {messageAttachments.map((file, index) => (
-                      <button
-                        key={`${file.name}-${file.lastModified}`}
-                        type="button"
-                        onClick={() =>
-                          setMessageAttachments((current) =>
-                            current.filter(
-                              (_, fileIndex) => fileIndex !== index,
-                            ),
-                          )
-                        }
-                        className="max-w-full truncate rounded-lg bg-tint px-2 py-1 text-xs text-ink-muted hover:bg-rose-100 hover:text-rose-700"
-                        title="Remove attachment"
-                      >
-                        {file.name} ×
-                      </button>
-                    ))}
+                    {messageAttachments.map((file, index) => {
+                      const remove = () =>
+                        setMessageAttachments((current) =>
+                          current.filter((_, fileIndex) => fileIndex !== index),
+                        );
+                      // A voice note can be played back before it goes; any
+                      // other file is a name to check and a way to drop it.
+                      return file.type.startsWith("audio/") ? (
+                        <VoiceNotePreview
+                          key={`${file.name}-${file.lastModified}`}
+                          file={file}
+                          durationSeconds={voiceDurationsRef.current.get(file)}
+                          onRemove={remove}
+                          disabled={isSendingMessage}
+                        />
+                      ) : (
+                        <button
+                          key={`${file.name}-${file.lastModified}`}
+                          type="button"
+                          onClick={remove}
+                          className="max-w-full truncate rounded-lg bg-tint px-2 py-1 text-xs text-ink-muted hover:bg-rose-100 hover:text-rose-700"
+                          title="Remove attachment"
+                        >
+                          {file.name} ×
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 {canPostMessage ? (
@@ -3733,59 +3813,68 @@ export function HomeShell({ mode }: HomeShellProps) {
                       {/* An edit changes words and nothing else - the endpoint
                           takes only text - so the two controls that produce
                           files are out while one is in progress rather than
-                          accepting input that would be dropped. */}
-                      <label
-                        className={`flex items-center text-ink-faint transition ${
-                          isEditing
-                            ? "cursor-not-allowed opacity-40"
-                            : "cursor-pointer hover:text-ink-muted"
-                        }`}
-                        title={
-                          isEditing
-                            ? "Not available while editing"
-                            : "Attach files"
-                        }
-                      >
-                        <LinkIcon className="h-5 w-5" aria-hidden />
-                        <input
-                          type="file"
-                          multiple
-                          aria-label="Attach files"
-                          onChange={(event) =>
-                            setMessageAttachments(
-                              Array.from(event.target.files ?? []),
-                            )
+                          accepting input that would be dropped. The attach
+                          button goes entirely while the group's Photos & Files
+                          switch is off. */}
+                      {mediaAllowed && (
+                        <label
+                          className={`flex items-center text-ink-faint transition ${
+                            isEditing
+                              ? "cursor-not-allowed opacity-40"
+                              : "cursor-pointer hover:text-ink-muted"
+                          }`}
+                          title={
+                            isEditing
+                              ? "Not available while editing"
+                              : "Attach files"
+                          }
+                        >
+                          <LinkIcon className="h-5 w-5" aria-hidden />
+                          <input
+                            type="file"
+                            multiple
+                            aria-label="Attach files"
+                            onChange={(event) =>
+                              setMessageAttachments(
+                                Array.from(event.target.files ?? []),
+                              )
+                            }
+                            disabled={isSendingMessage || isEditing}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      {/* Kept while a recording is running even if the switch
+                          goes off meanwhile, or there would be no way to stop
+                          it - the send is refused with the reason either way. */}
+                      {(voiceMessagesAllowed || isRecordingVoice) && (
+                        <button
+                          type="button"
+                          onClick={
+                            isRecordingVoice
+                              ? handleStopRecording
+                              : handleStartRecording
                           }
                           disabled={isSendingMessage || isEditing}
-                          className="hidden"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={
-                          isRecordingVoice
-                            ? handleStopRecording
-                            : handleStartRecording
-                        }
-                        disabled={isSendingMessage || isEditing}
-                        className={`transition disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-ink-faint hover:text-ink-muted"}`}
-                        title={
-                          isRecordingVoice
-                            ? "Stop recording"
-                            : "Record a voice message"
-                        }
-                        aria-label={
-                          isRecordingVoice
-                            ? "Stop recording"
-                            : "Record a voice message"
-                        }
-                      >
-                        {isRecordingVoice ? (
-                          <Square className="h-5 w-5 fill-current" />
-                        ) : (
-                          <Mic className="h-5 w-5" />
-                        )}
-                      </button>
+                          className={`transition disabled:opacity-40 ${isRecordingVoice ? "text-rose-600" : "text-ink-faint hover:text-ink-muted"}`}
+                          title={
+                            isRecordingVoice
+                              ? "Stop recording"
+                              : "Record a voice message"
+                          }
+                          aria-label={
+                            isRecordingVoice
+                              ? "Stop recording"
+                              : "Record a voice message"
+                          }
+                        >
+                          {isRecordingVoice ? (
+                            <Square className="h-5 w-5 fill-current" />
+                          ) : (
+                            <Mic className="h-5 w-5" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     <input
                       type="text"
@@ -4049,7 +4138,7 @@ export function HomeShell({ mode }: HomeShellProps) {
         // own: one floating surface per message, and the menu already knows how
         // to anchor, dismiss and take focus.
         header={
-          menuMessage ? (
+          menuMessage && reactionsAllowed ? (
             <ReactionBar
               mine={menuMessage.reactions
                 .filter((reaction) => hasReacted(reaction, currentUsername))
@@ -4369,10 +4458,13 @@ export function HomeShell({ mode }: HomeShellProps) {
           conversationId={selectedConversationId}
           onClose={() => setIsAdminPanelOpen(false)}
           loopName={selectedConversation?.name ?? "Loop"}
+          loopDescription={selectedConversation?.description ?? ""}
+          loopImageUrl={selectedConversation?.logoImage ?? null}
           settings={groupSettings}
           smsNumber={selectedConversation?.smsNumber ?? null}
           isSettingsLoading={isGroupSettingsLoading}
-          canEditSettings={canEditGroupSettings}
+          canEditSettings={canEditGroupPolicy}
+          canEditDetails={canEditGroupDetails}
           canModerateMembers={allows(selectedConversation, GROUP.removeMembers)}
           activeTab={adminPanelTab}
           onTabChange={handleTabChange}
@@ -4441,6 +4533,17 @@ export function HomeShell({ mode }: HomeShellProps) {
             // The sidebar reads `settings.mode` off the conversations
             // list, so updating only the admin panel's own state left
             // the group filed under Chat until a reload.
+            applyConversationUpdate(result.conversation);
+          }}
+          onSaveDetails={async (change) => {
+            if (!selectedConversationId) return;
+            const result = await updateGroupSettings(
+              selectedConversationId,
+              change,
+            );
+            if (!result.ok) throw new Error(result.message);
+            // The chat list, the header and this panel all read the name and
+            // photo off the conversation, so this one update reaches them all.
             applyConversationUpdate(result.conversation);
           }}
           onFetchJoinCode={async () => {
@@ -4528,6 +4631,28 @@ export function HomeShell({ mode }: HomeShellProps) {
             );
             if (!result.ok) throw new Error(result.message);
             await refreshConversations();
+          }}
+          // Same standing as blocking: whoever may remove and block may see
+          // who is blocked and lift it.
+          onFetchBlockedMembers={
+            allows(selectedConversation, GROUP.removeMembers)
+              ? async () => {
+                  if (!selectedConversationId) return [];
+                  const result = await fetchBlockedMembers(
+                    selectedConversationId,
+                  );
+                  if (!result.ok) throw new Error(result.message);
+                  return result.members;
+                }
+              : undefined
+          }
+          onUnblockMember={async (participantId) => {
+            if (!selectedConversationId) return;
+            const result = await unblockConversationMember(
+              selectedConversationId,
+              participantId,
+            );
+            if (!result.ok) throw new Error(result.message);
           }}
         />
       )}

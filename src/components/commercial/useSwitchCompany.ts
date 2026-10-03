@@ -7,13 +7,24 @@ import { useCompany } from "@/lib/commercial/CompanyProvider";
 import type { Company } from "@/lib/commercial/types";
 
 /**
- * Pages that belong to one company - a single campaign, or the campaign
- * builder. When the active company changes under them, they go to the new
- * company's campaign list rather than show the old company's page.
+ * Pages that belong to one company - a campaign picked in the list
+ * (/campaigns/?id=12), the campaign builder, or the old /campaign/ address.
+ * When the active company changes under them, they go to the new company's
+ * campaign list rather than show the old company's campaign.
+ *
+ * Called from click handlers, so it reads the query from `window.location`
+ * rather than useSearchParams(), which would need a Suspense boundary around
+ * everything that switches company.
  */
 export function belongsToOneCompany(pathname: string): boolean {
+  const picked =
+    pathname.startsWith("/campaigns") &&
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("id");
   return (
-    pathname.startsWith("/campaign/") || pathname.startsWith("/campaigns/new")
+    picked ||
+    pathname.startsWith("/campaign/") ||
+    pathname.startsWith("/campaigns/new")
   );
 }
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Public_Sans, Space_Mono } from "next/font/google";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import type { ReactNode } from "react";
-import { CommercialSiteRedirect } from "@/components/site/CommercialSiteRedirect";
+import { SiteRedirect } from "@/components/site/SiteRedirect";
 import { appearanceInitScript } from "@/lib/app/appearanceOptions";
 import { ThemeProvider } from "@/lib/theme/ThemeProvider";
 import "./globals.css";
@@ -61,7 +61,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           clientId={process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? ""}
         >
           <ThemeProvider>{children}</ThemeProvider>
-          <CommercialSiteRedirect />
+          <SiteRedirect />
         </GoogleOAuthProvider>
       </body>
     </html>

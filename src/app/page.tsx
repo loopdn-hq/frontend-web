@@ -4,11 +4,13 @@ import { CommercialDashboard } from "@/components/commercial/CommercialDashboard
 import { CommercialFrame } from "@/components/commercial/CommercialFrame";
 import { CommercialOverview } from "@/components/commercial/CommercialOverview";
 import { MarketingHome } from "@/components/site/MarketingHome";
-import { useIsCommercialSite } from "@/lib/config/site";
+import { useIsAdminSite, useIsCommercialSite } from "@/lib/config/site";
 
 /**
  * `/` is two pages in one build: loopdn.com's homepage, and the commercial
- * dashboard's overview on commercial.loopdn.com.
+ * dashboard's overview on commercial.loopdn.com. On admin.loopdn.com it is
+ * nothing: SiteRedirect moves it to /admin/, and the homepage should not
+ * flash on the staff site meanwhile.
  *
  * The exported HTML is always the homepage - it is rendered at build time,
  * with no hostname - so the homepage stays whole for anybody reading the page
@@ -21,6 +23,9 @@ import { useIsCommercialSite } from "@/lib/config/site";
  */
 export default function RootPage() {
   const commercialSite = useIsCommercialSite();
+  const adminSite = useIsAdminSite();
+
+  if (adminSite) return null;
 
   if (commercialSite) {
     return (

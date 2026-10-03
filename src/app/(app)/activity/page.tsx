@@ -415,8 +415,10 @@ function ActivityDetail({
       return;
     }
     // An approval group does not let you in, it queues you - so say so rather
-    // than pretending the door opened.
-    if (notification.joinMode === "approval") {
+    // than pretending the door opened. The server's answer decides, not the
+    // join mode on the notification: that is from when it was sent, and a code
+    // can belong to an approval group too.
+    if (result.status === "pending") {
       setRequestSent(true);
       return;
     }
