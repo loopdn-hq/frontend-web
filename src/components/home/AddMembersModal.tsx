@@ -11,7 +11,10 @@ import {
   InternationalPhoneInput,
   Modal,
 } from "@/components/ui";
+import { InviteByWhatsAppForm } from "@/components/whatsapp/InviteByWhatsAppForm";
+import type { ConversationParticipant } from "@/lib/chat/conversations";
 import { normalizePhone } from "@/lib/validation/auth";
+import { useWhatsAppConfig } from "@/lib/whatsapp/useWhatsAppConfig";
 import {
   MemberSearchPicker,
   type MemberPick,
@@ -37,8 +40,13 @@ function submitLabel(selected: MemberPick[]): string {
 
 type AddMembersModalProps = {
   isOpen: boolean;
+  /** Which group this is, for the WhatsApp tab's own requests. */
+  conversationId: string | number;
   groupName: string;
-  currentMemberCount: number;
+  /** Who is here already: the count, and the WhatsApp tab's member picker. */
+  members: ConversationParticipant[];
+  /** Whether the WhatsApp tab may invite somebody already in the group. */
+  canInviteMembers?: boolean;
   onClose: () => void;
   /**
    * Accounts by username, addresses with no account to invite, and what they
@@ -55,18 +63,26 @@ type AddMembersModalProps = {
     phone_number: string;
     display_name: string;
   }) => Promise<void>;
+  /** Told after a WhatsApp invite, so the caller can refresh its lists. */
+  onWhatsAppInvited?: () => void;
 };
 
 export function AddMembersModal({
   isOpen,
+  conversationId,
   groupName,
-  currentMemberCount,
+  members,
+  canInviteMembers = false,
   onClose,
   onAddMembers,
   onSearchMembers,
   onInvitePhone,
+  onWhatsAppInvited,
 }: AddMembersModalProps) {
-  const [tab, setTab] = useState<"app" | "phone">("app");
+  // Absent when the deployment has no WhatsApp, so the tab is not offered.
+  const { isEnabled: isWhatsAppEnabled } = useWhatsAppConfig();
+  const currentMemberCount = members.length;
+  const [tab, setTab] = useState<"app" | "phone" | "whatsapp">("app");
   const [selected, setSelected] = useState<MemberPick[]>([]);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -217,6 +233,20 @@ export function AddMembersModal({
         >
           Via Phone
         </button>
+        {isWhatsAppEnabled && (
+          <button
+            type="button"
+            onClick={() => setTab("whatsapp")}
+            disabled={isSubmitting}
+            className={`${tabButtonClass} ${
+              tab === "whatsapp"
+                ? "bg-white text-sky-700 shadow-sm dark:bg-slate-900 dark:text-sky-400"
+                : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+            }`}
+          >
+            Via WhatsApp
+          </button>
+        )}
       </div>
 
       {tab === "app" ? (
@@ -264,6 +294,14 @@ export function AddMembersModal({
             </Button>
           </div>
         </form>
+      ) : tab === "whatsapp" ? (
+        <InviteByWhatsAppForm
+          conversationId={conversationId}
+          members={members}
+          canInviteMembers={canInviteMembers}
+          onClose={onClose}
+          onInvited={onWhatsAppInvited}
+        />
       ) : (
         <form
           id="add-members-phone-form"
