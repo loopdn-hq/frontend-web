@@ -71,10 +71,19 @@ type Loaded =
       fieldErrors: TransactionFieldErrors;
     };
 
-// One template for the header and every row, so the columns cannot drift.
-// Below `sm` there is no grid at all: each payment is a short stacked block.
-const COLUMNS =
-  "sm:grid sm:grid-cols-[9.5rem_minmax(0,1fr)_9rem_6.5rem_4.5rem] sm:items-center sm:gap-3";
+// The layout answers to the width of this panel, not of the window: in the
+// settings dialog the panel is a narrow pane beside a sidebar on however wide
+// a screen, and a viewport breakpoint drew five columns into a space that
+// holds two.
+//
+// From `@2xl` the columns are sized by their content and shared by the header
+// and every row through subgrid, so they line up without a width being guessed
+// for any of them; Description takes what is left. Below that, each payment is
+// a compact block instead - what it was and how much, then the details.
+const TABLE =
+  "@2xl:grid @2xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @2xl:gap-x-6";
+const TABLE_ROW =
+  "@2xl:col-span-full @2xl:grid @2xl:grid-cols-subgrid @2xl:gap-x-6";
 
 /**
  * Money the signed-in person has paid - plan subscriptions, Enterprise plan
@@ -174,7 +183,7 @@ export function TransactionHistory() {
   return (
     <section
       aria-labelledby="transaction-history-heading"
-      className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
+      className="@container rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900"
     >
       <h3
         id="transaction-history-heading"
@@ -186,7 +195,7 @@ export function TransactionHistory() {
         Payments for your plan and credit top-ups.
       </p>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid gap-3 @md:grid-cols-2">
         <Field
           label="Period"
           htmlFor="transactions-range"
@@ -287,24 +296,31 @@ export function TransactionHistory() {
           </p>
         ) : (
           <>
-            <div
-              aria-hidden
-              className={cn(
-                "hidden border-b border-slate-100 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400",
-                COLUMNS,
-              )}
-            >
-              <span>Date</span>
-              <span>Description</span>
-              <span>Type</span>
-              <span className="text-right">Amount</span>
-              <span className="text-right">Receipt</span>
+            <div className={TABLE}>
+              <div
+                aria-hidden
+                className={cn(
+                  "hidden border-b border-slate-100 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400",
+                  TABLE_ROW,
+                )}
+              >
+                <span>Date</span>
+                <span>Description</span>
+                <span>Type</span>
+                <span className="text-right">Amount</span>
+                <span className="text-right">Receipt</span>
+              </div>
+              <ul
+                className={cn(
+                  "divide-y divide-slate-100 dark:divide-slate-800",
+                  TABLE_ROW,
+                )}
+              >
+                {current.rows.map((row) => (
+                  <TransactionRow key={row.id} row={row} />
+                ))}
+              </ul>
             </div>
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {current.rows.map((row) => (
-                <TransactionRow key={row.id} row={row} />
-              ))}
-            </ul>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3 dark:border-slate-800">
               <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -340,20 +356,25 @@ export function TransactionHistory() {
 function TransactionRow({ row }: { row: BillingTransaction }) {
   const href = receiptHref(row.receiptUrl);
   return (
-    <li className={cn("space-y-0.5 py-3 text-sm sm:space-y-0", COLUMNS)}>
-      <p className="text-xs text-slate-500 sm:text-sm dark:text-slate-400">
+    <li
+      className={cn(
+        "grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-0.5 py-3 text-sm @2xl:items-center",
+        TABLE_ROW,
+      )}
+    >
+      <p className="col-start-1 row-start-3 whitespace-nowrap text-xs text-slate-500 @2xl:col-start-auto @2xl:row-start-auto @2xl:text-sm dark:text-slate-400">
         {formatWhen(row.paidAt)}
       </p>
-      <p className="min-w-0 break-words font-medium text-slate-900 dark:text-slate-100">
+      <p className="col-start-1 row-start-1 min-w-0 break-words font-medium text-slate-900 @2xl:col-start-auto @2xl:row-start-auto dark:text-slate-100">
         {row.description || "—"}
       </p>
-      <p className="text-xs text-slate-600 sm:text-sm dark:text-slate-400">
+      <p className="col-start-1 row-start-2 text-xs text-slate-600 @2xl:col-start-auto @2xl:row-start-auto @2xl:whitespace-nowrap @2xl:text-sm dark:text-slate-400">
         {row.kindLabel}
       </p>
-      <p className="font-semibold text-slate-900 sm:text-right dark:text-slate-100">
+      <p className="col-start-2 row-start-1 whitespace-nowrap text-right font-semibold text-slate-900 @2xl:col-start-auto @2xl:row-start-auto dark:text-slate-100">
         {formatTransactionAmount(row.amountCents, row.currency)}
       </p>
-      <p className="sm:text-right">
+      <p className="col-start-2 row-start-2 whitespace-nowrap text-right @2xl:col-start-auto @2xl:row-start-auto">
         {href && (
           <a
             href={href}
