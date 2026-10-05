@@ -1,9 +1,11 @@
 "use client";
 
 /**
- * What each role may use, and changing it.
+ * /admin/permissions/ - what each role may use, and changing it. On the admin
+ * site (admin.loopdn.com); it was a chat page until the admin site existed,
+ * and the chat menu's link now forwards here (SiteRedirect).
  *
- * Answers "what can an advertiser actually do?" without anybody reading the
+ * Answers "what can a commercial user actually do?" without anybody reading the
  * database, and lets an account admin change the answer.
  *
  * Reading and writing are separate features on the server -
@@ -19,11 +21,11 @@
 import { Fragment, useCallback, useEffect, useState } from "react";
 import { Check, Loader2, Lock, Minus } from "lucide-react";
 
-import { NavDrawerButton } from "@/components/app/NavDrawerButton";
+import { useAdminFeatures } from "@/components/admin/AdminFrame";
+import { AdminPageHeader } from "@/components/admin/AdminShell";
 import {
   fetchPermissionsMatrix,
   setGrant,
-  useFeatures,
   type Grant,
   type MatrixAxis,
   type PermissionsMatrix,
@@ -213,7 +215,7 @@ export default function PermissionsPage() {
   // sentence worth showing, separately from a failure to load at all.
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const { features, loading: featuresLoading } = useFeatures();
+  const { features, loading: featuresLoading } = useAdminFeatures();
   const editable =
     !featuresLoading && features.has("platform.permissions.edit");
 
@@ -256,24 +258,17 @@ export default function PermissionsPage() {
   );
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950">
-      <header className="border-b border-slate-200 px-4 py-4 dark:border-slate-800">
-        <div className="flex min-w-0 items-center gap-1">
-          <NavDrawerButton className="-ml-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300" />
-          <div className="min-w-0">
-            <h1 className="truncate text-xl font-bold text-slate-900 dark:text-slate-100">
-              Permissions
-            </h1>
-            <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
-              {editable
-                ? "What each role can use. Click a cell to change it."
-                : "What each role can use. Read-only."}
-            </p>
-          </div>
-        </div>
-      </header>
+    <div className="mx-auto w-full max-w-5xl space-y-6 p-4 sm:p-6">
+      <AdminPageHeader
+        title="Permissions"
+        description={
+          editable
+            ? "What each role can use. Click a cell to change it."
+            : "What each role can use. Read-only."
+        }
+      />
 
-      <div className="mx-auto w-full max-w-5xl p-4 sm:p-6">
+      <div>
         {isLoading && (
           <p className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />

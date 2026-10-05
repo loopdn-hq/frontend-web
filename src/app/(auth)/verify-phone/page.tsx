@@ -10,6 +10,7 @@ import {
   useAuth,
   verifyPhoneCode,
 } from "@/lib/auth/client";
+import { homePath } from "@/lib/config/site";
 
 type SendState = "sending" | "sent" | "error";
 
@@ -30,8 +31,11 @@ export default function VerifyPhonePage() {
       return;
     }
 
+    // `phone` is fixed on arrival, so this never races the success path below.
+    // It is also the way out after an email code when no phone is waiting to
+    // be verified - verify-email sends everybody here.
     if (isLoaded && !phone) {
-      router.replace("/chats/");
+      router.replace(consumePostAuthRedirect() ?? homePath());
     }
   }, [router, isLoaded, session, phone]);
 
@@ -75,7 +79,7 @@ export default function VerifyPhonePage() {
         return;
       }
 
-      router.push(consumePostAuthRedirect() ?? "/chats/");
+      router.push(consumePostAuthRedirect() ?? homePath());
     } finally {
       setIsVerifying(false);
     }

@@ -7,14 +7,17 @@ import {
   CreditCard,
   KeyRound,
   Lock,
+  MessageCircle,
   MessageSquare,
   Palette,
+  ReceiptText,
   User,
   UserCog,
   type LucideIcon,
 } from "lucide-react";
 import { AvatarPicker } from "./AvatarPicker";
 import { AccountSection } from "./AccountSection";
+import { WhatsAppSettingsSection } from "@/components/whatsapp/WhatsAppSettingsSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { MessagingSection } from "./MessagingSection";
 import {
@@ -28,6 +31,7 @@ import {
   type PrivacyPreferences,
 } from "./PrivacySection";
 import { SecuritySection } from "./SecuritySection";
+import { TransactionHistory } from "./TransactionHistory";
 import {
   defaultMessagingPreferences,
   type MessagingPreferences,
@@ -58,10 +62,12 @@ export type SettingsTab =
   | "profile"
   | "security"
   | "appearance"
+  | "whatsapp"
   | "messaging"
   | "notifications"
   | "privacy"
   | "billing"
+  | "transactions"
   | "account";
 
 /**
@@ -76,9 +82,13 @@ const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
   { value: "security", label: "Security", icon: KeyRound },
   { value: "appearance", label: "Appearance", icon: Palette },
   { value: "messaging", label: "Messaging", icon: MessageSquare },
+  // One of the two places WhatsApp can be connected. The tab hides itself
+  // when the deployment has no WhatsApp - see WhatsAppSettingsSection.
+  { value: "whatsapp", label: "WhatsApp", icon: MessageCircle },
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "privacy", label: "Privacy", icon: Lock },
   { value: "billing", label: "Billing", icon: CreditCard },
+  { value: "transactions", label: "Transactions", icon: ReceiptText },
   { value: "account", label: "Account", icon: UserCog },
 ];
 
@@ -279,6 +289,7 @@ export function UserSettingsPanel({
           )}
           {activeTab === "security" && <SecuritySection profile={profile} />}
           {activeTab === "appearance" && <AppearanceSection />}
+          {activeTab === "whatsapp" && <WhatsAppSettingsSection />}
           {activeTab === "messaging" && (
             <MessagingSection
               preferences={messagingPreferences}
@@ -298,6 +309,7 @@ export function UserSettingsPanel({
             />
           )}
           {activeTab === "billing" && <BillingSettings />}
+          {activeTab === "transactions" && <TransactionHistory />}
           {activeTab === "account" && (
             <AccountSection profile={profile} onSaveProfile={onSaveProfile} />
           )}

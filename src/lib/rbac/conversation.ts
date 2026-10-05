@@ -27,6 +27,7 @@ export const GROUP = {
   invitePhone: "group.invite.phone",
   editSettings: "group.settings.edit",
   editPolicy: "group.settings.policy",
+  provisionNumber: "group.number.provision",
 } as const;
 
 export type GroupFeature = (typeof GROUP)[keyof typeof GROUP];

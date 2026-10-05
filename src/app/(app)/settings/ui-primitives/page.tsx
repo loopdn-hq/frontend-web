@@ -18,8 +18,9 @@ import {
   Tabs,
   Textarea,
 } from "@/components/ui";
+import { PalettePreview } from "./PalettePreview";
 
-type DemoTab = "forms" | "actions" | "feedback";
+type DemoTab = "forms" | "actions" | "feedback" | "colours";
 
 export default function UiPrimitivesPage() {
   const [menuOrigin, setMenuOrigin] = useState<ContextMenuOrigin | null>(null);
@@ -59,6 +60,7 @@ export default function UiPrimitivesPage() {
             { value: "forms", label: "Form Controls" },
             { value: "actions", label: "Actions" },
             { value: "feedback", label: "Feedback" },
+            { value: "colours", label: "Colours" },
           ]}
         />
 
@@ -182,6 +184,8 @@ export default function UiPrimitivesPage() {
             </Modal>
           </section>
         )}
+
+        {tab === "colours" && <PalettePreview />}
 
         {tab === "feedback" && (
           <section className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">

@@ -38,22 +38,18 @@ export function ComposerContextBar({
   return (
     <div
       className={`mx-2 mb-2 flex items-start gap-2 rounded-lg border-l-2 py-1.5 pr-1.5 pl-2.5 ${
-        isEdit
-          ? "border-amber-500 bg-amber-50 dark:bg-slate-800"
-          : "border-sky-500 bg-sky-50 dark:bg-slate-800"
+        isEdit ? "border-amber-500 bg-canvas" : "border-brand bg-canvas"
       }`}
     >
       <div className="min-w-0 flex-1">
         <p
           className={`text-xs font-semibold ${
-            isEdit
-              ? "text-amber-700 dark:text-amber-300"
-              : "text-sky-700 dark:text-sky-300"
+            isEdit ? "text-amber-700 dark:text-amber-300" : "text-ink"
           }`}
         >
           {isEdit ? "Editing message" : `Replying to ${message.sender}`}
         </p>
-        <p className="truncate text-xs text-slate-600 dark:text-slate-400">
+        <p className="truncate text-xs text-ink-muted">
           {message.text || "Attachment"}
         </p>
       </div>
@@ -61,7 +57,7 @@ export function ComposerContextBar({
         type="button"
         onClick={onCancel}
         aria-label={isEdit ? "Cancel edit" : "Cancel reply"}
-        className="shrink-0 rounded p-1 text-slate-400 transition hover:bg-white hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+        className="shrink-0 rounded p-1 text-ink-muted transition hover:bg-hover hover:text-ink"
       >
         <X className="h-3.5 w-3.5" />
       </button>

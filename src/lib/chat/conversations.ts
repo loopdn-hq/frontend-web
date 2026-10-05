@@ -43,7 +43,25 @@ export type GroupSettings = {
   sms_delivery_enabled: boolean;
   sms_replies_enabled: boolean;
   voice_messages_enabled: boolean;
+  /** Photos and every other non-audio file. Off for everybody, admins too. */
+  media_enabled: boolean;
+  /**
+   * Whether anybody may ADD a reaction. Reactions already left stay visible
+   * either way - off is about what happens next.
+   */
+  reactions_enabled: boolean;
+  /**
+   * What kind of group this is (a category's slug) and where it is (a
+   * country, "PH", or one of its regions, "PH-00"). Declared by an admin;
+   * null and "" until then. Ads are matched on these two and nothing else.
+   */
+  category: string | null;
+  region: string;
 };
+
+/** A new group's settings: what kind and where are optional at creation. */
+export type NewGroupSettings = Omit<GroupSettings, "category" | "region"> &
+  Partial<Pick<GroupSettings, "category" | "region">>;
 
 export type CreateConversationInvite = {
   phone_number: string;
@@ -63,7 +81,9 @@ export type CreateConversationPayload = {
    * `members`, an address that matches nobody is not an error.
    */
   invite_email?: string[];
-  settings: GroupSettings;
+  settings: NewGroupSettings;
+  /** The group's photo. Sends the whole request as a form - see `groupForm`. */
+  image?: File;
 };
 
 export type ConversationKind = "group" | "direct";
@@ -227,7 +247,7 @@ export type ConversationAttachment = {
 };
 
 /** Which channel a message arrived on. Mirrors Message.Source on the server. */
-export type MessageSource = "app" | "sms" | "email" | "system";
+export type MessageSource = "app" | "sms" | "email" | "whatsapp" | "system";
 
 /**
  * The message a reply answers, as much of it as a quote needs.
@@ -817,7 +837,10 @@ function normalizeMessage(item: ApiObject): ConversationMessage | null {
 
   const rawSource = item.source;
   const source: MessageSource =
-    rawSource === "sms" || rawSource === "email" || rawSource === "system"
+    rawSource === "sms" ||
+    rawSource === "email" ||
+    rawSource === "whatsapp" ||
+    rawSource === "system"
       ? rawSource
       : "app";
 
@@ -877,6 +900,12 @@ function normalizeGroupSettings(item: ApiObject): GroupSettings {
     sms_delivery_enabled: item.sms_delivery_enabled !== false,
     sms_replies_enabled: item.sms_replies_enabled !== false,
     voice_messages_enabled: item.voice_messages_enabled === true,
+    // `!== false`, not `=== true`: a server from before these existed sends
+    // nothing, and they were effectively on there.
+    media_enabled: item.media_enabled !== false,
+    reactions_enabled: item.reactions_enabled !== false,
+    category: typeof item.category === "string" ? item.category : null,
+    region: typeof item.region === "string" ? item.region : "",
   };
 }
 
@@ -923,9 +952,77 @@ export async function authorizedRequest(
   return response;
 }
 
+/**
+ * JSON, or a form when there is a photo to carry - or to take away.
+ *
+ * `image` undefined leaves the photo alone; null removes it, sent as an empty
+ * `image` field, which DRF reads back as null (`GroupSettingsSerializer`).
+ *
+ * No Content-Type on the form: the browser has to write the multipart boundary
+ * into it, and naming the type here produces a body the server cannot split
+ * back apart.
+ */
+function groupRequestBody(
+  fields: ApiObject,
+  image: File | null | undefined,
+): Pick<RequestInit, "headers" | "body"> {
+  if (image === undefined) {
+    return {
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fields),
+    };
+  }
+  const form = groupForm(fields);
+  form.append("image", image ?? "");
+  return { body: form };
+}
+
+/**
+ * A group's fields as the form DRF reads back into the same shape as the JSON.
+ *
+ * Multipart has no nesting, so it is spelled out in the keys: a list of
+ * strings is the key repeated (`members`), a list of objects is indexed
+ * (`invite[0]phone_number`), and an object is dotted (`settings.mode`). See
+ * rest_framework/utils/html.py. Null is sent as "" - which DRF reads back as
+ * null for any field that allows it - and undefined is left out, because
+ * FormData would otherwise post the string "undefined".
+ */
+function groupForm(fields: ApiObject, form = new FormData(), prefix = "") {
+  for (const [key, value] of Object.entries(fields)) {
+    const name = prefix ? `${prefix}.${key}` : key;
+    if (value === undefined) continue;
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        if (isApiObject(item)) {
+          for (const [field, inner] of Object.entries(item)) {
+            if (inner !== undefined) {
+              form.append(`${name}[${index}]${field}`, String(inner ?? ""));
+            }
+          }
+        } else {
+          form.append(name, String(item));
+        }
+      });
+    } else if (isApiObject(value)) {
+      groupForm(value, form, name);
+    } else {
+      form.append(name, value === null ? "" : String(value));
+    }
+  }
+  return form;
+}
+
+/**
+ * Create a group. On success, `conversationId` is the new Loop's ID - null
+ * only if the response somehow carried none, since the Loop exists either way
+ * and reporting a failure would invite creating it twice.
+ */
 export async function createConversation(
   payload: CreateConversationPayload,
-): Promise<{ ok: true } | { ok: false; message: string }> {
+): Promise<
+  | { ok: true; conversationId: string | number | null }
+  | { ok: false; message: string }
+> {
   const body: ApiObject = {
     name: payload.name,
     settings: payload.settings,
@@ -938,8 +1035,7 @@ export async function createConversation(
   try {
     const response = await authorizedRequest("/chat/conversations/group/", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      ...groupRequestBody(body, payload.image),
     });
     const data = await response.json().catch(() => null);
     if (!response.ok) {
@@ -948,7 +1044,12 @@ export async function createConversation(
         message: getErrorMessage(data) ?? "Unable to create this Loop.",
       };
     }
-    return { ok: true };
+    const id = getObjectData(data)?.id;
+    return {
+      ok: true,
+      conversationId:
+        typeof id === "string" || typeof id === "number" ? id : null,
+    };
   } catch (error) {
     return {
       ok: false,
@@ -1186,32 +1287,45 @@ export async function searchConversations(
   }
 }
 
-export async function joinConversation(
-  conversationId: string | number,
-): Promise<
+/**
+ * What asking to join came to: in, waiting on an admin, or refused.
+ *
+ * Waiting is a success, not a failure. An approval group does not let anybody
+ * straight in, so the server answers `{status: "pending"}` with no conversation
+ * - the asker is not a member yet and may not see it.
+ */
+export type JoinResult =
   | { ok: true; status: "joined"; conversation: Conversation }
   | { ok: true; status: "pending" }
-  | { ok: false; message: string }
-> {
+  | { ok: false; message: string };
+
+/** Both ways of joining answer in the same shape, so they are read one way. */
+async function readJoinResponse(response: Response): Promise<JoinResult> {
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    return {
+      ok: false,
+      message: getErrorMessage(data) ?? "Unable to join this Loop.",
+    };
+  }
+  const conversationData = getObjectData(data);
+  const normalized = conversationData
+    ? normalizeConversation(conversationData)
+    : null;
+  return normalized
+    ? { ok: true, status: "joined", conversation: normalized }
+    : { ok: true, status: "pending" };
+}
+
+export async function joinConversation(
+  conversationId: string | number,
+): Promise<JoinResult> {
   try {
     const response = await authorizedRequest(
       `/chat/conversations/${conversationId}/join/`,
       { method: "POST" },
     );
-    const data = await response.json().catch(() => null);
-    if (!response.ok) {
-      return {
-        ok: false,
-        message: getErrorMessage(data) ?? "Unable to join this Loop.",
-      };
-    }
-    const conversationData = getObjectData(data);
-    const normalized = conversationData
-      ? normalizeConversation(conversationData)
-      : null;
-    return normalized
-      ? { ok: true, status: "joined", conversation: normalized }
-      : { ok: true, status: "pending" };
+    return await readJoinResponse(response);
   } catch (error) {
     return {
       ok: false,
@@ -1255,11 +1369,67 @@ export async function fetchConversation(
   }
 }
 
+/**
+ * Buy this Loop the phone number it was created without. Admins only.
+ *
+ * One Loop, one number: a Loop that already has one gets it back and nothing
+ * is bought. When none can be had the server says why - no provider, no
+ * country for the creator, SMS switched off, or none for sale right now - and
+ * that sentence is the message here, verbatim.
+ */
+export async function provisionGroupNumber(
+  conversationId: string | number,
+): Promise<
+  { ok: true; conversation: Conversation } | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/number/`,
+      { method: "POST" },
+    );
+    const data = await response.json().catch(() => null);
+    const conversationData = getObjectData(data);
+    const normalized = conversationData
+      ? normalizeConversation(conversationData)
+      : null;
+    if (!response.ok || !normalized) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to get this Loop a number.",
+      };
+    }
+    return { ok: true, conversation: normalized };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Change a group: its name, description and photo, or its policy settings.
+ *
+ * The two halves are gated differently server-side. `edit_group_permission`
+ * can let ordinary members change the name, description and photo; the
+ * settings stay with admins regardless (`group.settings.policy`).
+ */
 export async function updateGroupSettings(
   conversationId: string | number,
-  payload: {
+  {
+    image,
+    ...payload
+  }: {
     name?: string;
     description?: string;
+    /**
+     * A new photo, or null to remove it. Either sends the request as a form -
+     * see `groupForm`.
+     */
+    image?: File | null;
     settings?: Partial<GroupSettings>;
   },
 ): Promise<
@@ -1268,11 +1438,7 @@ export async function updateGroupSettings(
   try {
     const response = await authorizedRequest(
       `/chat/conversations/${conversationId}/settings/`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      },
+      { method: "PATCH", ...groupRequestBody(payload, image) },
     );
     const data = await response.json().catch(() => null);
     const conversationData = getObjectData(data);
@@ -1305,6 +1471,12 @@ export async function addConversationMembers(
   conversationId: string | number,
   members: string[],
   inviteEmails: string[] = [],
+  /**
+   * What the people being added may read: everything said before ("all"), or
+   * only what is said from now on ("new"). The admin's choice, asked as they
+   * add; it touches nobody already in the group.
+   */
+  history: "all" | "new" = "all",
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const response = await authorizedRequest(
@@ -1312,7 +1484,7 @@ export async function addConversationMembers(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ members, invite_email: inviteEmails }),
+        body: JSON.stringify({ members, invite_email: inviteEmails, history }),
       },
     );
     const data = await response.json().catch(() => null);
@@ -1394,29 +1566,24 @@ export async function fetchJoinCode(
   }
 }
 
+/**
+ * Join whichever group this code belongs to.
+ *
+ * The code can belong to an approval group, which queues the asker rather
+ * than letting them in. That used to be read as a failure, and since the
+ * reply's only text is its status the person was shown the word "pending" as
+ * an error - while their request sat with the admins all along.
+ */
 export async function joinConversationWithCode(
   code: string,
-): Promise<
-  { ok: true; conversation: Conversation } | { ok: false; message: string }
-> {
+): Promise<JoinResult> {
   try {
     const response = await authorizedRequest("/chat/conversations/join/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
     });
-    const data = await response.json().catch(() => null);
-    const conversationData = getObjectData(data);
-    const normalized = conversationData
-      ? normalizeConversation(conversationData)
-      : null;
-    if (!response.ok || !normalized) {
-      return {
-        ok: false,
-        message: getErrorMessage(data) ?? "Unable to join this Loop.",
-      };
-    }
-    return { ok: true, conversation: normalized };
+    return await readJoinResponse(response);
   } catch (error) {
     return {
       ok: false,
@@ -1454,7 +1621,10 @@ export async function fetchConversationParticipants(
 
     for (; page <= MAX_PARTICIPANT_PAGES; page++) {
       const response = await authorizedRequest(
-        `/chat/conversations/${conversationId}/participants/?page=${page}&size=${size}`,
+        // `page_size`, the name ParticipantPagination reads. It ignored
+        // `size` and served its default of 10, which the short-page check
+        // below then took for the last page - so no Loop showed an 11th member.
+        `/chat/conversations/${conversationId}/participants/?page=${page}&page_size=${size}`,
       );
       const data = await response.json().catch(() => null);
       if (!response.ok) {
@@ -1773,6 +1943,85 @@ export async function removeConversationMember(
       return {
         ok: false,
         message: getErrorMessage(data) ?? "Unable to remove this member.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Who an admin has blocked from this group. Admins only.
+ *
+ * One row per blocked identity: somebody blocked under both their account and
+ * their number appears twice, and both must be lifted to let them back.
+ */
+export async function fetchBlockedMembers(
+  conversationId: string | number,
+): Promise<
+  | { ok: true; members: ConversationParticipant[] }
+  | { ok: false; message: string }
+> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/blocked/`,
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to load blocked members.",
+      };
+    }
+    return {
+      ok: true,
+      members: getConversationItems(data)
+        .map(normalizeParticipant)
+        .filter(
+          (participant): participant is ConversationParticipant =>
+            participant !== null,
+        ),
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Network error. Please try again.",
+    };
+  }
+}
+
+/**
+ * Lift a block. The person is NOT put back in the group - they may now be
+ * added again, or rejoin however the group's join mode allows.
+ */
+export async function unblockConversationMember(
+  conversationId: string | number,
+  participantId: string | number,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  try {
+    const response = await authorizedRequest(
+      `/chat/conversations/${conversationId}/unblock/`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ participant: participantId }),
+      },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return {
+        ok: false,
+        message: getErrorMessage(data) ?? "Unable to unblock this member.",
       };
     }
     return { ok: true };

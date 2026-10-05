@@ -22,6 +22,7 @@ export const SETTINGS_MODAL_TABS: SettingsTab[] = [
   "notifications",
   "privacy",
   "billing",
+  "transactions",
   "account",
 ];
 

@@ -1,19 +1,14 @@
 "use client";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { AuthScreen } from "@/components/auth/AuthScreen";
-import { consumePostAuthRedirect, useAuth } from "@/lib/auth/client";
+import { useAuth } from "@/lib/auth/client";
+import { useLeaveIfSignedIn } from "@/lib/auth/useLeaveIfSignedIn";
 
 export default function LoginPage() {
-  const router = useRouter();
-  const { session, isLoaded } = useAuth();
-
-  useEffect(() => {
-    if (isLoaded && session) {
-      router.replace(consumePostAuthRedirect() ?? "/chats/");
-    }
-  }, [router, isLoaded, session]);
+  const { session } = useAuth();
+  // Only for somebody who arrives signed in. After the form signs somebody
+  // in, AuthScreen decides where they go - see the hook for why.
+  useLeaveIfSignedIn();
 
   // Only `session`, deliberately NOT `!isLoaded`.
   //
@@ -26,7 +21,7 @@ export default function LoginPage() {
   //
   // `session` is null in the server snapshot too, so a signed-OUT visitor -
   // everyone who matters here - hydrates onto identical markup. A signed-IN one
-  // briefly sees the form before the effect above redirects, which is the rarer
+  // briefly sees the form before useLeaveIfSignedIn redirects, which is the rarer
   // case and the cheaper one to pay.
   if (session) return null;
 

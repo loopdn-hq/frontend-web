@@ -77,6 +77,8 @@ type MessageBubbleProps = {
   ) => void;
   /** A reaction on this message is in flight. */
   reactionBusy?: boolean;
+  /** False when the group's Reactions switch is off: pills show, read-only. */
+  reactionsEnabled?: boolean;
 };
 
 // How long a touch has to be held before it counts as "show me the actions".
@@ -106,6 +108,7 @@ export function MessageBubble({
   currentUsername,
   onToggleReaction,
   reactionBusy = false,
+  reactionsEnabled = true,
 }: MessageBubbleProps) {
   const longPress = useRef<number | null>(null);
   const isDeleted = message.deletedAt !== null;
@@ -176,14 +179,14 @@ export function MessageBubble({
           narrower than before the extraction. */}
       <div className="relative min-w-0">
         <article
-          className={`max-w-xl rounded-2xl px-3 py-2 compact:py-1 ${
+          className={`max-w-xl rounded-[10px] px-2.5 py-2 compact:py-1 ${
             message.mine
-              ? "bg-[#dff1ff] text-slate-900"
-              : "bg-white text-slate-800 shadow-[0_4px_16px_rgba(26,85,133,0.08)] dark:bg-slate-800 dark:text-slate-100"
+              ? "bg-bubble-out text-on-bubble-out"
+              : "bg-bubble-in text-on-bubble-in"
           }`}
         >
           {startsRun && !message.mine && (
-            <p className="text-xs font-semibold text-sky-700 dark:text-sky-300">
+            <p className="text-xs font-medium text-brand-ink">
               {message.sender}
             </p>
           )}
@@ -192,7 +195,11 @@ export function MessageBubble({
               crosses conversations, so naming the original sender would tell
               this room about somebody in a room it cannot see. */}
           {message.forwarded && !isDeleted && (
-            <p className="mb-0.5 flex items-center gap-1 text-2xs text-slate-400 italic dark:text-slate-500">
+            <p
+              className={`mb-0.5 flex items-center gap-1 text-2xs italic ${
+                message.mine ? "text-on-bubble-out/80" : "text-ink-muted"
+              }`}
+            >
               <CornerUpRight className="h-3 w-3" aria-hidden />
               Forwarded
             </p>
@@ -204,14 +211,22 @@ export function MessageBubble({
             <blockquote
               className={`mt-0.5 mb-1.5 rounded-lg border-l-2 py-1 pr-2 pl-2 text-xs ${
                 message.mine
-                  ? "border-sky-400 bg-white/50"
-                  : "border-slate-300 bg-slate-50 dark:border-slate-600 dark:bg-slate-900/50"
+                  ? "border-on-bubble-out/70 bg-on-bubble-out/15"
+                  : "border-line bg-canvas"
               }`}
             >
-              <span className="block font-semibold text-sky-700 dark:text-sky-300">
+              <span
+                className={`block font-semibold ${
+                  message.mine ? "text-on-bubble-out" : "text-brand-ink"
+                }`}
+              >
                 {message.replyTo.sender}
               </span>
-              <span className="block truncate text-slate-600 dark:text-slate-400">
+              <span
+                className={`block truncate ${
+                  message.mine ? "text-on-bubble-out/85" : "text-ink-muted"
+                }`}
+              >
                 {message.replyTo.text}
               </span>
             </blockquote>
@@ -222,7 +237,11 @@ export function MessageBubble({
             }`}
           >
             {isDeleted ? (
-              <p className="min-w-0 text-sm leading-snug text-slate-400 italic dark:text-slate-500">
+              <p
+                className={`min-w-0 text-sm leading-snug italic ${
+                  message.mine ? "text-on-bubble-out/80" : "text-ink-muted"
+                }`}
+              >
                 {DELETED_MESSAGE_TEXT}
               </p>
             ) : (
@@ -237,7 +256,7 @@ export function MessageBubble({
             )}
             <span
               className={`ml-auto flex shrink-0 items-center gap-1 text-3xs leading-none ${
-                message.mine ? "text-sky-700/70" : "text-slate-400"
+                message.mine ? "text-on-bubble-out/75" : "text-ink-muted"
               }`}
             >
               {/* Beside the time rather than under the text, where every other
@@ -255,9 +274,11 @@ export function MessageBubble({
                 (readers === 0 ? (
                   <Check className="h-3 w-3" aria-label="Sent" />
                 ) : (
+                  // Read by everyone is the full bubble ink against the
+                  // softer time: a green tick vanished on the accent fill.
                   <CheckCheck
                     className={`h-3 w-3 ${
-                      readers >= readableCount ? "text-emerald-600" : ""
+                      readers >= readableCount ? "text-on-bubble-out" : ""
                     }`}
                     aria-label={`Read by ${readers}`}
                   />
@@ -317,7 +338,7 @@ export function MessageBubble({
                           href={attachment.url}
                           target="_blank"
                           rel="noreferrer"
-                          className="block truncate text-xs text-sky-700 underline"
+                          className="block truncate text-xs underline"
                         >
                           {attachment.originalName}
                         </a>
@@ -335,6 +356,7 @@ export function MessageBubble({
               reactions={message.reactions}
               currentUsername={currentUsername}
               busy={reactionBusy}
+              readOnly={!reactionsEnabled}
               onToggle={(emoji, reacted) =>
                 onToggleReaction(message.id, emoji, reacted)
               }
@@ -356,7 +378,7 @@ export function MessageBubble({
       {/* Spelled out once, under the newest message you sent - under every one
           it is noise, and the ticks already say it per message. */}
       {message.mine && isLastOwn && readers > 0 && (
-        <span className="absolute right-0 -bottom-4 text-3xs whitespace-nowrap text-slate-400 dark:text-slate-500">
+        <span className="absolute right-0 -bottom-4 text-3xs whitespace-nowrap text-ink-muted">
           {readers} read {message.time}
         </span>
       )}
@@ -409,7 +431,7 @@ function MessageActionsButton({
         const box = event.currentTarget.getBoundingClientRect();
         onOpen({ x: box.right, y: box.bottom });
       }}
-      className={`absolute top-1/2 -translate-y-1/2 rounded-full border border-slate-200 bg-white p-1.5 text-slate-400 shadow-sm transition hover:bg-sky-50 hover:text-sky-700 focus:opacity-100 focus-visible:ring-2 focus-visible:ring-sky-200 focus-visible:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 ${
+      className={`absolute top-1/2 -translate-y-1/2 rounded-full border border-line bg-canvas p-1.5 text-ink-muted shadow-sm transition hover:bg-hover hover:text-ink focus:opacity-100 focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none ${
         side === "left" ? "right-full mr-1.5" : "left-full ml-1.5"
       } ${
         isMenuOpen
@@ -455,7 +477,10 @@ function MessageText({
             className={
               segment.isMe
                 ? "rounded bg-amber-100 px-0.5 font-semibold text-amber-900 dark:bg-amber-500/25 dark:text-amber-200"
-                : "font-semibold text-sky-700 dark:text-sky-300"
+                : // The accent would vanish on your own accent-filled bubble.
+                  message.mine
+                  ? "font-semibold underline"
+                  : "font-semibold text-brand-ink"
             }
           >
             {segment.text}

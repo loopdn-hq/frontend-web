@@ -6,11 +6,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 import { Alert, Button, Field, Input, Textarea } from "@/components/ui";
+import { AvatarPicker } from "@/components/settings/AvatarPicker";
 import {
   MembersField,
   commitPendingMember,
 } from "@/components/home/MembersField";
 import { toMemberPayload, type MemberEntry } from "@/lib/chat/members";
+import {
+  groupDescriptionSchema,
+  groupNameSchema,
+} from "@/lib/validation/group";
 import {
   createConversation,
   type ConversationMode,
@@ -20,17 +25,8 @@ import {
 } from "@/lib/chat/conversations";
 
 const createLoopSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(1, "Loop name is required")
-    .min(3, "Loop name must be at least 3 characters")
-    .max(50, "Loop name must be 50 characters or less"),
-  description: z
-    .string()
-    .trim()
-    .max(500, "Description must be 500 characters or less")
-    .optional(),
+  name: groupNameSchema,
+  description: groupDescriptionSchema.optional(),
   join_mode: z.enum(["open", "code", "approval", "invite"]),
   mode: z.enum(["chat", "broadcast"]),
   add_member_permission: z.enum(["members", "admins"]),
@@ -38,13 +34,16 @@ const createLoopSchema = z.object({
   sms_delivery_enabled: z.boolean(),
   sms_replies_enabled: z.boolean(),
   voice_messages_enabled: z.boolean(),
+  media_enabled: z.boolean(),
+  reactions_enabled: z.boolean(),
 });
 
 type CreateLoopFormValues = z.infer<typeof createLoopSchema>;
 
 type CreateLoopFormProps = {
   onClose: () => void;
-  onSuccess?: (loopData: CreateConversationPayload) => void;
+  /** Given the new Loop's ID, so the caller can open that Loop. */
+  onSuccess?: (conversationId: string | number | null) => void;
 };
 
 const joinModes: Array<{
@@ -104,6 +103,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
     register,
     handleSubmit,
     setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<CreateLoopFormValues>({
     resolver: zodResolver(createLoopSchema),
@@ -117,6 +117,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
       sms_delivery_enabled: true,
       sms_replies_enabled: true,
       voice_messages_enabled: true,
+      media_enabled: true,
+      reactions_enabled: true,
     },
   });
 
@@ -124,6 +126,9 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
   // string, and the field owns its own per-entry validation.
   const [members, setMembers] = useState<MemberEntry[]>([]);
   const [pendingMember, setPendingMember] = useState("");
+  // Outside the form for the same reason: a File, not a string, and sent
+  // only if one was chosen.
+  const [image, setImage] = useState<File | null>(null);
 
   async function onSubmit(values: CreateLoopFormValues) {
     // Whatever is still sitting in the box counts as typed, so fold it in
@@ -149,6 +154,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         ...(accountMembers.length > 0 ? { members: accountMembers } : {}),
         ...(invite.length > 0 ? { invite } : {}),
         ...(inviteEmail.length > 0 ? { invite_email: inviteEmail } : {}),
+        ...(image ? { image } : {}),
         settings: {
           mode: values.mode,
           join_mode: values.join_mode,
@@ -157,6 +163,8 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
           sms_delivery_enabled: values.sms_delivery_enabled,
           sms_replies_enabled: values.sms_replies_enabled,
           voice_messages_enabled: values.voice_messages_enabled,
+          media_enabled: values.media_enabled,
+          reactions_enabled: values.reactions_enabled,
         },
       };
       const result = await createConversation(payload);
@@ -164,7 +172,7 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
         setError("root.server", { message: result.message });
         return;
       }
-      onSuccess?.(payload);
+      onSuccess?.(result.conversationId);
       onClose();
     } catch {
       setError("root.server", {
@@ -175,24 +183,46 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-      {/* Loop Name */}
-      <Field
-        label="Loop Name *"
-        htmlFor="loop-name"
-        error={errors.name?.message}
-      >
-        <Input
-          id="loop-name"
-          type="text"
-          placeholder="e.g., Family HQ, Neighborhood Watch"
-          {...register("name")}
+      {/* Photo and name side by side, the way the Loop will appear in the
+          chat list. */}
+      <div className="flex items-start gap-4">
+        <AvatarPicker
+          name="Loop"
+          file={image}
+          onPick={(picked) => {
+            clearErrors("root.server");
+            setImage(picked);
+          }}
+          onReject={(message) => setError("root.server", { message })}
+          onRemove={() => setImage(null)}
+          size={64}
           disabled={isSubmitting}
-          state={errors.name ? "error" : "default"}
+          isGroup
+          pendingNote={null}
         />
-      </Field>
+        <Field
+          label="Loop Name *"
+          htmlFor="loop-name"
+          error={errors.name?.message}
+          className="min-w-0 flex-1"
+        >
+          <Input
+            id="loop-name"
+            type="text"
+            placeholder="e.g., Family HQ, Neighborhood Watch"
+            {...register("name")}
+            disabled={isSubmitting}
+            state={errors.name ? "error" : "default"}
+          />
+        </Field>
+      </div>
 
       {/* Description */}
-      <Field label="Description" htmlFor="loop-description">
+      <Field
+        label="Description"
+        htmlFor="loop-description"
+        error={errors.description?.message}
+      >
         <Textarea
           id="loop-description"
           placeholder="What is this Loop about? (optional)"
@@ -380,7 +410,41 @@ export function CreateLoopForm({ onClose, onSuccess }: CreateLoopFormProps) {
               Voice Messages
             </p>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Allow members to send voice notes and recordings
+              Allow voice notes and audio files in this Loop
+            </p>
+          </div>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+          <input
+            type="checkbox"
+            {...register("media_enabled")}
+            disabled={isSubmitting}
+            className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+          />
+          <div>
+            <p className="font-medium text-slate-900 dark:text-slate-100">
+              Photos &amp; Files
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Allow photos, documents and other files in this Loop
+            </p>
+          </div>
+        </label>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 transition hover:border-sky-300 hover:bg-sky-50">
+          <input
+            type="checkbox"
+            {...register("reactions_enabled")}
+            disabled={isSubmitting}
+            className="mt-1 h-4 w-4 cursor-pointer accent-sky-600"
+          />
+          <div>
+            <p className="font-medium text-slate-900 dark:text-slate-100">
+              Reactions
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400">
+              Allow emoji reactions on messages
             </p>
           </div>
         </label>

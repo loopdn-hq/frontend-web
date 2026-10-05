@@ -348,8 +348,8 @@ export function AppNavRail() {
         aria-label="Primary"
         className={`${
           isNavDrawerOpen ? "flex" : "hidden md:flex"
-        } fixed inset-y-0 left-0 z-50 w-[260px] flex-col bg-slate-900 text-slate-300 md:static md:z-auto md:h-full ${
-          collapsed ? "md:w-[72px]" : "md:w-[260px]"
+        } fixed inset-y-0 left-0 z-50 w-[260px] flex-col border-r border-line bg-rail text-ink-muted md:static md:z-auto md:h-full ${
+          collapsed ? "md:w-[70px]" : "md:w-[260px]"
         }`}
       >
         <div
@@ -361,7 +361,7 @@ export function AppNavRail() {
             <Link
               href="/chats/"
               onClick={closeNavDrawer}
-              className="text-xl font-bold text-white"
+              className="text-xl font-bold text-brand-ink"
             >
               Loopd&apos;n
             </Link>
@@ -373,7 +373,7 @@ export function AppNavRail() {
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
             aria-pressed={collapsed}
             title={collapsed ? "Expand navigation" : "Collapse navigation"}
-            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white md:inline-flex"
+            className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-tint text-ink-muted transition hover:text-ink md:inline-flex"
           >
             <PanelLeft className="h-5 w-5" />
           </button>
@@ -382,7 +382,7 @@ export function AppNavRail() {
             type="button"
             onClick={closeNavDrawer}
             aria-label="Close navigation"
-            className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-lg bg-slate-800 text-slate-300 md:hidden"
+            className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-[10px] bg-tint text-ink-muted md:hidden"
           >
             <X className="h-5 w-5" />
           </button>
@@ -392,12 +392,12 @@ export function AppNavRail() {
           {visibleSections.map((section, index) => (
             <div key={section.heading ?? `section-${index}`} className="mb-2">
               {section.heading && !collapsed && (
-                <p className="px-3 pt-4 pb-2 text-2xs font-semibold tracking-[0.15em] text-slate-500 uppercase">
+                <p className="px-3 pt-4 pb-2 text-2xs font-semibold tracking-[0.15em] text-ink-muted uppercase">
                   {section.heading}
                 </p>
               )}
               {section.heading && collapsed && (
-                <div className="my-2 border-t border-slate-800" />
+                <div className="mx-2 my-2 border-t border-line" />
               )}
 
               {section.items.map((item) => {
@@ -419,15 +419,19 @@ export function AppNavRail() {
                     onClick={closeNavDrawer}
                     aria-current={active ? "page" : undefined}
                     title={collapsed ? item.label : undefined}
-                    className={`relative mb-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                    className={`relative mb-1 flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium transition ${
                       collapsed ? "md:justify-center md:px-0" : ""
                     } ${
                       active
-                        ? "bg-slate-700/70 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                        ? "bg-tint text-ink"
+                        : "text-ink-muted hover:bg-hover hover:text-ink"
                     }`}
                   >
-                    <Icon className="h-5 w-5 shrink-0" />
+                    <Icon
+                      className={`h-5 w-5 shrink-0 ${
+                        active ? "text-brand-ink" : "text-ink-faint"
+                      }`}
+                    />
 
                     {!collapsed && (
                       <>
@@ -435,12 +439,12 @@ export function AppNavRail() {
                           {item.label}
                         </span>
                         {item.tag && (
-                          <span className="shrink-0 rounded-full bg-sky-500 px-2 py-0.5 text-3xs font-bold text-white">
+                          <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-3xs font-bold text-on-brand">
                             {item.tag}
                           </span>
                         )}
                         {badge > 0 && (
-                          <span className="shrink-0 rounded-full bg-[#168CFF] px-2 py-0.5 text-2xs font-bold text-white">
+                          <span className="shrink-0 rounded-full bg-brand px-2 py-0.5 text-2xs font-bold text-on-brand">
                             {badge}
                           </span>
                         )}
@@ -448,7 +452,7 @@ export function AppNavRail() {
                     )}
 
                     {collapsed && badge > 0 && (
-                      <span className="absolute top-1.5 right-3 rounded-full bg-[#168CFF] px-1.5 text-3xs font-bold text-white">
+                      <span className="absolute top-1.5 right-3 rounded-full bg-brand px-1.5 text-3xs font-bold text-on-brand">
                         {badge}
                       </span>
                     )}
@@ -463,11 +467,11 @@ export function AppNavRail() {
                   type="button"
                   onClick={handleCreateGroup}
                   title={collapsed ? "Create group" : undefined}
-                  className={`mb-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-300 transition hover:bg-slate-800 hover:text-white ${
+                  className={`mb-1 flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-medium text-ink-muted transition hover:bg-hover hover:text-ink ${
                     collapsed ? "md:justify-center md:px-0" : ""
                   }`}
                 >
-                  <CirclePlus className="h-5 w-5 shrink-0" />
+                  <CirclePlus className="h-5 w-5 shrink-0 text-ink-faint" />
                   {!collapsed && (
                     <span className="min-w-0 flex-1 truncate text-left">
                       Create group
@@ -479,7 +483,7 @@ export function AppNavRail() {
           ))}
         </div>
 
-        <div className="border-t border-slate-800 p-2">
+        <div className="border-t border-line p-2">
           {/* The whole row is the trigger, and there is no separate log-out
               icon beside it. One press used to sign you out with no warning
               and no way back - a destructive action given the largest, most
@@ -493,7 +497,7 @@ export function AppNavRail() {
             aria-label="Account menu"
             onClick={openAccountMenu}
             title={userProfile.displayName}
-            className={`flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left transition hover:bg-slate-800 ${
+            className={`flex w-full items-center gap-3 rounded-[10px] px-2 py-2 text-left transition hover:bg-hover ${
               collapsed ? "md:justify-center md:px-0" : ""
             }`}
           >
@@ -508,10 +512,10 @@ export function AppNavRail() {
             />
             {!collapsed && (
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-white">
+                <span className="block truncate text-sm font-semibold text-ink">
                   {userProfile.displayName}
                 </span>
-                <span className="block truncate text-xs text-slate-400">
+                <span className="block truncate text-xs text-ink-muted">
                   {userProfile.phone || userProfile.email || "Open settings"}
                 </span>
               </span>

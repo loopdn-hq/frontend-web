@@ -8,7 +8,7 @@
  * others.
  */
 export type Requirement = {
-  /** An account-axis feature key, e.g. "ads.access". */
+  /** An account-axis feature key, e.g. "commercial.access". */
   account?: string;
   /**
    * A route that exists but is not ready to be offered. Replaces the old
