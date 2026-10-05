@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -22,13 +29,24 @@ type StepStub = {
   goTo: (step: string) => void;
 };
 function stub(name: string) {
-  return function Step({ campaign: draft, onSaved, onCreated, goTo }: StepStub) {
+  return function Step({
+    campaign: draft,
+    onSaved,
+    onCreated,
+    goTo,
+  }: StepStub) {
     return (
-      <div data-testid="step" data-step={name} data-campaign={draft?.id ?? "new"}>
+      <div
+        data-testid="step"
+        data-step={name}
+        data-campaign={draft?.id ?? "new"}
+      >
         {draft?.name}
         <button onClick={() => goTo("budget")}>go to budget</button>
         <button onClick={() => onSaved({ ...SAVED })}>save</button>
-        {onCreated && <button onClick={() => onCreated({ ...CREATED })}>create</button>}
+        {onCreated && (
+          <button onClick={() => onCreated({ ...CREATED })}>create</button>
+        )}
       </div>
     );
   };
@@ -39,7 +57,9 @@ vi.mock("@/components/commercial/builder/ObjectiveStep", () => ({
 vi.mock("@/components/commercial/builder/AudienceStep", () => ({
   AudienceStep: stub("audience"),
 }));
-vi.mock("@/components/commercial/builder/ReachStep", () => ({ ReachStep: stub("reach") }));
+vi.mock("@/components/commercial/builder/ReachStep", () => ({
+  ReachStep: stub("reach"),
+}));
 vi.mock("@/components/commercial/builder/BudgetStep", () => ({
   BudgetStep: stub("budget"),
 }));
@@ -65,7 +85,9 @@ function draftIs(value: CampaignDetail) {
 }
 
 function mount(campaignId: number | null, step: StepKey = "objective") {
-  return render(<CampaignBuilder campaignId={campaignId} step={step} company={company()} />);
+  return render(
+    <CampaignBuilder campaignId={campaignId} step={step} company={company()} />,
+  );
 }
 
 function shownStep() {
@@ -73,9 +95,9 @@ function shownStep() {
 }
 
 function stepButtons() {
-  return within(screen.getByRole("navigation", { name: "Campaign steps" })).getAllByRole(
-    "button",
-  );
+  return within(
+    screen.getByRole("navigation", { name: "Campaign steps" }),
+  ).getAllByRole("button");
 }
 
 beforeEach(() => {
@@ -111,7 +133,9 @@ describe("CampaignBuilder", () => {
     const pending = deferred<Awaited<ReturnType<typeof fetchCampaign>>>();
     vi.mocked(fetchCampaign).mockReturnValue(pending.promise);
     mount(12, "audience");
-    expect(screen.getByRole("status")).toHaveTextContent("Loading the campaign builder");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the campaign builder",
+    );
 
     await act(async () => pending.resolve({ ok: true, data: campaign() }));
     expect(shownStep()).toBe("audience");
@@ -121,21 +145,27 @@ describe("CampaignBuilder", () => {
   it("waits for the options even for a new campaign", () => {
     optionsState = { options: null, error: null };
     mount(null);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading the campaign builder");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the campaign builder",
+    );
   });
 
-  it.each(["objective", "audience", "reach", "budget", "creatives", "review"] as const)(
-    "shows the %s step for a loaded draft",
-    async (step) => {
-      mount(12, step);
-      await waitFor(() => expect(shownStep()).toBe(step));
-      expect(screen.getByTestId("step")).toHaveAttribute("data-campaign", "12");
-      const current = stepButtons().find(
-        (button) => button.getAttribute("aria-current") === "step",
-      );
-      expect(current).toBeDisabled();
-    },
-  );
+  it.each([
+    "objective",
+    "audience",
+    "reach",
+    "budget",
+    "creatives",
+    "review",
+  ] as const)("shows the %s step for a loaded draft", async (step) => {
+    mount(12, step);
+    await waitFor(() => expect(shownStep()).toBe(step));
+    expect(screen.getByTestId("step")).toHaveAttribute("data-campaign", "12");
+    const current = stepButtons().find(
+      (button) => button.getAttribute("aria-current") === "step",
+    );
+    expect(current).toBeDisabled();
+  });
 
   it("ticks off the steps that are filled in", async () => {
     mount(12, "review");
@@ -146,7 +176,12 @@ describe("CampaignBuilder", () => {
 
   it("leaves unfinished steps numbered", async () => {
     draftIs(
-      campaign({ name: " ", audience: null, totalBudgetCents: null, creatives: [] }),
+      campaign({
+        name: " ",
+        audience: null,
+        totalBudgetCents: null,
+        creatives: [],
+      }),
     );
     mount(12, "review");
     await screen.findByTestId("step");
@@ -176,10 +211,14 @@ describe("CampaignBuilder", () => {
     draftIs(campaign({ companyId: 99 }));
     mount(12, "audience");
     expect(
-      await screen.findByText(/This draft belongs to another of your companies\./),
+      await screen.findByText(
+        /This draft belongs to another of your companies\./,
+      ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "See Acme's campaigns" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "See Acme's campaigns" })
+        .getAttribute("href"),
     ).toMatch(/^\/campaigns\/?$/);
     expect(screen.queryByTestId("step")).not.toBeInTheDocument();
   });
@@ -191,7 +230,9 @@ describe("CampaignBuilder", () => {
       await screen.findByText(/waiting for review, so it can't be changed/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Open the campaign" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Open the campaign" })
+        .getAttribute("href"),
     ).toMatch(/^\/campaigns\/?\?id=12$/);
     first.unmount();
 
@@ -234,7 +275,9 @@ describe("CampaignBuilder", () => {
     await screen.findByTestId("step");
 
     draftIs(campaign({ id: 20, name: "Another draft" }));
-    view.rerender(<CampaignBuilder campaignId={20} step="audience" company={company()} />);
+    view.rerender(
+      <CampaignBuilder campaignId={20} step="audience" company={company()} />,
+    );
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(await screen.findByText("Another draft")).toBeInTheDocument();
     expect(fetchCampaign).toHaveBeenLastCalledWith(20);

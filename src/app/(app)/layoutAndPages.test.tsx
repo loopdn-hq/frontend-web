@@ -31,7 +31,9 @@ vi.mock("@/lib/calls/CallProvider", () => ({
     <div data-testid="calls">{children}</div>
   ),
 }));
-vi.mock("@/components/app/AppNavRail", () => ({ AppNavRail: () => <nav aria-label="Primary" /> }));
+vi.mock("@/components/app/AppNavRail", () => ({
+  AppNavRail: () => <nav aria-label="Primary" />,
+}));
 vi.mock("@/components/app/ActivityToasts", () => ({
   ActivityToasts: () => <div data-testid="toasts" />,
 }));
@@ -39,7 +41,9 @@ vi.mock("@/components/calls/CallLayer", () => ({
   CallLayer: () => <div data-testid="call-layer" />,
 }));
 vi.mock("@/components/home/HomeShell", () => ({
-  HomeShell: ({ mode }: { mode: string }) => <div data-testid="home-shell">{mode}</div>,
+  HomeShell: ({ mode }: { mode: string }) => (
+    <div data-testid="home-shell">{mode}</div>
+  ),
 }));
 vi.mock("@/components/app/NavDrawerButton", () => ({
   NavDrawerButton: () => <button>Open navigation</button>,
@@ -87,9 +91,13 @@ describe("AppLayout", () => {
 
   it("wraps the page in the shell, the rail, the toasts and the call layer", () => {
     render(<AppLayout>the page</AppLayout>);
-    expect(screen.getByTestId("shell")).toContainElement(screen.getByTestId("calls"));
+    expect(screen.getByTestId("shell")).toContainElement(
+      screen.getByTestId("calls"),
+    );
     expect(screen.getByTestId("calls")).toHaveTextContent("the page");
-    expect(screen.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Primary" }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("toasts")).toBeInTheDocument();
     expect(screen.getByTestId("call-layer")).toBeInTheDocument();
     expect(fetchCurrentUser).toHaveBeenCalledTimes(1);
@@ -151,6 +159,8 @@ describe("the screens still to come", () => {
     ["Starred", StarredPage],
   ])("%s says it is coming soon", (title, Page) => {
     render(<Page />);
-    expect(screen.getByRole("heading", { name: new RegExp(title, "i") })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: new RegExp(title, "i") }),
+    ).toBeInTheDocument();
   });
 });

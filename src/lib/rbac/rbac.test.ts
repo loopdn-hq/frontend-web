@@ -218,7 +218,11 @@ describe("fetchPermissionsMatrix", () => {
 });
 
 describe("setGrant", () => {
-  const change = { feature: "commercial.access", role: "member", allowed: true };
+  const change = {
+    feature: "commercial.access",
+    role: "member",
+    allowed: true,
+  };
 
   it("posts one cell and returns the rebuilt matrix", async () => {
     respond(200, { data: { axes: AXES } });

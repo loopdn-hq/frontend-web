@@ -24,10 +24,18 @@ const livekit = vi.hoisted(() => {
     Disconnected: "disconnected",
   };
   const Track = {
-    Source: { Camera: "camera", ScreenShare: "screen_share", Microphone: "microphone" },
+    Source: {
+      Camera: "camera",
+      ScreenShare: "screen_share",
+      Microphone: "microphone",
+    },
     Kind: { Video: "video", Audio: "audio" },
   };
-  const ConnectionQuality = { Excellent: "excellent", Poor: "poor", Lost: "lost" };
+  const ConnectionQuality = {
+    Excellent: "excellent",
+    Poor: "poor",
+    Lost: "lost",
+  };
   const DisconnectReason = {
     CLIENT_INITIATED: 1,
     DUPLICATE_IDENTITY: 2,
@@ -110,7 +118,10 @@ const livekit = vi.hoisted(() => {
     }
 
     on(event: string, listener: (...args: unknown[]) => void) {
-      this.listeners.set(event, [...(this.listeners.get(event) ?? []), listener]);
+      this.listeners.set(event, [
+        ...(this.listeners.get(event) ?? []),
+        listener,
+      ]);
       return this;
     }
 
@@ -119,7 +130,14 @@ const livekit = vi.hoisted(() => {
     }
   }
 
-  return { RoomEvent, Track, ConnectionQuality, DisconnectReason, FakeRoom, FakeParticipant };
+  return {
+    RoomEvent,
+    Track,
+    ConnectionQuality,
+    DisconnectReason,
+    FakeRoom,
+    FakeParticipant,
+  };
 });
 
 vi.mock("livekit-client", () => ({
@@ -132,10 +150,20 @@ vi.mock("livekit-client", () => ({
 
 import { useLiveKitRoom } from "@/lib/calls/useLiveKitRoom";
 
-const { FakeRoom, FakeParticipant, RoomEvent, Track, ConnectionQuality, DisconnectReason } =
-  livekit;
+const {
+  FakeRoom,
+  FakeParticipant,
+  RoomEvent,
+  Track,
+  ConnectionQuality,
+  DisconnectReason,
+} = livekit;
 
-const CONNECTION = { url: "wss://livekit.example", token: "jwt", expiresAt: "" };
+const CONNECTION = {
+  url: "wss://livekit.example",
+  token: "jwt",
+  expiresAt: "",
+};
 
 function room(index = -1) {
   return FakeRoom.instances.at(index)!;
@@ -192,7 +220,12 @@ describe("useLiveKitRoom - connecting", () => {
     expect(result.current.isMicrophoneEnabled).toBe(true);
     expect(result.current.isCameraEnabled).toBe(false);
     expect(result.current.participants).toEqual([
-      expect.objectContaining({ identity: "7", name: "7", isLocal: true, audioTracks: [] }),
+      expect.objectContaining({
+        identity: "7",
+        name: "7",
+        isLocal: true,
+        audioTracks: [],
+      }),
     ]);
   });
 
@@ -222,7 +255,9 @@ describe("useLiveKitRoom - connecting", () => {
   it("reports a microphone it is not allowed to use", async () => {
     const view = renderHook(() => useLiveKitRoom());
     await act(async () => {
-      const pending = view.result.current.connect(CONNECTION, { camera: false });
+      const pending = view.result.current.connect(CONNECTION, {
+        camera: false,
+      });
       room().localParticipant.failures.microphone = named("NotAllowedError");
       await pending;
     });
@@ -243,7 +278,8 @@ describe("useLiveKitRoom - connecting", () => {
     const { result, outcome } = await connected();
     expect(outcome).toEqual({
       ok: false,
-      message: "Couldn't connect to the call. Check your connection and try again.",
+      message:
+        "Couldn't connect to the call. Check your connection and try again.",
     });
     expect(result.current.state).toBe("disconnected");
   });
@@ -259,7 +295,9 @@ describe("useLiveKitRoom - connecting", () => {
 
     // Late events from the room that was left change nothing.
     act(() => first.emit(RoomEvent.Reconnecting));
-    act(() => first.emit(RoomEvent.Disconnected, DisconnectReason.SIGNAL_CLOSE));
+    act(() =>
+      first.emit(RoomEvent.Disconnected, DisconnectReason.SIGNAL_CLOSE),
+    );
     expect(result.current.state).toBe("connected");
   });
 
@@ -326,10 +364,19 @@ describe("useLiveKitRoom - participants", () => {
       isMuted: false,
       track: { kind: Track.Kind.Video },
     });
-    alex.publications.set(Track.Source.ScreenShare, { isMuted: true, track: { kind: "video" } });
-    alex.audioTrackPublications.set("a", { isMuted: false, track: { kind: Track.Kind.Audio } });
+    alex.publications.set(Track.Source.ScreenShare, {
+      isMuted: true,
+      track: { kind: "video" },
+    });
+    alex.audioTrackPublications.set("a", {
+      isMuted: false,
+      track: { kind: Track.Kind.Audio },
+    });
     alex.audioTrackPublications.set("b", { isMuted: false });
-    alex.audioTrackPublications.set("c", { isMuted: false, track: { kind: "data" } });
+    alex.audioTrackPublications.set("c", {
+      isMuted: false,
+      track: { kind: "data" },
+    });
     const recorder = new FakeParticipant("EG_abc123");
     room().remoteParticipants.set("8", alex);
     room().remoteParticipants.set("EG_abc123", recorder);
@@ -358,7 +405,9 @@ describe("useLiveKitRoom - participants", () => {
     act(() => room().emit(RoomEvent.TrackSubscribed));
     expect(result.current.isCameraEnabled).toBe(false);
 
-    room().localParticipant.publications.set(Track.Source.Camera, { isMuted: false });
+    room().localParticipant.publications.set(Track.Source.Camera, {
+      isMuted: false,
+    });
     room().localParticipant.connectionQuality = ConnectionQuality.Lost;
     act(() => room().emit(RoomEvent.TrackSubscribed));
     expect(result.current.isCameraEnabled).toBe(false);
@@ -383,9 +432,12 @@ describe("useLiveKitRoom - devices", () => {
   it("shares the screen with its audio, and stops again", async () => {
     const { result } = await connected();
     await act(() => result.current.toggleScreenShare());
-    expect(room().localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(true, {
-      audio: true,
-    });
+    expect(room().localParticipant.setScreenShareEnabled).toHaveBeenCalledWith(
+      true,
+      {
+        audio: true,
+      },
+    );
     expect(result.current.isScreenSharing).toBe(true);
     await act(() => result.current.toggleScreenShare());
     expect(result.current.isScreenSharing).toBe(false);
@@ -426,7 +478,9 @@ describe("useLiveKitRoom - devices", () => {
     const { result } = await connected();
     room().localParticipant.failures.microphone = "nope";
     await act(() => result.current.toggleMicrophone());
-    expect(result.current.deviceError?.message).toBe("Couldn't turn on your microphone.");
+    expect(result.current.deviceError?.message).toBe(
+      "Couldn't turn on your microphone.",
+    );
   });
 
   it("does nothing with no room to act on", async () => {
@@ -441,9 +495,21 @@ describe("useLiveKitRoom - devices", () => {
 
   it("names the device a room-level error came from", async () => {
     const { result } = await connected();
-    act(() => room().emit(RoomEvent.MediaDevicesError, named("NotFoundError"), "videoinput"));
+    act(() =>
+      room().emit(
+        RoomEvent.MediaDevicesError,
+        named("NotFoundError"),
+        "videoinput",
+      ),
+    );
     expect(result.current.deviceError?.kind).toBe("camera");
-    act(() => room().emit(RoomEvent.MediaDevicesError, named("NotFoundError"), "audioinput"));
+    act(() =>
+      room().emit(
+        RoomEvent.MediaDevicesError,
+        named("NotFoundError"),
+        "audioinput",
+      ),
+    );
     expect(result.current.deviceError?.kind).toBe("microphone");
   });
 });
@@ -523,7 +589,9 @@ describe("useLiveKitRoom - losing the connection", () => {
     expect(onDisconnected).toHaveBeenCalledWith("left");
 
     // The room's own Disconnected event, arriving late, is not reported again.
-    act(() => current.emit(RoomEvent.Disconnected, DisconnectReason.CLIENT_INITIATED));
+    act(() =>
+      current.emit(RoomEvent.Disconnected, DisconnectReason.CLIENT_INITIATED),
+    );
     expect(onDisconnected).toHaveBeenCalledTimes(1);
   });
 
@@ -537,14 +605,19 @@ describe("useLiveKitRoom - losing the connection", () => {
   it("calls whichever handler is current", async () => {
     const first = vi.fn();
     const second = vi.fn();
-    const view = renderHook(({ handler }) => useLiveKitRoom({ onDisconnected: handler }), {
-      initialProps: { handler: first },
-    });
+    const view = renderHook(
+      ({ handler }) => useLiveKitRoom({ onDisconnected: handler }),
+      {
+        initialProps: { handler: first },
+      },
+    );
     await act(async () => {
       await view.result.current.connect(CONNECTION, { camera: false });
     });
     view.rerender({ handler: second });
-    act(() => room().emit(RoomEvent.Disconnected, DisconnectReason.ROOM_DELETED));
+    act(() =>
+      room().emit(RoomEvent.Disconnected, DisconnectReason.ROOM_DELETED),
+    );
     expect(first).not.toHaveBeenCalled();
     expect(second).toHaveBeenCalledWith("ended");
   });

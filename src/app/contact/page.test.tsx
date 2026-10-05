@@ -27,26 +27,34 @@ function fill(values: Record<string, string>) {
 }
 
 function submit() {
-  fireEvent.click(screen.getByRole("button", { name: "Submit Enterprise Request" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Submit Enterprise Request" }),
+  );
 }
 
 describe("ContactPage", () => {
   it("asks for the three things sales needs, and says which are required", () => {
     render(<ContactPage />);
     expect(
-      screen.getByRole("heading", { level: 1, name: "Enterprise Plan Inquiry" }),
+      screen.getByRole("heading", {
+        level: 1,
+        name: "Enterprise Plan Inquiry",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByText("All fields marked with * are required.")).toBeInTheDocument();
+    expect(
+      screen.getByText("All fields marked with * are required."),
+    ).toBeInTheDocument();
     expect(field(/full name/i)).toBeRequired();
     expect(field(/work email/i)).toBeRequired();
     expect(field(/company/i)).toBeRequired();
     expect(field(/expected team size/i)).not.toBeRequired();
-    expect(screen.getByRole("link", { name: "sales@loopdn.com" })).toHaveAttribute(
-      "href",
-      "mailto:sales@loopdn.com",
-    );
     expect(
-      screen.getByRole("link", { name: "Back to Pricing" }).getAttribute("href"),
+      screen.getByRole("link", { name: "sales@loopdn.com" }),
+    ).toHaveAttribute("href", "mailto:sales@loopdn.com");
+    expect(
+      screen
+        .getByRole("link", { name: "Back to Pricing" })
+        .getAttribute("href"),
     ).toMatch(/^\/pricing\/?$/);
   });
 
@@ -54,8 +62,12 @@ describe("ContactPage", () => {
     render(<ContactPage />);
     submit();
 
-    expect(screen.getByText("Full name must be at least 2 characters.")).toBeInTheDocument();
-    expect(screen.getByText("Enter a valid work email address.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Full name must be at least 2 characters."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter a valid work email address."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Company name must be at least 2 characters."),
     ).toBeInTheDocument();
@@ -74,7 +86,9 @@ describe("ContactPage", () => {
     expect(
       screen.queryByText("Full name must be at least 2 characters."),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Enter a valid work email address.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter a valid work email address."),
+    ).toBeInTheDocument();
     expect(field(/full name/i)).not.toHaveAttribute("aria-invalid");
   });
 
@@ -100,7 +114,9 @@ describe("ContactPage", () => {
 
     fill({ size: "0" });
     submit();
-    expect(screen.getByText("Team size must be greater than 0.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Team size must be greater than 0."),
+    ).toBeInTheDocument();
 
     fill({ size: "5000000" });
     submit();
@@ -111,10 +127,9 @@ describe("ContactPage", () => {
     expect(
       screen.getByText("Requirements must be 2000 characters or less."),
     ).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/tell us your regions/i)).toHaveAttribute(
-      "aria-invalid",
-      "true",
-    );
+    expect(
+      screen.getByPlaceholderText(/tell us your regions/i),
+    ).toHaveAttribute("aria-invalid", "true");
 
     fill({ message: "Fine." });
     submit();
@@ -134,7 +149,9 @@ describe("ContactPage", () => {
     expect(
       screen.getByText("Full name must be 100 characters or less."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Email must be 254 characters or less.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Email must be 254 characters or less."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Company name must be 120 characters or less."),
     ).toBeInTheDocument();
@@ -146,7 +163,9 @@ describe("ContactPage", () => {
     await user.type(field(/full name/i), "Sam Wren");
     await user.type(field(/work email/i), "sam@example.com");
     await user.type(field(/company/i), "Acme");
-    await user.click(screen.getByRole("button", { name: "Submit Enterprise Request" }));
+    await user.click(
+      screen.getByRole("button", { name: "Submit Enterprise Request" }),
+    );
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 });
@@ -223,22 +242,30 @@ describe("PlanComparison", () => {
 
   it("puts an unlisted feature under More, and hides the internal ones", () => {
     render(<PlanComparison plans={[free, premium, enterprise]} />);
-    expect(cells("Voice rooms")).toEqual(["Not included", "Included", "Included"]);
-    expect(screen.queryByRole("rowheader", { name: "SSO" })).not.toBeInTheDocument();
+    expect(cells("Voice rooms")).toEqual([
+      "Not included",
+      "Included",
+      "Included",
+    ]);
+    expect(
+      screen.queryByRole("rowheader", { name: "SSO" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the viewer's own plan, whatever the case of its code", () => {
     const { rerender } = render(
       <PlanComparison plans={[free, premium]} currentPlanCode="PREMIUM" />,
     );
-    expect(screen.getByRole("columnheader", { name: /premium/i })).toHaveTextContent(
-      "Your plan",
-    );
-    expect(screen.getByRole("columnheader", { name: "Free" })).not.toHaveTextContent(
-      "Your plan",
-    );
+    expect(
+      screen.getByRole("columnheader", { name: /premium/i }),
+    ).toHaveTextContent("Your plan");
+    expect(
+      screen.getByRole("columnheader", { name: "Free" }),
+    ).not.toHaveTextContent("Your plan");
 
-    rerender(<PlanComparison plans={[free, premium]} currentPlanCode="unknown" />);
+    rerender(
+      <PlanComparison plans={[free, premium]} currentPlanCode="unknown" />,
+    );
     expect(screen.queryByText("Your plan")).not.toBeInTheDocument();
   });
 });

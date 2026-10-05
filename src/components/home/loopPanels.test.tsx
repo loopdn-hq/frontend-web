@@ -229,7 +229,9 @@ describe("CreateLoopForm", () => {
   it("wants a name of a sensible length", async () => {
     show();
     await submit();
-    expect(await screen.findByText("Loop name is required")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Loop name is required"),
+    ).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Loop Name *"), "ab");
     await submit();
     expect(
@@ -273,7 +275,9 @@ describe("CreateLoopForm", () => {
     await userEvent.click(
       screen.getByRole("button", { name: "pick bad picture" }),
     );
-    expect(await screen.findByText("That file is too big.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("That file is too big."),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "pick picture" }));
     expect(screen.queryByText("That file is too big.")).not.toBeInTheDocument();
     expect(screen.getByText("new:logo.png")).toBeInTheDocument();
@@ -315,7 +319,11 @@ const SETTINGS: GroupSettings = {
 };
 
 describe("LoopPanelGeneral", () => {
-  const DETAILS = { name: "Book Club", description: "We read.", imageUrl: null };
+  const DETAILS = {
+    name: "Book Club",
+    description: "We read.",
+    imageUrl: null,
+  };
 
   function show(props: Partial<Parameters<typeof LoopPanelGeneral>[0]> = {}) {
     const onSave = vi.fn(async () => {});
@@ -336,7 +344,9 @@ describe("LoopPanelGeneral", () => {
       screen.getByRole("radio", { name: /Broadcast Group/ }),
     );
     expect(onSave).toHaveBeenLastCalledWith({ mode: "broadcast" });
-    await userEvent.click(screen.getByRole("radio", { name: /Admin Approval/ }));
+    await userEvent.click(
+      screen.getByRole("radio", { name: /Admin Approval/ }),
+    );
     expect(onSave).toHaveBeenLastCalledWith({ join_mode: "approval" });
 
     await userEvent.selectOptions(
@@ -404,7 +414,9 @@ describe("LoopPanelGeneral", () => {
         "Only admins can change these. You are seeing them as they are.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: /Broadcast Group/ })).toBeDisabled();
+    expect(
+      screen.getByRole("radio", { name: /Broadcast Group/ }),
+    ).toBeDisabled();
     expect(screen.getByLabelText("Who can add new members?")).toBeDisabled();
     expect(screen.getByRole("switch", { name: "Reactions" })).toBeDisabled();
     expect(screen.getByTestId("details-form")).toHaveTextContent(
@@ -430,7 +442,9 @@ describe("LoopPanelGeneral", () => {
 
   it("explains each choice from its info button", async () => {
     show();
-    const tip = screen.getByRole("button", { name: 'What "Invite Only" means' });
+    const tip = screen.getByRole("button", {
+      name: 'What "Invite Only" means',
+    });
     expect(tip).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(tip);
     expect(tip).toHaveAttribute("aria-expanded", "true");
@@ -473,15 +487,16 @@ describe("LoopPanelGeneral", () => {
       const onFetchJoinCode = vi.fn(() => answer.promise);
       show({ settings: withCode, onFetchJoinCode });
       await userEvent.click(screen.getByRole("button", { name: "Show code" }));
-      expect(screen.getByRole("button", { name: "Loading..." })).toHaveAttribute(
-        "aria-disabled",
-        "true",
-      );
+      expect(
+        screen.getByRole("button", { name: "Loading..." }),
+      ).toHaveAttribute("aria-disabled", "true");
 
       await act(async () => answer.resolve("7F3K9Q"));
       expect(screen.getByText("7F3K9Q")).toBeInTheDocument();
       const section = screen.getByText("7F3K9Q").parentElement as HTMLElement;
-      await userEvent.click(within(section).getByRole("button", { name: "Copy" }));
+      await userEvent.click(
+        within(section).getByRole("button", { name: "Copy" }),
+      );
       expect(copy).toHaveBeenCalledWith("7F3K9Q");
     });
 
@@ -541,12 +556,14 @@ describe("LoopPanelGeneral", () => {
       clipboard = { copied: true, error: "Could not copy that." };
       show({ smsNumber: { ...NUMBER, status: "suspended" } });
       expect(
-        screen.getByText(
-          "This number is suspended and may not receive texts.",
-        ),
+        screen.getByText("This number is suspended and may not receive texts."),
       ).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /Copied/ })).toBeInTheDocument();
-      expect(screen.getByRole("alert")).toHaveTextContent("Could not copy that.");
+      expect(
+        screen.getByRole("button", { name: /Copied/ }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Could not copy that.",
+      );
     });
 
     it("says there is none, with nothing to press for somebody who cannot get one", () => {
@@ -572,7 +589,9 @@ describe("LoopPanelGeneral", () => {
       expect(screen.getByRole("button", { name: /Generating/ })).toBeDisabled();
 
       await act(async () => first.reject(new Error("No numbers are left.")));
-      expect(screen.getByRole("alert")).toHaveTextContent("No numbers are left.");
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "No numbers are left.",
+      );
 
       await userEvent.click(
         screen.getByRole("button", { name: /Generate number/ }),
@@ -668,7 +687,9 @@ describe("LoopPanelMembers", () => {
     expect(stat("Admins")).toHaveTextContent("2");
     expect(screen.queryByText("Blocked")).not.toBeInTheDocument();
     expect(names()).toEqual(["Ada", "Lin", "Sam"]);
-    expect(screen.getByRole("heading", { name: "Members (3)" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Members (3)" }),
+    ).toBeInTheDocument();
 
     const rows = screen.getAllByRole("listitem");
     expect(rows[0]).toHaveTextContent("+14155552671 · Joined");
@@ -695,7 +716,9 @@ describe("LoopPanelMembers", () => {
     expect(names()).toEqual(["Lin", "Sam"]);
     await userEvent.type(search, "zzz");
     expect(screen.getByText("Nobody matches that.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Members (0)" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Members (0)" }),
+    ).toBeInTheDocument();
   });
 
   it("sorts by name, by when they joined, or by role", async () => {
@@ -792,7 +815,9 @@ describe("LoopPanelMembers", () => {
       expect(
         screen.queryByRole("button", { name: "Manage Sam" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Manage Ada" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Manage Ada" }),
+      ).toBeInTheDocument();
     });
 
     it("promotes a member, holding their row until it is done", async () => {
@@ -808,7 +833,9 @@ describe("LoopPanelMembers", () => {
         screen.queryByRole("menuitem", { name: /Nudge/ }),
       ).not.toBeInTheDocument();
 
-      await userEvent.click(screen.getByRole("menuitem", { name: "Make admin" }));
+      await userEvent.click(
+        screen.getByRole("menuitem", { name: "Make admin" }),
+      );
       expect(onUpdateMemberRole).toHaveBeenCalledWith("2", "admin");
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Manage Ada" })).toBeDisabled();
@@ -890,7 +917,9 @@ describe("LoopPanelMembers", () => {
         screen.getByRole("menuitem", { name: /Nudge about SMS/ }),
       );
       await waitFor(() =>
-        expect(screen.getByRole("button", { name: "Manage Lin" })).toBeEnabled(),
+        expect(
+          screen.getByRole("button", { name: "Manage Lin" }),
+        ).toBeEnabled(),
       );
       expect(screen.queryByText(/did not work/)).not.toBeInTheDocument();
     });

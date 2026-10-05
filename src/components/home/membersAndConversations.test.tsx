@@ -107,7 +107,9 @@ describe("MemberSearchPicker", () => {
         selected={selected}
         onSelect={(pick) => setSelected((current) => [...current, pick])}
         onRemove={(pick) =>
-          setSelected((current) => current.filter((other) => other.id !== pick.id))
+          setSelected((current) =>
+            current.filter((other) => other.id !== pick.id),
+          )
         }
         onSearch={onSearch}
         disabled={disabled}
@@ -120,12 +122,16 @@ describe("MemberSearchPicker", () => {
   const picked = () =>
     within(screen.getByRole("list", { name: "People to add" }))
       .getAllByRole("button")
-      .map((button) => button.getAttribute("aria-label")?.replace("Remove ", ""));
+      .map((button) =>
+        button.getAttribute("aria-label")?.replace("Remove ", ""),
+      );
 
   it("explains what can be typed before anything is", () => {
     const onSearch = vi.fn();
     render(<Harness onSearch={onSearch} />);
-    expect(screen.getByText(/Type a username, or someone's full email/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Type a username, or someone's full email/),
+    ).toBeInTheDocument();
     expect(input()).toHaveAttribute("aria-expanded", "false");
     expect(onSearch).not.toHaveBeenCalled();
   });
@@ -143,7 +149,9 @@ describe("MemberSearchPicker", () => {
   });
 
   it("lists who matched, and adds the one that is clicked", async () => {
-    const onSearch = vi.fn(async () => found([candidate("sam"), candidate("sara")]));
+    const onSearch = vi.fn(async () =>
+      found([candidate("sam"), candidate("sara")]),
+    );
     render(<Harness onSearch={onSearch} />);
     await userEvent.type(input(), " sa ");
     expect(onSearch).toHaveBeenLastCalledWith("sa");
@@ -191,7 +199,10 @@ describe("MemberSearchPicker", () => {
     const onSearch = vi.fn(async () =>
       found([
         candidate("sam"),
-        candidate("sal", { status: "refused", detail: "They have blocked invitations." }),
+        candidate("sal", {
+          status: "refused",
+          detail: "They have blocked invitations.",
+        }),
         candidate("sara"),
       ]),
     );
@@ -206,7 +217,9 @@ describe("MemberSearchPicker", () => {
     expect(input()).toHaveAttribute("aria-activedescendant", options[2].id);
 
     await userEvent.click(options[1]);
-    expect(screen.queryByRole("list", { name: "People to add" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "People to add" }),
+    ).not.toBeInTheDocument();
     // Pressing a row must not take the focus out of the search box.
     expect(fireEvent.mouseDown(options[0])).toBe(false);
   });
@@ -222,13 +235,20 @@ describe("MemberSearchPicker", () => {
     const option = await screen.findByRole("option");
     expect(option).toHaveAttribute("aria-selected", "true");
     await userEvent.click(option);
-    expect(screen.queryByRole("list", { name: "People to add" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "People to add" }),
+    ).not.toBeInTheDocument();
   });
 
   it("removes a chosen person by their chip, or with Backspace", async () => {
     const initial: MemberPick[] = [
       { kind: "account", id: "u-sam", name: "Sam", username: "sam" },
-      { kind: "email", id: "email:ada@example.com", name: "ada@example.com", email: "ada@example.com" },
+      {
+        kind: "email",
+        id: "email:ada@example.com",
+        name: "ada@example.com",
+        email: "ada@example.com",
+      },
     ];
     render(<Harness onSearch={vi.fn()} initial={initial} />);
     expect(picked()).toEqual(["Sam", "ada@example.com"]);
@@ -237,7 +257,9 @@ describe("MemberSearchPicker", () => {
     await userEvent.keyboard("{Backspace}");
     expect(picked()).toEqual(["Sam"]);
     await userEvent.click(screen.getByRole("button", { name: "Remove Sam" }));
-    expect(screen.queryByRole("list", { name: "People to add" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "People to add" }),
+    ).not.toBeInTheDocument();
 
     // With nobody left and nothing typed, the keys do nothing.
     await userEvent.keyboard("{Backspace}{ArrowDown}{Enter}");
@@ -277,7 +299,9 @@ describe("MemberSearchPicker", () => {
     expect(option).toHaveTextContent("Invited");
     // Nothing can be picked, so the arrows have nowhere to go.
     await userEvent.keyboard("{ArrowDown}{Enter}");
-    expect(screen.queryByRole("list", { name: "People to add" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "People to add" }),
+    ).not.toBeInTheDocument();
   });
 
   it.each([
@@ -287,7 +311,9 @@ describe("MemberSearchPicker", () => {
   ])("says when %s finds nobody", async (text, message) => {
     render(<Harness onSearch={vi.fn(async () => found([]))} />);
     await userEvent.type(input(), text);
-    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(message));
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(message),
+    );
   });
 
   it("says why a search failed, and when more people match than are shown", async () => {
@@ -297,7 +323,9 @@ describe("MemberSearchPicker", () => {
       .mockResolvedValue(found([candidate("sam")], { hasMore: true }));
     render(<Harness onSearch={onSearch} />);
     await userEvent.type(input(), "sa");
-    expect(await screen.findByRole("status")).toHaveTextContent("Search failed.");
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Search failed.",
+    );
 
     await userEvent.type(input(), "m");
     expect(await screen.findByText(/More people match/)).toBeInTheDocument();
@@ -308,7 +336,9 @@ describe("MemberSearchPicker", () => {
     const onSearch = vi.fn(() => first.promise);
     render(<Harness onSearch={onSearch} />);
     await userEvent.type(input(), "sa{Enter}");
-    expect(screen.queryByRole("list", { name: "People to add" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "People to add" }),
+    ).not.toBeInTheDocument();
 
     await act(async () => first.resolve(found([candidate("sam")])));
     await userEvent.keyboard("{Enter}");
@@ -330,7 +360,9 @@ describe("MemberSearchPicker", () => {
       <Harness
         onSearch={vi.fn()}
         disabled
-        initial={[{ kind: "account", id: "u-sam", name: "Sam", username: "sam" }]}
+        initial={[
+          { kind: "account", id: "u-sam", name: "Sam", username: "sam" },
+        ]}
       />,
     );
     expect(input()).toBeDisabled();
@@ -356,7 +388,11 @@ describe("NewConversationModal", () => {
   }
 
   function usersAre(users: ReturnType<typeof user>[], hasMore = false) {
-    vi.mocked(searchUsers).mockResolvedValue({ ok: true, users, hasMore } as never);
+    vi.mocked(searchUsers).mockResolvedValue({
+      ok: true,
+      users,
+      hasMore,
+    } as never);
   }
 
   it("asks for two letters, and offers to create a group instead", async () => {
@@ -371,7 +407,8 @@ describe("NewConversationModal", () => {
 
   it("finds people by username, and opens a conversation with one", async () => {
     usersAre([user("sam"), user("sara")], true);
-    const answer = deferred<Awaited<ReturnType<typeof startDirectConversation>>>();
+    const answer =
+      deferred<Awaited<ReturnType<typeof startDirectConversation>>>();
     vi.mocked(startDirectConversation).mockReturnValue(answer.promise);
     const { input, onStarted } = show();
     await userEvent.type(input, "sa");
@@ -395,8 +432,12 @@ describe("NewConversationModal", () => {
     const { input } = show();
     await userEvent.type(input, "sa");
     expect(screen.getByText("Searching...")).toBeInTheDocument();
-    await act(async () => pending.resolve({ ok: true, users: [], hasMore: false }));
-    expect(screen.getByText("No usernames start with “sa”.")).toBeInTheDocument();
+    await act(async () =>
+      pending.resolve({ ok: true, users: [], hasMore: false }),
+    );
+    expect(
+      screen.getByText("No usernames start with “sa”."),
+    ).toBeInTheDocument();
   });
 
   it("says why a search or an opening failed", async () => {
@@ -406,7 +447,9 @@ describe("NewConversationModal", () => {
     } as never);
     const { input } = show();
     await userEvent.type(input, "sa");
-    expect(await screen.findByText("Search is unavailable.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Search is unavailable."),
+    ).toBeInTheDocument();
 
     usersAre([user("sam")]);
     vi.mocked(startDirectConversation).mockResolvedValue({
@@ -414,12 +457,16 @@ describe("NewConversationModal", () => {
       message: "They are not taking messages.",
     });
     await userEvent.type(input, "m");
-    await userEvent.click(await screen.findByRole("button", { name: "Message" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Message" }),
+    );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "They are not taking messages.",
     );
     // Only a failed email offers an invitation.
-    expect(screen.queryByRole("button", { name: "Send invite" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Send invite" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a conversation by email, and offers an invitation when nobody has it", async () => {
@@ -439,7 +486,9 @@ describe("NewConversationModal", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Message" }));
     expect(startDirectConversation).toHaveBeenCalledWith("new@example.com");
-    await userEvent.click(await screen.findByRole("button", { name: "Send invite" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Send invite" }),
+    );
     expect(inviteToApp).toHaveBeenCalledWith("new@example.com");
     expect(screen.getByRole("button", { name: "Sending..." })).toBeDisabled();
 
@@ -449,18 +498,30 @@ describe("NewConversationModal", () => {
 
   it("says when the invited address turns out to have an account, or the invite fails", async () => {
     usersAre([]);
-    vi.mocked(startDirectConversation).mockResolvedValue({ ok: false, message: "No." });
+    vi.mocked(startDirectConversation).mockResolvedValue({
+      ok: false,
+      message: "No.",
+    });
     vi.mocked(inviteToApp)
-      .mockResolvedValueOnce({ ok: false, message: "Too many invitations today." } as never)
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "Too many invitations today.",
+      } as never)
       .mockResolvedValueOnce({ ok: true, alreadyHere: true } as never);
     const { input } = show();
     await userEvent.type(input, "new@example.com");
     await userEvent.click(screen.getByRole("button", { name: "Message" }));
-    await userEvent.click(await screen.findByRole("button", { name: "Send invite" }));
-    expect(await screen.findByText("Too many invitations today.")).toBeInTheDocument();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Send invite" }),
+    );
+    expect(
+      await screen.findByText("Too many invitations today."),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Send invite" }));
-    expect(await screen.findByText(/They already have an account/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/They already have an account/),
+    ).toBeInTheDocument();
   });
 
   it("gives a link to send by hand for a number nobody has verified", async () => {
@@ -495,7 +556,11 @@ describe("NewConversationModal", () => {
   it("ignores results that arrive after it has closed", async () => {
     const pending = deferred<unknown>();
     vi.mocked(searchUsers).mockReturnValue(pending.promise as never);
-    const props = { onClose: vi.fn(), onStarted: vi.fn(), onCreateGroup: vi.fn() };
+    const props = {
+      onClose: vi.fn(),
+      onStarted: vi.fn(),
+      onCreateGroup: vi.fn(),
+    };
     const { unmount } = render(<NewConversationModal {...props} />);
     await userEvent.type(screen.getByRole("searchbox"), "sa");
     unmount();
@@ -573,7 +638,9 @@ describe("AddMembersModal", () => {
 
   it("counts one member in the singular", () => {
     show({ members: [member("1")] });
-    expect(screen.getByRole("dialog")).toHaveTextContent(/1 current member(?!s)/);
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      /1 current member(?!s)/,
+    );
   });
 
   it("asks what the newcomer may read, then adds them", async () => {
@@ -610,10 +677,12 @@ describe("AddMembersModal", () => {
   it("adds accounts and invitations together, from now on only", async () => {
     const { onAddMembers } = show();
     await pick("Sam", "Sara", "new@example.com");
-    await userEvent.click(screen.getByRole("button", { name: "Add 3 members" }));
-    expect(screen.getByRole("dialog", { name: /old messages/ })).toHaveTextContent(
-      "Choose what these 3 people can read in Book Club.",
+    await userEvent.click(
+      screen.getByRole("button", { name: "Add 3 members" }),
     );
+    expect(
+      screen.getByRole("dialog", { name: /old messages/ }),
+    ).toHaveTextContent("Choose what these 3 people can read in Book Club.");
     await userEvent.click(
       screen.getByRole("button", { name: /Only show new messages/ }),
     );
@@ -625,13 +694,11 @@ describe("AddMembersModal", () => {
   });
 
   it("names the button for what it will do with invitations alone", async () => {
-    const onSearchMembers = vi
-      .fn()
-      .mockImplementation(async (term: string) =>
-        found([], {
-          invite: { email: `${term}`, status: "ready", detail: "" },
-        }),
-      );
+    const onSearchMembers = vi.fn().mockImplementation(async (term: string) =>
+      found([], {
+        invite: { email: `${term}`, status: "ready", detail: "" },
+      }),
+    );
     show({ onSearchMembers });
     await userEvent.type(screen.getByRole("combobox"), "a@example.com{Enter}");
     expect(
@@ -642,8 +709,12 @@ describe("AddMembersModal", () => {
       await screen.findByRole("button", { name: "Send 2 invitations" }),
     ).toBeEnabled();
 
-    await userEvent.click(screen.getByRole("button", { name: "Remove a@example.com" }));
-    expect(screen.getByRole("button", { name: "Send invitation" })).toBeEnabled();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Remove a@example.com" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Send invitation" }),
+    ).toBeEnabled();
   });
 
   it("can go back from the question without adding anybody", async () => {
@@ -668,11 +739,15 @@ describe("AddMembersModal", () => {
     await userEvent.click(screen.getByRole("button", { name: /Allow to see/ }));
     expect(await screen.findByText("This Loop is full.")).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Remove Sam" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Remove Sam" }),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Add member" }));
     await userEvent.click(screen.getByRole("button", { name: /Allow to see/ }));
-    expect(await screen.findByText("Unable to add members.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Unable to add members."),
+    ).toBeInTheDocument();
   });
 
   it("wants somebody chosen before it asks anything", () => {
@@ -786,7 +861,9 @@ describe("AddMembersModal", () => {
       await openPhoneTab();
       await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
       expect(onClose).toHaveBeenCalled();
-      await userEvent.click(screen.getByRole("button", { name: "Loopd'n Account" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "Loopd'n Account" }),
+      );
       expect(screen.getByRole("combobox")).toBeInTheDocument();
     });
   });
@@ -796,7 +873,9 @@ describe("AddMembersModal", () => {
     const { onWhatsAppInvited } = show({ canInviteMembers: true });
     await userEvent.click(screen.getByRole("button", { name: "Via WhatsApp" }));
     expect(screen.getByTestId("whatsapp-form")).toHaveTextContent("7:true");
-    await userEvent.click(screen.getByRole("button", { name: "whatsapp invited" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "whatsapp invited" }),
+    );
     expect(onWhatsAppInvited).toHaveBeenCalled();
   });
 });

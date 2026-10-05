@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -44,10 +51,19 @@ import {
 } from "@/components/settings/SettingsRows";
 import { TwoFactorSetup } from "@/components/settings/TwoFactorSetup";
 import type { UserProfile } from "@/components/settings/UserSettingsPanel";
-import { disablePush, enablePush, readPushState, type PushState } from "@/lib/app/push";
+import {
+  disablePush,
+  enablePush,
+  readPushState,
+  type PushState,
+} from "@/lib/app/push";
 import { saveAppearancePreferences } from "@/lib/app/appearance";
 import { changePassword } from "@/lib/auth/client";
-import { fetchBlockedUsers, unblockUser, type BlockedEntry } from "@/lib/user/blocks";
+import {
+  fetchBlockedUsers,
+  unblockUser,
+  type BlockedEntry,
+} from "@/lib/user/blocks";
 import { defaultMessagingPreferences } from "@/lib/user/messagingPreferences";
 import { deferred } from "@/test/helpers";
 
@@ -69,7 +85,10 @@ const PUSH_READY: PushState = {
   available: true,
 };
 
-function blocked(id: number, overrides: Partial<BlockedEntry> = {}): BlockedEntry {
+function blocked(
+  id: number,
+  overrides: Partial<BlockedEntry> = {},
+): BlockedEntry {
   return {
     id,
     label: `Person ${id}`,
@@ -156,7 +175,9 @@ describe("settings rows", () => {
       />,
     );
     const toggle = screen.getByRole("switch", { name: "Read receipts" });
-    expect(toggle).toHaveAccessibleDescription("Let people see when you have read.");
+    expect(toggle).toHaveAccessibleDescription(
+      "Let people see when you have read.",
+    );
     expect(toggle).toHaveAttribute("aria-busy", "true");
     fireEvent.click(toggle);
     expect(onChange).toHaveBeenCalledWith(true);
@@ -177,15 +198,21 @@ describe("settings rows", () => {
         ]}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Sound"), { target: { value: "none" } });
+    fireEvent.change(screen.getByLabelText("Sound"), {
+      target: { value: "none" },
+    });
     expect(onChange).toHaveBeenCalledWith("none");
   });
 
   it("shows a link row's current value only when it has one", () => {
     const onClick = vi.fn();
-    const { rerender } = render(<LinkRow label="Blocked users" onClick={onClick} />);
+    const { rerender } = render(
+      <LinkRow label="Blocked users" onClick={onClick} />,
+    );
     expect(screen.getByRole("button")).toHaveTextContent(/^Blocked users$/);
-    rerender(<LinkRow label="Blocked users" value={3} onClick={onClick} disabled />);
+    rerender(
+      <LinkRow label="Blocked users" value={3} onClick={onClick} disabled />,
+    );
     expect(screen.getByRole("button")).toHaveTextContent("Blocked users3");
     expect(screen.getByRole("button")).toBeDisabled();
   });
@@ -194,7 +221,9 @@ describe("settings rows", () => {
 describe("AppearanceSection", () => {
   it("changes the theme through the provider and the rest through storage", () => {
     render(<AppearanceSection />);
-    expect(screen.getByRole("radio", { name: "Match my device" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "Match my device" }),
+    ).toBeChecked();
 
     fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
     expect(setTheme).toHaveBeenCalledWith("dark");
@@ -202,13 +231,20 @@ describe("AppearanceSection", () => {
     fireEvent.click(screen.getByRole("radio", { name: "Large" }));
     expect(screen.getByRole("radio", { name: "Large" })).toBeChecked();
     fireEvent.click(screen.getByRole("radio", { name: "Compact" }));
-    expect(JSON.parse(localStorage.getItem("loopdn_appearance")!)).toMatchObject({
+    expect(
+      JSON.parse(localStorage.getItem("loopdn_appearance")!),
+    ).toMatchObject({
       textSize: "large",
       messageSpacing: "compact",
     });
     expect(setTheme).toHaveBeenCalledTimes(1);
 
-    act(() => saveAppearancePreferences({ textSize: "default", messageSpacing: "comfortable" }));
+    act(() =>
+      saveAppearancePreferences({
+        textSize: "default",
+        messageSpacing: "comfortable",
+      }),
+    );
   });
 });
 
@@ -217,7 +253,10 @@ describe("MessagingSection", () => {
     const saving = deferred<void>();
     const onSave = vi.fn(() => saving.promise);
     render(
-      <MessagingSection preferences={defaultMessagingPreferences} onSave={onSave} />,
+      <MessagingSection
+        preferences={defaultMessagingPreferences}
+        onSave={onSave}
+      />,
     );
     const enter = screen.getByRole("checkbox", { name: "Press Enter to send" });
     expect(enter).toBeChecked();
@@ -238,10 +277,15 @@ describe("MessagingSection", () => {
   it("puts the switch back and says why when the save is refused", async () => {
     const onSave = vi
       .fn()
-      .mockRejectedValueOnce(new Error("Email is switched off for this account."))
+      .mockRejectedValueOnce(
+        new Error("Email is switched off for this account."),
+      )
       .mockRejectedValueOnce("nope");
     render(
-      <MessagingSection preferences={defaultMessagingPreferences} onSave={onSave} />,
+      <MessagingSection
+        preferences={defaultMessagingPreferences}
+        onSave={onSave}
+      />,
     );
     const email = screen.getByRole("checkbox", {
       name: "Send and receive Loop messages by email",
@@ -263,7 +307,9 @@ describe("MessagingSection", () => {
 
   it("works with nothing to save to", async () => {
     render(<MessagingSection preferences={defaultMessagingPreferences} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Show link previews" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Show link previews" }),
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("checkbox", { name: "Show link previews" }),
@@ -317,7 +363,12 @@ describe("NotificationsSection", () => {
 describe("PrivacySection", () => {
   it("opens an audience choice and saves what is picked", async () => {
     const onSave = vi.fn(async () => {});
-    render(<PrivacySection preferences={defaultPrivacyPreferences} onSave={onSave} />);
+    render(
+      <PrivacySection
+        preferences={defaultPrivacyPreferences}
+        onSave={onSave}
+      />,
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: /who can send me direct messages/i }),
@@ -349,15 +400,23 @@ describe("PrivacySection", () => {
     expect(row).toHaveTextContent("2");
 
     fireEvent.click(row);
-    expect(screen.getByRole("heading", { name: "Blocked users" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Blocked users" }),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole("button", { name: "Unblock" })[0]);
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Unblock" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Unblock",
+      }),
     );
-    await waitFor(() => expect(screen.queryByText("Person 1")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByText("Person 1")).not.toBeInTheDocument(),
+    );
 
     click("Privacy");
-    expect(screen.getByRole("button", { name: /blocked users/i })).toHaveTextContent("1");
+    expect(
+      screen.getByRole("button", { name: /blocked users/i }),
+    ).toHaveTextContent("1");
   });
 
   it("says when the blocked list could not be loaded", async () => {
@@ -369,7 +428,9 @@ describe("PrivacySection", () => {
     expect(
       await screen.findByText("Could not load your blocked list."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /blocked users/i })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /blocked users/i }),
+    ).toBeDisabled();
   });
 
   it("ignores a blocked list that arrives after it has gone", async () => {
@@ -387,24 +448,40 @@ describe("PrivacySection", () => {
 describe("BlockedUsersList", () => {
   const entries = [
     blocked(1, { label: "Sam Wren", username: "sam" }),
-    blocked(2, { label: "+1 415 555 2671", username: null, phoneNumber: "+14155552671" }),
+    blocked(2, {
+      label: "+1 415 555 2671",
+      username: null,
+      phoneNumber: "+14155552671",
+    }),
     blocked(3, { label: "Alex", username: "alex" }),
   ];
 
   it("says so when nobody is blocked, with no search box", () => {
-    render(<BlockedUsersList entries={[]} onBack={() => {}} onUnblocked={() => {}} />);
+    render(
+      <BlockedUsersList
+        entries={[]}
+        onBack={() => {}}
+        onUnblocked={() => {}}
+      />,
+    );
     expect(screen.getByText("You haven't blocked anyone.")).toBeInTheDocument();
     expect(screen.queryByRole("searchbox")).not.toBeInTheDocument();
   });
 
   it("searches by name, username or number", () => {
     render(
-      <BlockedUsersList entries={entries} onBack={() => {}} onUnblocked={() => {}} />,
+      <BlockedUsersList
+        entries={entries}
+        onBack={() => {}}
+        onUnblocked={() => {}}
+      />,
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
     expect(screen.getByText("@sam")).toBeInTheDocument();
 
-    const search = screen.getByRole("searchbox", { name: "Search blocked users" });
+    const search = screen.getByRole("searchbox", {
+      name: "Search blocked users",
+    });
     fireEvent.change(search, { target: { value: " 5552671 " } });
     expect(screen.getAllByRole("listitem")).toHaveLength(1);
 
@@ -418,7 +495,11 @@ describe("BlockedUsersList", () => {
   it("asks before unblocking, and can be cancelled", () => {
     const onUnblocked = vi.fn();
     render(
-      <BlockedUsersList entries={entries} onBack={() => {}} onUnblocked={onUnblocked} />,
+      <BlockedUsersList
+        entries={entries}
+        onBack={() => {}}
+        onUnblocked={onUnblocked}
+      />,
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Unblock" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Unblock Sam Wren?" });
@@ -442,7 +523,9 @@ describe("BlockedUsersList", () => {
         <BlockedUsersList
           entries={rows}
           onBack={() => {}}
-          onUnblocked={(entry) => setRows(rows.filter((row) => row.id !== entry.id))}
+          onUnblocked={(entry) =>
+            setRows(rows.filter((row) => row.id !== entry.id))
+          }
         />
       );
     }
@@ -472,16 +555,24 @@ describe("BlockedUsersList", () => {
     function Harness() {
       const [rows, setRows] = useState([entries[0]]);
       return (
-        <BlockedUsersList entries={rows} onBack={() => {}} onUnblocked={() => setRows([])} />
+        <BlockedUsersList
+          entries={rows}
+          onBack={() => {}}
+          onUnblocked={() => setRows([])}
+        />
       );
     }
     render(<Harness />);
     click("Unblock");
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Unblock" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Unblock",
+      }),
     );
     await screen.findByText("You haven't blocked anyone.");
-    expect(screen.getByRole("heading", { name: "Blocked users" })).toHaveFocus();
+    expect(
+      screen.getByRole("heading", { name: "Blocked users" }),
+    ).toHaveFocus();
   });
 
   it("keeps the dialog open and says why when the unblock is refused", async () => {
@@ -491,7 +582,11 @@ describe("BlockedUsersList", () => {
     });
     const onUnblocked = vi.fn();
     render(
-      <BlockedUsersList entries={entries} onBack={() => {}} onUnblocked={onUnblocked} />,
+      <BlockedUsersList
+        entries={entries}
+        onBack={() => {}}
+        onUnblocked={onUnblocked}
+      />,
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Unblock" })[0]);
     const dialog = screen.getByRole("dialog");
@@ -504,7 +599,9 @@ describe("BlockedUsersList", () => {
 
     // Left on the list too, once the dialog is put away.
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    expect(screen.getByRole("alert")).toHaveTextContent("Could not unblock them.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Could not unblock them.",
+    );
   });
 });
 
@@ -544,7 +641,10 @@ describe("PushOnThisBrowser", () => {
     expect(screen.getByText("Not available")).toBeInTheDocument();
     third.unmount();
 
-    await shows({ ...PUSH_READY, permission: "denied" }, /Blocked in your browser's settings/);
+    await shows(
+      { ...PUSH_READY, permission: "denied" },
+      /Blocked in your browser's settings/,
+    );
     expect(screen.getByText("Blocked")).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
@@ -559,7 +659,9 @@ describe("PushOnThisBrowser", () => {
       subscribed: true,
     });
     click("Turn on");
-    expect(await screen.findByText(/^On\. You will be notified here/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/^On\. You will be notified here/),
+    ).toBeInTheDocument();
     expect(screen.getByText("On")).toBeInTheDocument();
     expect(enablePush).toHaveBeenCalledTimes(1);
   });
@@ -581,7 +683,10 @@ describe("PushOnThisBrowser", () => {
       ok: false,
       message: "Could not turn notifications off.",
     });
-    await shows({ ...PUSH_READY, permission: "granted", subscribed: true }, /^On\./);
+    await shows(
+      { ...PUSH_READY, permission: "granted", subscribed: true },
+      /^On\./,
+    );
     click("Turn off");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not turn notifications off.",
@@ -590,14 +695,18 @@ describe("PushOnThisBrowser", () => {
     vi.mocked(disablePush).mockResolvedValue({ ok: true });
     vi.mocked(readPushState).mockResolvedValue(PUSH_READY);
     click("Turn off");
-    expect(await screen.findByRole("button", { name: "Turn on" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Turn on" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
 describe("AvatarPicker", () => {
   function pick(container: HTMLElement, file: File) {
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
     fireEvent.change(input, { target: { files: [file] } });
   }
 
@@ -605,10 +714,17 @@ describe("AvatarPicker", () => {
     const onPick = vi.fn();
     const onReject = vi.fn();
     const { container } = render(
-      <AvatarPicker name="Sam" file={null} onPick={onPick} onReject={onReject} />,
+      <AvatarPicker
+        name="Sam"
+        file={null}
+        onPick={onPick}
+        onReject={onReject}
+      />,
     );
     const button = screen.getByRole("button", { name: "Add a profile photo" });
-    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    const input = container.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
     const opened = vi.spyOn(input, "click");
     fireEvent.click(button);
     expect(opened).toHaveBeenCalled();
@@ -623,12 +739,19 @@ describe("AvatarPicker", () => {
     const onPick = vi.fn();
     const onReject = vi.fn();
     const { container } = render(
-      <AvatarPicker name="Sam" file={null} onPick={onPick} onReject={onReject} />,
+      <AvatarPicker
+        name="Sam"
+        file={null}
+        onPick={onPick}
+        onReject={onReject}
+      />,
     );
     const big = new File(["x"], "big.png", { type: "image/png" });
     Object.defineProperty(big, "size", { value: 6.5 * 1024 * 1024 });
     pick(container, big);
-    expect(onReject).toHaveBeenCalledWith("That image is 6.5MB. Keep it under 5MB.");
+    expect(onReject).toHaveBeenCalledWith(
+      "That image is 6.5MB. Keep it under 5MB.",
+    );
     expect(onPick).not.toHaveBeenCalled();
 
     fireEvent.change(container.querySelector('input[type="file"]')!, {
@@ -651,9 +774,16 @@ describe("AvatarPicker", () => {
         size={64}
       />,
     );
-    expect(container.querySelector("img")).toHaveAttribute("src", "blob:preview");
-    expect(screen.getByRole("button", { name: "Change Loop photo" })).toBeInTheDocument();
-    expect(screen.getByText("New photo selected - save to apply")).toBeInTheDocument();
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "blob:preview",
+    );
+    expect(
+      screen.getByRole("button", { name: "Change Loop photo" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("New photo selected - save to apply"),
+    ).toBeInTheDocument();
     click("Remove photo");
     expect(onRemove).toHaveBeenCalled();
 
@@ -672,8 +802,12 @@ describe("AvatarPicker", () => {
         isGroup
       />,
     );
-    expect(screen.getByRole("button", { name: "Add a Loop photo" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Remove photo" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add a Loop photo" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove photo" }),
+    ).not.toBeInTheDocument();
 
     rerender(
       <AvatarPicker
@@ -687,7 +821,9 @@ describe("AvatarPicker", () => {
         disabled
       />,
     );
-    expect(screen.getByRole("button", { name: "Change profile photo" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Change profile photo" }),
+    ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Remove photo" })).toBeDisabled();
     expect(screen.queryByText(/save to apply/)).not.toBeInTheDocument();
   });
@@ -697,7 +833,12 @@ describe("EditProfileModal", () => {
   function open(onSave?: Parameters<typeof EditProfileModal>[0]["onSave"]) {
     const onClose = vi.fn();
     const view = render(
-      <EditProfileModal isOpen onClose={onClose} profile={PROFILE} onSave={onSave} />,
+      <EditProfileModal
+        isOpen
+        onClose={onClose}
+        profile={PROFILE}
+        onSave={onSave}
+      />,
     );
     return { onClose, ...view };
   }
@@ -722,7 +863,9 @@ describe("EditProfileModal", () => {
     fireEvent.change(screen.getByLabelText("Display name"), {
       target: { value: " Sam W " },
     });
-    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Hello." } });
+    fireEvent.change(screen.getByLabelText("Bio"), {
+      target: { value: "Hello." },
+    });
     click("Save");
 
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
@@ -742,12 +885,17 @@ describe("EditProfileModal", () => {
     const onSave = vi.fn(async () => {});
     const { container } = open(onSave);
     const file = new File(["png"], "me.png", { type: "image/png" });
-    fireEvent.change(container.ownerDocument.querySelector('input[type="file"]')!, {
-      target: { files: [file] },
-    });
+    fireEvent.change(
+      container.ownerDocument.querySelector('input[type="file"]')!,
+      {
+        target: { files: [file] },
+      },
+    );
     click("Save");
     await waitFor(() =>
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ avatarFile: file })),
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ avatarFile: file }),
+      ),
     );
   });
 
@@ -757,10 +905,14 @@ describe("EditProfileModal", () => {
       .mockRejectedValueOnce(new Error("That name is too long."))
       .mockRejectedValueOnce(null);
     const { onClose } = open(onSave);
-    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "New." } });
+    fireEvent.change(screen.getByLabelText("Bio"), {
+      target: { value: "New." },
+    });
 
     click("Save");
-    expect(await screen.findByRole("alert")).toHaveTextContent("That name is too long.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That name is too long.",
+    );
     expect(onClose).not.toHaveBeenCalled();
 
     click("Save");
@@ -791,12 +943,16 @@ describe("EditProfileModal", () => {
       <EditProfileModal
         isOpen
         onClose={() => {}}
-        profile={{ ...PROFILE, username: "", bio: undefined, displayName: "" } as never}
+        profile={
+          { ...PROFILE, username: "", bio: undefined, displayName: "" } as never
+        }
       />,
     );
     expect(screen.queryByLabelText("Username")).not.toBeInTheDocument();
 
-    rerender(<EditProfileModal isOpen={false} onClose={() => {}} profile={PROFILE} />);
+    rerender(
+      <EditProfileModal isOpen={false} onClose={() => {}} profile={PROFILE} />,
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
@@ -804,14 +960,18 @@ describe("EditProfileModal", () => {
 describe("TwoFactorSetup", () => {
   it("is a preview: it offers the verified destinations and changes nothing", () => {
     render(<TwoFactorSetup profile={PROFILE} onBack={() => {}} />);
-    expect(screen.getByText(/two-factor authentication isn't available yet/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/two-factor authentication isn't available yet/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: /text message/i })).toBeChecked();
     expect(screen.getByText("To •••• 2671")).toBeInTheDocument();
     expect(screen.getByText("To s•••@example.com")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("radio", { name: /email/i }));
     click("Continue");
-    expect(screen.getByText(/a 6-digit code will be sent to s•••@example.com/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/a 6-digit code will be sent to s•••@example.com/),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("6-digit code")).toHaveFocus();
   });
 
@@ -824,7 +984,9 @@ describe("TwoFactorSetup", () => {
     fireEvent.change(code, { target: { value: "12ab34567" } });
     expect(code).toHaveValue("123456");
     click("Verify");
-    expect(screen.getByRole("status")).toHaveTextContent("Nothing was turned on");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Nothing was turned on",
+    );
 
     fireEvent.change(code, { target: { value: "12345" } });
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -860,7 +1022,9 @@ describe("TwoFactorSetup", () => {
     const onBack = vi.fn();
     render(
       <TwoFactorSetup
-        profile={{ ...PROFILE, emailVerified: false, phoneVerified: false } as never}
+        profile={
+          { ...PROFILE, emailVerified: false, phoneVerified: false } as never
+        }
         onBack={onBack}
       />,
     );
@@ -875,7 +1039,9 @@ describe("TwoFactorSetup", () => {
   it("masks an address with no domain by leaving it alone", () => {
     render(
       <TwoFactorSetup
-        profile={{ ...PROFILE, phoneVerified: false, email: "localonly" } as never}
+        profile={
+          { ...PROFILE, phoneVerified: false, email: "localonly" } as never
+        }
         onBack={() => {}}
       />,
     );
@@ -888,7 +1054,9 @@ describe("SecuritySection", () => {
     fireEvent.change(screen.getByLabelText("Current Password"), {
       target: { value: current },
     });
-    fireEvent.change(screen.getByLabelText("New Password"), { target: { value: next } });
+    fireEvent.change(screen.getByLabelText("New Password"), {
+      target: { value: next },
+    });
   }
 
   it("names this browser, and marks what is not available yet", () => {
@@ -901,8 +1069,11 @@ describe("SecuritySection", () => {
     expect(
       screen.getByRole("heading", { name: "Login alerts, Not available yet" }),
     ).toBeInTheDocument();
-    for (const toggle of screen.getAllByRole("switch")) expect(toggle).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Change Password" })).toBeDisabled();
+    for (const toggle of screen.getAllByRole("switch"))
+      expect(toggle).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Change Password" }),
+    ).toBeDisabled();
   });
 
   it("checks the new password before sending it", () => {
@@ -958,8 +1129,12 @@ describe("SecuritySection", () => {
     expect(
       await screen.findByText("That is not your current password."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Too similar to your username.")).toBeInTheDocument();
-    expect(screen.getByText("Could not change your password.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Too similar to your username."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Could not change your password."),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Current Password")).toHaveValue("wrong");
   });
 
@@ -1032,7 +1207,9 @@ describe("AccountSection", () => {
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
     expect(onSaveProfile).toHaveBeenCalledWith(
       expect.objectContaining({ bio: "New bio." }),
     );
@@ -1041,7 +1218,9 @@ describe("AccountSection", () => {
   it("is honest that an account cannot be deleted from here yet", () => {
     render(<AccountSection profile={PROFILE} />);
     click("Delete account");
-    const dialog = screen.getByRole("dialog", { name: "Deleting isn't available yet" });
+    const dialog = screen.getByRole("dialog", {
+      name: "Deleting isn't available yet",
+    });
     expect(dialog).toHaveTextContent("Your account has not been deleted");
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

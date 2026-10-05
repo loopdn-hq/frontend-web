@@ -92,6 +92,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Rust build output.
     "src-tauri/target/**",
+    // The HTML report `npm run test:coverage` writes.
+    "coverage/**",
   ]),
   // Two blocks rather than one per boundary: a later block's options for the
   // same rule REPLACE an earlier block's, they do not merge. So each block
@@ -103,6 +105,8 @@ const eslintConfig = defineConfig([
     ignores: [
       "src/lib/desktop/**",
       "src/app/page.tsx",
+      // Fixtures shared by the tests of every area, so they belong to none.
+      "src/test/**",
       ...COMMERCIAL_FILES,
       ...ADMIN_FILES,
     ],

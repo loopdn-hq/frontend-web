@@ -17,7 +17,11 @@ let userProfile: Record<string, unknown>;
 
 vi.mock("next/navigation", () => ({ useRouter: () => router }));
 vi.mock("@/lib/theme/ThemeProvider", () => ({
-  useTheme: () => ({ theme: "system", resolvedTheme: "light", setTheme: vi.fn() }),
+  useTheme: () => ({
+    theme: "system",
+    resolvedTheme: "light",
+    setTheme: vi.fn(),
+  }),
 }));
 vi.mock("@/lib/app/AppShellProvider", () => ({
   useAppShell: () => ({ userProfile, setUserProfile, openNavDrawer }),
@@ -78,7 +82,10 @@ import {
   type BillingSummary,
 } from "@/lib/billing";
 import { platform } from "@/lib/platform";
-import { fetchAccountSettings, saveAccountSettings } from "@/lib/user/accountSettings";
+import {
+  fetchAccountSettings,
+  saveAccountSettings,
+} from "@/lib/user/accountSettings";
 import { deferred, stubLocation } from "@/test/helpers";
 
 const PROFILE: UserProfile = {
@@ -119,8 +126,18 @@ function plan(overrides: Partial<BillingPlan>): BillingPlan {
 const PLANS = [
   plan({ id: "f", code: "free", name: "Free", monthlyPriceCents: 0 }),
   plan({ id: "p", code: "premium", name: "Premium" }),
-  plan({ id: "b", code: "business", name: "Business", monthlyPriceCents: null }),
-  plan({ id: "e", code: "enterprise", name: "Enterprise", monthlyPriceCents: null }),
+  plan({
+    id: "b",
+    code: "business",
+    name: "Business",
+    monthlyPriceCents: null,
+  }),
+  plan({
+    id: "e",
+    code: "enterprise",
+    name: "Enterprise",
+    monthlyPriceCents: null,
+  }),
 ];
 
 const PACKAGES = [
@@ -154,7 +171,10 @@ function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
 function billingIs(value: BillingSummary = summary()) {
   vi.mocked(fetchBillingSummary).mockResolvedValue({ ok: true, data: value });
   vi.mocked(fetchBillingPlans).mockResolvedValue({ ok: true, data: PLANS });
-  vi.mocked(fetchCreditPackages).mockResolvedValue({ ok: true, data: PACKAGES });
+  vi.mocked(fetchCreditPackages).mockResolvedValue({
+    ok: true,
+    data: PACKAGES,
+  });
 }
 
 function tab(name: string) {
@@ -171,7 +191,10 @@ beforeEach(() => {
   userProfile = { ...PROFILE };
   stubLocation("https://loopdn.com/settings/");
   billingIs();
-  vi.mocked(fetchAccountSettings).mockResolvedValue({ ok: false, message: "x" });
+  vi.mocked(fetchAccountSettings).mockResolvedValue({
+    ok: false,
+    message: "x",
+  });
   URL.createObjectURL = vi.fn(() => "blob:preview");
   URL.revokeObjectURL = vi.fn();
 });
@@ -194,7 +217,9 @@ describe("UserSettingsPanel - tabs", () => {
   it("opens on the profile and shows each section as its tab is chosen", async () => {
     const onTabChange = vi.fn();
     render(<UserSettingsPanel profile={PROFILE} onTabChange={onTabChange} />);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Settings" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Profile" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -206,7 +231,10 @@ describe("UserSettingsPanel - tabs", () => {
       ["Appearance", () => screen.getByRole("heading", { name: "Appearance" })],
       ["Messaging", () => screen.getByRole("heading", { name: "Messaging" })],
       ["WhatsApp", () => screen.getByTestId("whatsapp-section")],
-      ["Notifications", () => screen.getByRole("heading", { name: "Notifications" })],
+      [
+        "Notifications",
+        () => screen.getByRole("heading", { name: "Notifications" }),
+      ],
       ["Privacy", () => screen.getByRole("heading", { name: "Privacy" })],
       ["Transactions", () => screen.getByTestId("transactions-section")],
       ["Account", () => screen.getByRole("heading", { name: "Account" })],
@@ -222,8 +250,12 @@ describe("UserSettingsPanel - tabs", () => {
   });
 
   it("starts on the tab it is given, or the first it is allowed", () => {
-    const first = render(<UserSettingsPanel profile={PROFILE} initialTab="privacy" />);
-    expect(screen.getByRole("heading", { name: "Privacy" })).toBeInTheDocument();
+    const first = render(
+      <UserSettingsPanel profile={PROFILE} initialTab="privacy" />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Privacy" }),
+    ).toBeInTheDocument();
     first.unmount();
 
     const second = render(
@@ -235,7 +267,9 @@ describe("UserSettingsPanel - tabs", () => {
       />,
     );
     expect(screen.getAllByRole("tab")).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Appearance" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 1 })).not.toBeInTheDocument();
     second.unmount();
 
@@ -261,7 +295,9 @@ describe("UserSettingsPanel - tabs", () => {
       "aria-selected",
       "true",
     );
-    expect(screen.getByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -269,7 +305,9 @@ describe("UserSettingsPanel - profile", () => {
   it("shows the contact details read-only, marked when verified", () => {
     render(<UserSettingsPanel profile={PROFILE} />);
     expect(screen.getByLabelText("Email (Verified)")).toBeDisabled();
-    expect(screen.getByLabelText("Email (Verified)")).toHaveValue("sam@example.com");
+    expect(screen.getByLabelText("Email (Verified)")).toHaveValue(
+      "sam@example.com",
+    );
     expect(screen.getByLabelText("Phone")).toBeDisabled();
   });
 
@@ -283,12 +321,16 @@ describe("UserSettingsPanel - profile", () => {
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Sam W" },
     });
-    fireEvent.change(screen.getByLabelText("Bio"), { target: { value: "Hello." } });
+    fireEvent.change(screen.getByLabelText("Bio"), {
+      target: { value: "Hello." },
+    });
     const file = new File(["png"], "me.png", { type: "image/png" });
     fireEvent.change(container.querySelector('input[type="file"]')!, {
       target: { files: [file] },
     });
-    expect(screen.getByText("New photo selected - save to apply")).toBeInTheDocument();
+    expect(
+      screen.getByText("New photo selected - save to apply"),
+    ).toBeInTheDocument();
 
     click("Save Profile");
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
@@ -319,16 +361,22 @@ describe("UserSettingsPanel - profile", () => {
         onSaveProfile={onSaveProfile}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: " " } });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: " " },
+    });
     expect(screen.getByRole("button", { name: "Save Profile" })).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Display Name"), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText("Display Name"), {
+      target: { value: "" },
+    });
     expect(screen.getByText("Your name")).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Display Name"), {
       target: { value: "Sam" },
     });
     click("Save Profile");
-    expect(await screen.findByRole("alert")).toHaveTextContent("That name is taken.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That name is taken.",
+    );
 
     click("Save Profile");
     await waitFor(() =>
@@ -354,7 +402,9 @@ describe("UserSettingsPanel - profile", () => {
 
 describe("UserSettingsPanel - billing", () => {
   async function openBilling() {
-    const view = render(<UserSettingsPanel profile={PROFILE} initialTab="billing" />);
+    const view = render(
+      <UserSettingsPanel profile={PROFILE} initialTab="billing" />,
+    );
     await waitFor(() =>
       expect(screen.queryByText("Loading billing...")).not.toBeInTheDocument(),
     );
@@ -398,7 +448,11 @@ describe("UserSettingsPanel - billing", () => {
           currentPeriodEnd: null,
           cancelAtPeriodEnd: false,
         },
-        wallet: { balanceCents: 5000, autoRechargeEnabled: false, autoRechargePackage: null },
+        wallet: {
+          balanceCents: 5000,
+          autoRechargeEnabled: false,
+          autoRechargePackage: null,
+        },
         enterpriseCredits: {
           contractNumber: "ENT-0001",
           status: "paused",
@@ -420,21 +474,28 @@ describe("UserSettingsPanel - billing", () => {
   it("leaves out the enterprise block for an account without credits", async () => {
     billingIs(summary({ enterpriseCredits: null }));
     await openBilling();
-    expect(screen.queryByText("Enterprise Message Credits")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Enterprise Message Credits"),
+    ).not.toBeInTheDocument();
   });
 
   it("offers the paid plans to move to, but not the one already held", async () => {
     await openBilling();
-    expect(screen.getByRole("button", { name: "Premium (Current)" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Premium (Current)" }),
+    ).toBeDisabled();
     expect(screen.getByRole("button", { name: /^Business/ })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: /^Free/ })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Free/ }),
+    ).not.toBeInTheDocument();
 
     click("Enterprise: Customize Plan");
     expect(push).toHaveBeenCalledWith("/enterprise/builder/");
   });
 
   it("starts a plan checkout and hands the page to Stripe", async () => {
-    const checkout = deferred<Awaited<ReturnType<typeof createPlanCheckoutSession>>>();
+    const checkout =
+      deferred<Awaited<ReturnType<typeof createPlanCheckoutSession>>>();
     vi.mocked(createPlanCheckoutSession).mockReturnValue(checkout.promise);
     await openBilling();
 
@@ -447,7 +508,10 @@ describe("UserSettingsPanel - billing", () => {
     expect(screen.getByRole("button", { name: /^Business/ })).toBeDisabled();
 
     await act(async () =>
-      checkout.resolve({ ok: true, data: { checkoutUrl: "https://stripe/c/1" } }),
+      checkout.resolve({
+        ok: true,
+        data: { checkoutUrl: "https://stripe/c/1" },
+      }),
     );
     expect(platform.openExternal).toHaveBeenCalledWith("https://stripe/c/1");
     expect(screen.getByRole("button", { name: /^Business/ })).toBeEnabled();
@@ -472,7 +536,9 @@ describe("UserSettingsPanel - billing", () => {
     await openBilling();
     expect(screen.getByRole("button", { name: "Buy $5.00" })).toBeEnabled();
 
-    fireEvent.change(screen.getByLabelText("Credit package"), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Credit package"), {
+      target: { value: "2" },
+    });
     click("Buy $20.00");
     await waitFor(() =>
       expect(platform.openExternal).toHaveBeenCalledWith("https://stripe/c/2"),
@@ -496,9 +562,13 @@ describe("UserSettingsPanel - billing", () => {
       expect.any(String),
       expect.any(String),
     );
-    expect(screen.getAllByRole("button", { name: "Redirecting..." })).toHaveLength(3);
+    expect(
+      screen.getAllByRole("button", { name: "Redirecting..." }),
+    ).toHaveLength(3);
 
-    await act(async () => checkout.resolve({ ok: false, message: "Wallet is frozen." }));
+    await act(async () =>
+      checkout.resolve({ ok: false, message: "Wallet is frozen." }),
+    );
     expect(screen.getByText("Wallet is frozen.")).toBeInTheDocument();
     expect(platform.openExternal).not.toHaveBeenCalled();
   });
@@ -507,18 +577,26 @@ describe("UserSettingsPanel - billing", () => {
     vi.mocked(fetchCreditPackages).mockResolvedValue({ ok: true, data: [] });
     await openBilling();
     expect(screen.getByRole("button", { name: "Buy credits" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Top up" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Top up" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reports whichever of the three loads failed", async () => {
-    vi.mocked(fetchBillingSummary).mockResolvedValue({ ok: false, message: "No summary." });
+    vi.mocked(fetchBillingSummary).mockResolvedValue({
+      ok: false,
+      message: "No summary.",
+    });
     const first = await openBilling();
     expect(screen.getByText("No summary.")).toBeInTheDocument();
     expect(screen.queryByText("Current Plan")).not.toBeInTheDocument();
     first.unmount();
 
     billingIs();
-    vi.mocked(fetchBillingPlans).mockResolvedValue({ ok: false, message: "No plans." });
+    vi.mocked(fetchBillingPlans).mockResolvedValue({
+      ok: false,
+      message: "No plans.",
+    });
     const second = await openBilling();
     expect(screen.getByText("No plans.")).toBeInTheDocument();
     second.unmount();
@@ -562,14 +640,18 @@ describe("UserSettingsModal", () => {
       "Account",
     ]);
     expect(SETTINGS_MODAL_TABS).not.toContain("profile");
-    expect(within(dialog).getByRole("heading", { name: "Security" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("heading", { name: "Security" }),
+    ).toBeInTheDocument();
 
     click("Close settings");
     expect(onClose).toHaveBeenCalled();
   });
 
   it("renders nothing while closed", () => {
-    render(<UserSettingsModal isOpen={false} onClose={() => {}} profile={PROFILE} />);
+    render(
+      <UserSettingsModal isOpen={false} onClose={() => {}} profile={PROFILE} />,
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
@@ -586,11 +668,15 @@ describe("useUserSettingsProps", () => {
     });
     const { result } = renderHook(() => useUserSettingsProps());
 
-    await waitFor(() => expect(result.current.notificationPreferences?.sound).toBe("none"));
+    await waitFor(() =>
+      expect(result.current.notificationPreferences?.sound).toBe("none"),
+    );
     expect(result.current.privacyPreferences?.groupAdds).toBe("nobody");
     expect(result.current.messagingPreferences?.enterToSend).toBe(false);
 
-    const update = setUserProfile.mock.calls[0][0] as (p: UserProfile) => UserProfile;
+    const update = setUserProfile.mock.calls[0][0] as (
+      p: UserProfile,
+    ) => UserProfile;
     expect(update(PROFILE)).toEqual({ ...PROFILE, emailEnabled: false });
   });
 
@@ -602,7 +688,9 @@ describe("useUserSettingsProps", () => {
 
     userProfile = { ...PROFILE, emailEnabled: false };
     const second = renderHook(() => useUserSettingsProps());
-    expect(second.result.current.messagingPreferences?.emailEnabled).toBe(false);
+    expect(second.result.current.messagingPreferences?.emailEnabled).toBe(
+      false,
+    );
   });
 
   it("saves the profile and keeps what the server sent back", async () => {
@@ -610,12 +698,22 @@ describe("useUserSettingsProps", () => {
     vi.mocked(updateUserProfile).mockResolvedValue(saved);
     const { result } = renderHook(() => useUserSettingsProps());
 
-    await act(() => result.current.onSaveProfile!({ ...PROFILE, displayName: "Sam W" }));
-    expect(updateUserProfile).toHaveBeenCalledWith({ ...PROFILE, displayName: "Sam W" });
+    await act(() =>
+      result.current.onSaveProfile!({ ...PROFILE, displayName: "Sam W" }),
+    );
+    expect(updateUserProfile).toHaveBeenCalledWith({
+      ...PROFILE,
+      displayName: "Sam W",
+    });
     expect(setUserProfile).toHaveBeenCalledWith(saved);
 
-    vi.mocked(updateUserProfile).mockResolvedValue({ ok: false, message: "Too long." });
-    await expect(result.current.onSaveProfile!(PROFILE)).rejects.toThrow("Too long.");
+    vi.mocked(updateUserProfile).mockResolvedValue({
+      ok: false,
+      message: "Too long.",
+    });
+    await expect(result.current.onSaveProfile!(PROFILE)).rejects.toThrow(
+      "Too long.",
+    );
   });
 
   it("saves each screen to the account and mirrors the answer locally", async () => {
@@ -644,7 +742,9 @@ describe("useUserSettingsProps", () => {
       ok: true,
       values: { missedCalls: false },
     });
-    await act(() => result.current.onSaveNotifications!({ missedCalls: false }));
+    await act(() =>
+      result.current.onSaveNotifications!({ missedCalls: false }),
+    );
     expect(result.current.notificationPreferences?.missedCalls).toBe(false);
 
     vi.mocked(saveAccountSettings).mockResolvedValue({
@@ -659,22 +759,34 @@ describe("useUserSettingsProps", () => {
   });
 
   it("throws the server's reason so the row can put itself back", async () => {
-    vi.mocked(saveAccountSettings).mockResolvedValue({ ok: false, message: "Refused." });
+    vi.mocked(saveAccountSettings).mockResolvedValue({
+      ok: false,
+      message: "Refused.",
+    });
     const { result } = renderHook(() => useUserSettingsProps());
-    await expect(result.current.onSaveMessaging!({})).rejects.toThrow("Refused.");
-    await expect(result.current.onSaveNotifications!({})).rejects.toThrow("Refused.");
+    await expect(result.current.onSaveMessaging!({})).rejects.toThrow(
+      "Refused.",
+    );
+    await expect(result.current.onSaveNotifications!({})).rejects.toThrow(
+      "Refused.",
+    );
     await expect(result.current.onSavePrivacy!({})).rejects.toThrow("Refused.");
   });
 
   it("ignores account settings that arrive after unmount", async () => {
-    const pending = deferred<Awaited<ReturnType<typeof fetchAccountSettings>>>();
+    const pending =
+      deferred<Awaited<ReturnType<typeof fetchAccountSettings>>>();
     vi.mocked(fetchAccountSettings).mockReturnValue(pending.promise);
     const { unmount } = renderHook(() => useUserSettingsProps());
     unmount();
     await act(async () =>
       pending.resolve({
         ok: true,
-        settings: { messaging: { emailEnabled: false }, notifications: {}, privacy: {} },
+        settings: {
+          messaging: { emailEnabled: false },
+          notifications: {},
+          privacy: {},
+        },
       }),
     );
     expect(setUserProfile).not.toHaveBeenCalled();
@@ -683,7 +795,9 @@ describe("useUserSettingsProps", () => {
 
 describe("SettingsPage", () => {
   it("opens on the profile, and keeps the address in step with the tab", () => {
-    const replaceState = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+    const replaceState = vi
+      .spyOn(window.history, "replaceState")
+      .mockImplementation(() => {});
     render(<SettingsPage />);
     expect(screen.getByLabelText("Display Name")).toHaveValue("Sam Wren");
 
@@ -698,13 +812,17 @@ describe("SettingsPage", () => {
   it("opens on the tab named in the address, and follows a change to it", () => {
     const location = stubLocation("https://loopdn.com/settings/#account");
     render(<SettingsPage />);
-    expect(screen.getByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
 
     location.hash = "#appearance";
     act(() => {
       window.dispatchEvent(new Event("hashchange"));
     });
-    expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Appearance" }),
+    ).toBeInTheDocument();
 
     location.hash = "#nonsense";
     act(() => {

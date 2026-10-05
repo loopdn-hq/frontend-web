@@ -40,7 +40,9 @@ vi.mock("@/components/commercial/CommercialOverview", () => ({
 }));
 
 import BillingCancelPage from "@/app/billing/cancel/page";
-import DownloadsPage, { metadata as downloadsMetadata } from "@/app/downloads/page";
+import DownloadsPage, {
+  metadata as downloadsMetadata,
+} from "@/app/downloads/page";
 import EnterpriseCheckoutCancelPage from "@/app/enterprise/checkout/cancel/page";
 import EnterpriseCheckoutSuccessPage from "@/app/enterprise/checkout/success/page";
 import RootLayout, { metadata as rootMetadata } from "@/app/layout";
@@ -94,7 +96,9 @@ describe("the root page", () => {
       /start free\. stay connected\./i,
       /bring everyone into the loop/i,
     ]) {
-      expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: heading }),
+      ).toBeInTheDocument();
     }
     expect(screen.getByAltText("Loopd'n app chat preview")).toBeInTheDocument();
     expect(screen.getByText("Up to 50 members")).toBeInTheDocument();
@@ -120,7 +124,9 @@ describe("the root page", () => {
 describe("not found", () => {
   it("says so and offers the way home", () => {
     render(<NotFound />);
-    expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Page not found" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Go back home" })).toHaveAttribute(
       "href",
       "/",
@@ -138,11 +144,9 @@ describe("the web app manifest", () => {
       scope: "/",
       display: "standalone",
     });
-    expect(value.icons?.map((icon) => `${icon.sizes} ${icon.purpose}`)).toEqual([
-      "192x192 any",
-      "512x512 any",
-      "512x512 maskable",
-    ]);
+    expect(value.icons?.map((icon) => `${icon.sizes} ${icon.purpose}`)).toEqual(
+      ["192x192 any", "512x512 any", "512x512 maskable"],
+    );
   });
 });
 
@@ -153,10 +157,9 @@ describe("the downloads page", () => {
     });
     withTheme(<DownloadsPage />);
 
-    expect(screen.getByRole("link", { name: "Download for Desktop" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("setup.exe"),
-    );
+    expect(
+      screen.getByRole("link", { name: "Download for Desktop" }),
+    ).toHaveAttribute("href", expect.stringContaining("setup.exe"));
     expect(
       screen.getByRole("heading", { name: "Built for the whole screen" }),
     ).toBeInTheDocument();
@@ -165,7 +168,9 @@ describe("the downloads page", () => {
       screen.getByText("macOS 11 Big Sur or later. Apple silicon and Intel."),
     ).toBeInTheDocument();
     expect(hrefOf(/open loopd'n on the web/i)).toBe("/chats");
-    expect(downloadsMetadata.title).toBe("Download Loopd'n for Desktop | Loopd'n");
+    expect(downloadsMetadata.title).toBe(
+      "Download Loopd'n for Desktop | Loopd'n",
+    );
   });
 });
 
@@ -179,7 +184,9 @@ describe("the legal pages", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: "1. About Loopd'n" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(5);
+    expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(
+      5,
+    );
     expect(termsMetadata.title).toBe("Terms & Conditions | Loopd'n");
   });
 
@@ -189,9 +196,14 @@ describe("the legal pages", () => {
       screen.getByRole("heading", { level: 1, name: "Privacy Policy" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 2, name: "1. Information We Collect" }),
+      screen.getByRole("heading", {
+        level: 2,
+        name: "1. Information We Collect",
+      }),
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(5);
+    expect(screen.getAllByRole("heading", { level: 2 }).length).toBeGreaterThan(
+      5,
+    );
     expect(privacyMetadata.title).toBe("Privacy Policy | Loopd'n");
   });
 });
@@ -211,10 +223,17 @@ describe("billing checkout cancelled", () => {
   it("names a credit package, or nothing when it does not know", () => {
     search = "flow=credits&package=3";
     const first = render(<BillingCancelPage />);
-    expect(screen.getByText("Selected credit package was 3.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Selected credit package was 3."),
+    ).toBeInTheDocument();
     first.unmount();
 
-    for (const query of ["", "flow=plan", "flow=credits", "flow=other&plan=x"]) {
+    for (const query of [
+      "",
+      "flow=plan",
+      "flow=credits",
+      "flow=other&plan=x",
+    ]) {
       search = query;
       const view = render(<BillingCancelPage />);
       expect(screen.queryByText(/^Selected/)).not.toBeInTheDocument();
@@ -230,7 +249,9 @@ describe("enterprise checkout result pages", () => {
     expect(
       screen.getByRole("heading", { name: "Payment Successful" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Contract reference: ENT-0001.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Contract reference: ENT-0001."),
+    ).toBeInTheDocument();
     expect(hrefOf("Go to Chats")).toBe("/chats");
     expect(hrefOf("Back to Billing Settings")).toBe("/settings");
   });
@@ -246,7 +267,9 @@ describe("enterprise checkout result pages", () => {
     expect(
       screen.getByRole("heading", { name: "Checkout Cancelled" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Contract reference: ENT-0001.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Contract reference: ENT-0001."),
+    ).toBeInTheDocument();
     expect(hrefOf("Back to Plan Builder")).toBe("/enterprise/builder");
     expect(hrefOf("Talk to Sales")).toBe("/contact");
     first.unmount();
@@ -268,13 +291,14 @@ describe("the root layout", () => {
 
   /** The inline scripts, in order: the theme, then the appearance choices. */
   function scripts() {
-    return [...markup().matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) =>
-      match[1]
-        .replaceAll("&quot;", '"')
-        .replaceAll("&#x27;", "'")
-        .replaceAll("&amp;", "&")
-        .replaceAll("&gt;", ">")
-        .replaceAll("&lt;", "<"),
+    return [...markup().matchAll(/<script>([\s\S]*?)<\/script>/g)].map(
+      (match) =>
+        match[1]
+          .replaceAll("&quot;", '"')
+          .replaceAll("&#x27;", "'")
+          .replaceAll("&amp;", "&")
+          .replaceAll("&gt;", ">")
+          .replaceAll("&lt;", "<"),
     );
   }
 

@@ -85,7 +85,12 @@ const CAMPAIGN = {
     { note: "no kind" },
   ],
   findings: [
-    { code: "link_dead", severity: "blocker", message: "Dead link.", creative_id: 1 },
+    {
+      code: "link_dead",
+      severity: "blocker",
+      message: "Dead link.",
+      creative_id: 1,
+    },
     { code: "short", severity: "odd", message: "Short." },
     "junk",
   ],
@@ -223,7 +228,12 @@ describe("fetchReviewCampaign", () => {
         message: "Dead link.",
         creativeId: 1,
       },
-      { code: "short", severity: "warning", message: "Short.", creativeId: null },
+      {
+        code: "short",
+        severity: "warning",
+        message: "Short.",
+        creativeId: null,
+      },
     ]);
     expect(result.data).toMatchObject({
       dailyBudgetCents: 5000,
@@ -312,7 +322,12 @@ describe("checkGroupMatch", () => {
         group: { id: 9, name: "Runners", member_count: 42 },
         matches: true,
         checks: [
-          { code: "size", label: "Group size", passed: true, detail: "42 members" },
+          {
+            code: "size",
+            label: "Group size",
+            passed: true,
+            detail: "42 members",
+          },
           { code: "region", label: "Region", passed: "yes" },
           null,
         ],
@@ -324,7 +339,12 @@ describe("checkGroupMatch", () => {
         group: { id: 9, name: "Runners", memberCount: 42 },
         matches: true,
         checks: [
-          { code: "size", label: "Group size", passed: true, detail: "42 members" },
+          {
+            code: "size",
+            label: "Group size",
+            passed: true,
+            detail: "42 members",
+          },
           { code: "region", label: "Region", passed: false, detail: "" },
         ],
       },

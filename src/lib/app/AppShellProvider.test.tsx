@@ -31,9 +31,9 @@ vi.mock("@/lib/websocket/useWebSocket", () => ({
   },
 }));
 vi.mock("@/lib/chat/conversations", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/chat/conversations")>(
-    "@/lib/chat/conversations",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/lib/chat/conversations")
+  >("@/lib/chat/conversations");
   return { ...actual, fetchConversations: vi.fn() };
 });
 vi.mock("@/lib/chat/notifications", () => ({ fetchNotifications: vi.fn() }));
@@ -41,13 +41,19 @@ vi.mock("@/lib/chat/notifications", () => ({ fetchNotifications: vi.fn() }));
 import { AppShellProvider, useAppShell } from "@/lib/app/AppShellProvider";
 import { syncPush } from "@/lib/app/push";
 import { fetchUserProfile, logout } from "@/lib/auth/client";
-import { fetchConversations, type Conversation } from "@/lib/chat/conversations";
+import {
+  fetchConversations,
+  type Conversation,
+} from "@/lib/chat/conversations";
 import { fetchNotifications } from "@/lib/chat/notifications";
 import { deferred, stubLocation } from "@/test/helpers";
 
 type Page = Awaited<ReturnType<typeof fetchConversations>>;
 
-function conversation(id: number, overrides: Partial<Conversation> = {}): Conversation {
+function conversation(
+  id: number,
+  overrides: Partial<Conversation> = {},
+): Conversation {
   return {
     id,
     kind: "group",
@@ -86,7 +92,9 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 
 async function mount() {
   const view = renderHook(() => useAppShell(), { wrapper });
-  await waitFor(() => expect(view.result.current.isLoadingConversations).toBe(false));
+  await waitFor(() =>
+    expect(view.result.current.isLoadingConversations).toBe(false),
+  );
   return view;
 }
 
@@ -114,8 +122,13 @@ describe("AppShellProvider - conversations", () => {
     const view = renderHook(() => useAppShell(), { wrapper });
     expect(view.result.current.isLoadingConversations).toBe(true);
 
-    await waitFor(() => expect(view.result.current.conversations).toHaveLength(2));
-    expect(view.result.current.conversations.map((row) => row.active)).toEqual([true, false]);
+    await waitFor(() =>
+      expect(view.result.current.conversations).toHaveLength(2),
+    );
+    expect(view.result.current.conversations.map((row) => row.active)).toEqual([
+      true,
+      false,
+    ]);
     expect(view.result.current.hasMoreConversations).toBe(true);
     expect(view.result.current.conversationsError).toBeNull();
   });
@@ -126,7 +139,9 @@ describe("AppShellProvider - conversations", () => {
       message: "Unable to load your Loops.",
     });
     const { result } = await mount();
-    expect(result.current.conversationsError).toBe("Unable to load your Loops.");
+    expect(result.current.conversationsError).toBe(
+      "Unable to load your Loops.",
+    );
 
     conversationsAre([conversation(1)]);
     act(() => result.current.reloadConversations());
@@ -145,7 +160,11 @@ describe("AppShellProvider - conversations", () => {
     await waitFor(() => expect(result.current.conversations).toHaveLength(1));
 
     await act(async () =>
-      slow.resolve({ ok: true, conversations: [conversation(1)], hasMore: false }),
+      slow.resolve({
+        ok: true,
+        conversations: [conversation(1)],
+        hasMore: false,
+      }),
     );
     expect(result.current.conversations[0].id).toBe(2);
   });
@@ -171,7 +190,9 @@ describe("AppShellProvider - conversations", () => {
         hasMore: false,
       }),
     );
-    expect(result.current.conversations.map((row) => row.id)).toEqual([1, 2, 3]);
+    expect(result.current.conversations.map((row) => row.id)).toEqual([
+      1, 2, 3,
+    ]);
     expect(result.current.hasMoreConversations).toBe(false);
 
     act(() => result.current.loadMoreConversations());
@@ -181,7 +202,10 @@ describe("AppShellProvider - conversations", () => {
   it("leaves the list as it is when the next page fails", async () => {
     conversationsAre([conversation(1)], true);
     const { result } = await mount();
-    vi.mocked(fetchConversations).mockResolvedValue({ ok: false, message: "down" });
+    vi.mocked(fetchConversations).mockResolvedValue({
+      ok: false,
+      message: "down",
+    });
     await act(async () => result.current.loadMoreConversations());
     expect(result.current.conversations).toHaveLength(1);
     expect(result.current.hasMoreConversations).toBe(true);
@@ -242,7 +266,10 @@ describe("AppShellProvider - the signed-in account", () => {
   });
 
   it("keeps what it had for anything the profile leaves out", async () => {
-    vi.mocked(fetchUserProfile).mockResolvedValue({ ok: true, displayName: "" });
+    vi.mocked(fetchUserProfile).mockResolvedValue({
+      ok: true,
+      displayName: "",
+    });
     const { result } = await mount();
     await waitFor(() => expect(fetchUserProfile).toHaveBeenCalled());
     expect(result.current.userProfile.displayName).toBe("sam");
@@ -295,7 +322,9 @@ describe("AppShellProvider - requests between screens", () => {
   it("opens the conversation named in the address, then tidies the address", async () => {
     vi.useFakeTimers();
     stubLocation("https://loopdn.com/chats/#conversation=42");
-    const replaceState = vi.spyOn(window.history, "replaceState").mockImplementation(() => {});
+    const replaceState = vi
+      .spyOn(window.history, "replaceState")
+      .mockImplementation(() => {});
     const { result } = renderHook(() => useAppShell(), { wrapper });
     expect(replaceState).toHaveBeenCalledWith(null, "", "/chats/");
     act(() => {
@@ -331,7 +360,9 @@ describe("AppShellProvider - requests between screens", () => {
     expect(result.current.conversationToOpen).toBeNull();
 
     act(() =>
-      onWorkerMessage({ data: { type: "loopdn:open-conversation", conversationId: 12 } }),
+      onWorkerMessage({
+        data: { type: "loopdn:open-conversation", conversationId: 12 },
+      }),
     );
     expect(result.current.conversationToOpen).toBe(12);
     expect(push).toHaveBeenCalledWith("/chats/");
@@ -355,7 +386,9 @@ describe("AppShellProvider - the socket", () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE_URL", "http://localhost:8000/api/v1");
     vi.stubEnv("NEXT_PUBLIC_WS_HOST", "ws.loopdn.test");
     await mount();
-    expect(socket.options?.url).toBe("ws://ws.loopdn.test/ws/chat/?token=access-1");
+    expect(socket.options?.url).toBe(
+      "ws://ws.loopdn.test/ws/chat/?token=access-1",
+    );
   });
 
   it("falls back to the local server, and stays closed without a token", async () => {
@@ -401,25 +434,37 @@ describe("AppShellProvider - the socket", () => {
   });
 
   it("starts the activity count at zero when it cannot be loaded", async () => {
-    vi.mocked(fetchNotifications).mockResolvedValue({ ok: false, message: "down" });
+    vi.mocked(fetchNotifications).mockResolvedValue({
+      ok: false,
+      message: "down",
+    });
     const { result } = await mount();
     expect(result.current.activityUnread).toBe(0);
   });
 
   it("folds in the conversation list when one is added or removed", async () => {
-    conversationsAre([conversation(1, { participants: [{ id: "1" } as never] })]);
+    conversationsAre([
+      conversation(1, { participants: [{ id: "1" } as never] }),
+    ]);
     const { result } = await mount();
 
     conversationsAre([conversation(2), conversation(1)]);
-    await act(async () => socket.options!.onMessage({ type: "conversation.added" }));
+    await act(async () =>
+      socket.options!.onMessage({ type: "conversation.added" }),
+    );
     await waitFor(() => expect(result.current.conversations).toHaveLength(2));
     // Members already loaded for a row survive the refresh.
     expect(
       result.current.conversations.find((row) => row.id === 1)?.participants,
     ).toHaveLength(1);
 
-    vi.mocked(fetchConversations).mockResolvedValue({ ok: false, message: "down" });
-    await act(async () => socket.options!.onMessage({ type: "conversation.removed" }));
+    vi.mocked(fetchConversations).mockResolvedValue({
+      ok: false,
+      message: "down",
+    });
+    await act(async () =>
+      socket.options!.onMessage({ type: "conversation.removed" }),
+    );
     expect(result.current.conversations).toHaveLength(2);
   });
 
@@ -456,7 +501,8 @@ describe("AppShellProvider - the socket", () => {
 describe("AppShellProvider - late answers", () => {
   it("ignores everything that arrives after it has gone", async () => {
     const conversations = deferred<Page>();
-    const notifications = deferred<Awaited<ReturnType<typeof fetchNotifications>>>();
+    const notifications =
+      deferred<Awaited<ReturnType<typeof fetchNotifications>>>();
     const profile = deferred<Awaited<ReturnType<typeof fetchUserProfile>>>();
     vi.mocked(fetchConversations).mockReturnValue(conversations.promise);
     vi.mocked(fetchNotifications).mockReturnValue(notifications.promise);
@@ -464,7 +510,11 @@ describe("AppShellProvider - late answers", () => {
 
     const { result, unmount } = renderHook(() => useAppShell(), { wrapper });
     unmount();
-    conversations.resolve({ ok: true, conversations: [conversation(1)], hasMore: false });
+    conversations.resolve({
+      ok: true,
+      conversations: [conversation(1)],
+      hasMore: false,
+    });
     notifications.resolve({
       ok: true,
       page: { notifications: [], unreadCount: 9, hasMore: false },

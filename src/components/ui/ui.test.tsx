@@ -123,11 +123,19 @@ describe("Checkbox", () => {
 describe("Field", () => {
   it("ties its label to the control and shows the hint and the error", () => {
     render(
-      <Field label="Email" htmlFor="email" hint="We never share it." error="Required.">
+      <Field
+        label="Email"
+        htmlFor="email"
+        hint="We never share it."
+        error="Required."
+      >
         <Input id="email" state="error" uppercaseTracking />
       </Field>,
     );
-    expect(screen.getByLabelText("Email")).toHaveClass("border-rose-300", "uppercase");
+    expect(screen.getByLabelText("Email")).toHaveClass(
+      "border-rose-300",
+      "uppercase",
+    );
     expect(screen.getByText("We never share it.")).toBeInTheDocument();
     expect(screen.getByText("Required.")).toHaveClass("text-rose-600");
   });
@@ -173,7 +181,14 @@ describe("Select", () => {
   });
 
   it("has no placeholder option unless asked", () => {
-    render(<Select aria-label="Letter" options={options} value="a" onChange={() => {}} />);
+    render(
+      <Select
+        aria-label="Letter"
+        options={options}
+        value="a"
+        onChange={() => {}}
+      />,
+    );
     expect(screen.getAllByRole("option")).toHaveLength(2);
   });
 });
@@ -196,14 +211,20 @@ describe("Switch", () => {
   it("reports the opposite of where it is", async () => {
     const onCheckedChange = vi.fn();
     const { rerender } = render(
-      <Switch checked={false} onCheckedChange={onCheckedChange} aria-label="Sound" />,
+      <Switch
+        checked={false}
+        onCheckedChange={onCheckedChange}
+        aria-label="Sound"
+      />,
     );
     const toggle = screen.getByRole("switch", { name: "Sound" });
     expect(toggle).toHaveAttribute("aria-checked", "false");
     await userEvent.click(toggle);
     expect(onCheckedChange).toHaveBeenCalledWith(true);
 
-    rerender(<Switch checked onCheckedChange={onCheckedChange} aria-label="Sound" />);
+    rerender(
+      <Switch checked onCheckedChange={onCheckedChange} aria-label="Sound" />,
+    );
     await userEvent.click(toggle);
     expect(onCheckedChange).toHaveBeenLastCalledWith(false);
   });
@@ -292,7 +313,8 @@ describe("RadioGroup", () => {
       />,
     );
     expect(screen.getByRole("radiogroup")).toHaveClass("grid");
-    for (const radio of screen.getAllByRole("radio")) expect(radio).toBeDisabled();
+    for (const radio of screen.getAllByRole("radio"))
+      expect(radio).toBeDisabled();
 
     rerender(
       <RadioGroup
@@ -343,7 +365,9 @@ describe("Modal", () => {
     expect(dialog).toHaveAccessibleDescription("You can rejoin later.");
     expect(dialog).toHaveFocus();
     expect(document.body.style.overflow).toBe("hidden");
-    expect(within(dialog).getByRole("button", { name: "Leave" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("button", { name: "Leave" }),
+    ).toBeInTheDocument();
   });
 
   it("closes from its button, the backdrop and Escape - and gives focus back", async () => {
@@ -384,12 +408,19 @@ describe("Modal", () => {
         <Modal isOpen onClose={closeOuter} title="Outer">
           outer
         </Modal>
-        <Modal isOpen onClose={closeInner} title="Inner" maxWidthClassName="max-w-xl">
+        <Modal
+          isOpen
+          onClose={closeInner}
+          title="Inner"
+          maxWidthClassName="max-w-xl"
+        >
           inner
         </Modal>
       </>,
     );
-    expect(screen.getByRole("dialog", { name: "Inner" })).toHaveClass("max-w-xl");
+    expect(screen.getByRole("dialog", { name: "Inner" })).toHaveClass(
+      "max-w-xl",
+    );
     expect(screen.getByRole("dialog", { name: "Outer" })).not.toHaveAttribute(
       "aria-describedby",
     );
@@ -413,7 +444,11 @@ describe("Modal", () => {
 });
 
 describe("ToastProvider", () => {
-  function Trigger({ toast }: { toast: Parameters<ReturnType<typeof useToast>>[0] }) {
+  function Trigger({
+    toast,
+  }: {
+    toast: Parameters<ReturnType<typeof useToast>>[0];
+  }) {
     const show = useToast();
     return <button onClick={() => show(toast)}>Show</button>;
   }
@@ -422,7 +457,9 @@ describe("ToastProvider", () => {
     vi.useFakeTimers();
     render(
       <ToastProvider>
-        <Trigger toast={{ title: "Saved", description: "Your changes are in." }} />
+        <Trigger
+          toast={{ title: "Saved", description: "Your changes are in." }}
+        />
       </ToastProvider>,
     );
     fireEvent.click(screen.getByText("Show"));
@@ -452,9 +489,9 @@ describe("ToastProvider", () => {
 
   it("refuses to be used outside its provider", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(() => render(<Trigger toast={{ title: "x", tone: "info" }} />)).toThrow(
-      "useToast() must be used under ToastProvider.",
-    );
+    expect(() =>
+      render(<Trigger toast={{ title: "x", tone: "info" }} />),
+    ).toThrow("useToast() must be used under ToastProvider.");
   });
 });
 
@@ -577,7 +614,11 @@ describe("ContextMenu", () => {
   it("never flips off the opposite edge", () => {
     sizeOf(5000, 5000);
     render(
-      <ContextMenu origin={{ x: 100, y: 100 }} items={items()} onClose={() => {}} />,
+      <ContextMenu
+        origin={{ x: 100, y: 100 }}
+        items={items()}
+        onClose={() => {}}
+      />,
     );
     expect(screen.getByRole("menu")).toHaveStyle({ left: "8px", top: "8px" });
   });
@@ -586,7 +627,11 @@ describe("ContextMenu", () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
     render(
-      <ContextMenu origin={{ x: 1, y: 1 }} items={items(onSelect)} onClose={onClose} />,
+      <ContextMenu
+        origin={{ x: 1, y: 1 }}
+        items={items(onSelect)}
+        onClose={onClose}
+      />,
     );
     await userEvent.click(screen.getByRole("menuitem", { name: /copy/i }));
     expect(onSelect).toHaveBeenCalledTimes(1);
@@ -597,7 +642,13 @@ describe("ContextMenu", () => {
   });
 
   it("walks the enabled items with the arrow keys, wrapping at both ends", async () => {
-    render(<ContextMenu origin={{ x: 1, y: 1 }} items={items()} onClose={() => {}} />);
+    render(
+      <ContextMenu
+        origin={{ x: 1, y: 1 }}
+        items={items()}
+        onClose={() => {}}
+      />,
+    );
     const reply = screen.getByRole("menuitem", { name: "Reply" });
     const copy = screen.getByRole("menuitem", { name: /copy/i });
     const remove = screen.getByRole("menuitem", { name: /delete/i });

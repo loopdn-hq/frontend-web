@@ -9,12 +9,18 @@ vi.mock("@/lib/app/AppShellProvider", () => ({
   useAppShell: () => ({ conversations }),
 }));
 
-import { ActiveCallView, MinimizedCallBar } from "@/components/calls/ActiveCallView";
+import {
+  ActiveCallView,
+  MinimizedCallBar,
+} from "@/components/calls/ActiveCallView";
 import { CallControls } from "@/components/calls/CallControls";
 import { CallLayer } from "@/components/calls/CallLayer";
 import { ConversationCallButtons } from "@/components/calls/ConversationCallButtons";
 import { IncomingCallPrompt } from "@/components/calls/IncomingCallPrompt";
-import { AudioTrackPlayer, VideoTrackView } from "@/components/calls/MediaTracks";
+import {
+  AudioTrackPlayer,
+  VideoTrackView,
+} from "@/components/calls/MediaTracks";
 import { ParticipantTile } from "@/components/calls/ParticipantTile";
 import { normalizeCall, type Call } from "@/lib/calls/api";
 import type { CallMediaParticipant } from "@/lib/calls/useLiveKitRoom";
@@ -28,7 +34,9 @@ function track(sid = "t1") {
   };
 }
 
-function participant(overrides: Partial<CallMediaParticipant> = {}): CallMediaParticipant {
+function participant(
+  overrides: Partial<CallMediaParticipant> = {},
+): CallMediaParticipant {
   return {
     identity: "7",
     name: "Sam",
@@ -47,16 +55,28 @@ function call(overrides: Record<string, unknown> = {}): Call {
     conversation: 12,
     call_type: "audio",
     status: "active",
-    created_by: { id: 8, username: "alex", profile: { display_label: "Alex Sato" } },
+    created_by: {
+      id: 8,
+      username: "alex",
+      profile: { display_label: "Alex Sato" },
+    },
     created_at: "2026-10-05T12:00:00Z",
     started_at: "2026-10-05T12:00:00Z",
     participants: [
       {
         id: 1,
-        user: { id: 8, username: "alex", profile: { avatar_url: "https://cdn.example/a.png" } },
+        user: {
+          id: 8,
+          username: "alex",
+          profile: { avatar_url: "https://cdn.example/a.png" },
+        },
         left_at: null,
       },
-      { id: 2, user: { id: 7, username: "sam" }, left_at: "2026-10-05T12:01:00Z" },
+      {
+        id: 2,
+        user: { id: 7, username: "sam" },
+        left_at: "2026-10-05T12:01:00Z",
+      },
     ],
     ...overrides,
   })!;
@@ -105,10 +125,14 @@ function useCallsIs(overrides: Record<string, unknown> = {}) {
     dismissNotice: vi.fn(),
     dismissError: vi.fn(),
     conversationFor: (target: Call) =>
-      conversations.find((row) => String(row.id) === String(target.conversationId)),
+      conversations.find(
+        (row) => String(row.id) === String(target.conversationId),
+      ),
     ...overrides,
   };
-  return calls as Record<string, ReturnType<typeof vi.fn>> & { media: ReturnType<typeof media> };
+  return calls as Record<string, ReturnType<typeof vi.fn>> & {
+    media: ReturnType<typeof media>;
+  };
 }
 
 function click(name: string | RegExp) {
@@ -117,7 +141,12 @@ function click(name: string | RegExp) {
 
 beforeEach(() => {
   conversations = [
-    { id: 12, kind: "group", name: "Book club", logoImage: "https://cdn.example/club.png" },
+    {
+      id: 12,
+      kind: "group",
+      name: "Book club",
+      logoImage: "https://cdn.example/club.png",
+    },
     { id: 20, kind: "direct", name: "Alex Sato", logoImage: null },
   ];
   useCallsIs();
@@ -150,7 +179,9 @@ describe("media elements", () => {
 
   it("plays an audio track, and stops when it goes", () => {
     const audio = track();
-    const { container, unmount } = render(<AudioTrackPlayer track={audio as never} />);
+    const { container, unmount } = render(
+      <AudioTrackPlayer track={audio as never} />,
+    );
     expect(audio.attach).toHaveBeenCalledWith(container.querySelector("audio"));
     unmount();
     expect(audio.detach).toHaveBeenCalled();
@@ -175,14 +206,23 @@ describe("ParticipantTile", () => {
     expect(screen.getByText("Alex")).toBeInTheDocument();
     expect(screen.getByLabelText("Muted")).toBeInTheDocument();
     expect(screen.getByLabelText("Poor connection")).toBeInTheDocument();
-    expect(container.querySelector("img")).toHaveAttribute("src", "https://cdn.example/a.png");
+    expect(container.querySelector("img")).toHaveAttribute(
+      "src",
+      "https://cdn.example/a.png",
+    );
     expect(container.querySelector("video")).toBeNull();
-    expect(container.firstElementChild).toHaveClass("ring-emerald-400", "extra");
+    expect(container.firstElementChild).toHaveClass(
+      "ring-emerald-400",
+      "extra",
+    );
   });
 
   it("mirrors your own camera, and names it as yours", () => {
     const { container } = render(
-      <ParticipantTile participant={participant({ cameraTrack: track() as never })} compact />,
+      <ParticipantTile
+        participant={participant({ cameraTrack: track() as never })}
+        compact
+      />,
     );
     expect(screen.getByText("Sam (you)")).toBeInTheDocument();
     expect(container.querySelector("video")).toHaveClass("-scale-x-100");
@@ -192,14 +232,19 @@ describe("ParticipantTile", () => {
   it("shows a shared screen whole, unmirrored, without the mute mark", () => {
     const mine = render(
       <ParticipantTile
-        participant={participant({ isMicrophoneEnabled: false, isSpeaking: true })}
+        participant={participant({
+          isMicrophoneEnabled: false,
+          isSpeaking: true,
+        })}
         track={track() as never}
         isScreen
       />,
     );
     expect(screen.getByText("Your screen")).toBeInTheDocument();
     expect(mine.container.querySelector("video")).toHaveClass("object-contain");
-    expect(mine.container.querySelector("video")).not.toHaveClass("-scale-x-100");
+    expect(mine.container.querySelector("video")).not.toHaveClass(
+      "-scale-x-100",
+    );
     expect(screen.queryByLabelText("Muted")).not.toBeInTheDocument();
     expect(mine.container.firstElementChild).toHaveClass("ring-transparent");
     mine.unmount();
@@ -224,8 +269,12 @@ describe("CallControls", () => {
   it("mutes, shares and leaves in a group audio call", () => {
     const state = useCallsIs();
     render(<CallControls />);
-    expect(screen.queryByRole("button", { name: /camera/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /record/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /camera/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /record/i }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "End for everyone" }),
     ).not.toBeInTheDocument();
@@ -242,7 +291,11 @@ describe("CallControls", () => {
   it("offers the camera on a video call, and reflects each device's state", () => {
     const state = useCallsIs({
       activeCall: call({ call_type: "video" }),
-      media: media({ isMicrophoneEnabled: false, isCameraEnabled: true, isScreenSharing: true }),
+      media: media({
+        isMicrophoneEnabled: false,
+        isCameraEnabled: true,
+        isScreenSharing: true,
+      }),
     });
     render(<CallControls />);
     expect(screen.getByRole("button", { name: "Unmute" })).toHaveAttribute(
@@ -257,14 +310,18 @@ describe("CallControls", () => {
   it("offers to turn the camera on when it is off", () => {
     useCallsIs({ activeCall: call({ call_type: "video" }) });
     render(<CallControls />);
-    expect(screen.getByRole("button", { name: "Turn camera on" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Turn camera on" }),
+    ).toBeInTheDocument();
   });
 
   it("says why the screen cannot be shared rather than hiding the button", () => {
     useCallsIs({ media: media({ screenShareSupport: "not-in-plan" }) });
     const first = render(<CallControls />);
     expect(
-      screen.getByRole("button", { name: "Screen sharing isn't included in this plan" }),
+      screen.getByRole("button", {
+        name: "Screen sharing isn't included in this plan",
+      }),
     ).toBeDisabled();
     first.unmount();
 
@@ -276,7 +333,10 @@ describe("CallControls", () => {
   });
 
   it("locks the devices until the media is connected, but never the hang-up", () => {
-    useCallsIs({ media: media({ state: "connecting" }), canAdministerActiveCall: true });
+    useCallsIs({
+      media: media({ state: "connecting" }),
+      canAdministerActiveCall: true,
+    });
     render(<CallControls />);
     expect(screen.getByRole("button", { name: "Mute" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Record" })).toBeDisabled();
@@ -304,7 +364,9 @@ describe("CallControls", () => {
       activeCall: call({ is_recording: true }),
     });
     render(<CallControls />);
-    expect(screen.getByRole("button", { name: "Stop recording" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Stop recording" }),
+    ).toBeDisabled();
   });
 
   it("hangs up for both sides of a one-to-one, like a phone", () => {
@@ -328,7 +390,10 @@ describe("IncomingCallPrompt", () => {
   });
 
   it("names the group and who started the call", () => {
-    const state = useCallsIs({ activeCall: null, incomingCall: call({ status: "ringing" }) });
+    const state = useCallsIs({
+      activeCall: null,
+      incomingCall: call({ status: "ringing" }),
+    });
     render(<IncomingCallPrompt />);
     const prompt = screen.getByRole("alertdialog", {
       name: "Incoming voice call from Alex Sato",
@@ -345,7 +410,11 @@ describe("IncomingCallPrompt", () => {
   it("names the caller for a one-to-one video call", () => {
     useCallsIs({
       activeCall: null,
-      incomingCall: call({ status: "ringing", conversation: 20, call_type: "video" }),
+      incomingCall: call({
+        status: "ringing",
+        conversation: 20,
+        call_type: "video",
+      }),
     });
     render(<IncomingCallPrompt />);
     const prompt = screen.getByRole("alertdialog", {
@@ -356,19 +425,29 @@ describe("IncomingCallPrompt", () => {
   });
 
   it("warns that answering leaves the call already under way", () => {
-    useCallsIs({ incomingCall: call({ id: 40, status: "ringing", conversation: 20 }) });
+    useCallsIs({
+      incomingCall: call({ id: 40, status: "ringing", conversation: 20 }),
+    });
     render(<IncomingCallPrompt />);
-    expect(screen.getByRole("button", { name: "Leave & answer" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Leave & answer" }),
+    ).toBeInTheDocument();
   });
 
   it("copes with a caller and a conversation it does not know", () => {
     useCallsIs({
       activeCall: null,
-      incomingCall: call({ status: "ringing", conversation: 999, created_by: null }),
+      incomingCall: call({
+        status: "ringing",
+        conversation: 999,
+        created_by: null,
+      }),
     });
     render(<IncomingCallPrompt />);
     expect(
-      screen.getByRole("alertdialog", { name: "Incoming voice call from Someone" }),
+      screen.getByRole("alertdialog", {
+        name: "Incoming voice call from Someone",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -376,7 +455,9 @@ describe("IncomingCallPrompt", () => {
     conversations = [{ id: 12, kind: "group", logoImage: null }];
     useCallsIs({ activeCall: null, incomingCall: call({ status: "ringing" }) });
     render(<IncomingCallPrompt />);
-    expect(screen.getByRole("alertdialog")).toHaveTextContent("Alex Sato started a voice call");
+    expect(screen.getByRole("alertdialog")).toHaveTextContent(
+      "Alex Sato started a voice call",
+    );
   });
 });
 
@@ -401,7 +482,9 @@ describe("ConversationCallButtons", () => {
   it("waits while another call is starting", () => {
     useCallsIs({ activeCall: null, phase: "starting" });
     render(<ConversationCallButtons conversationId={12} canStart />);
-    expect(screen.getByRole("button", { name: "Start a voice call" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Start a voice call" }),
+    ).toBeDisabled();
   });
 
   it("offers the way back to the call you are in here", () => {
@@ -439,7 +522,9 @@ describe("ConversationCallButtons", () => {
       phase: "joining",
       liveCallsByConversation: { "12": three },
     });
-    const first = render(<ConversationCallButtons conversationId={12} canStart />);
+    const first = render(
+      <ConversationCallButtons conversationId={12} canStart />,
+    );
     const join = screen.getByRole("button", { name: /join call/i });
     expect(join).toHaveAttribute("title", "3 people in the call");
     expect(join).toBeDisabled();
@@ -467,7 +552,9 @@ describe("ActiveCallView", () => {
   it("titles the call by its conversation and shows how long it has run", () => {
     render(<ActiveCallView />);
     const dialog = screen.getByRole("dialog", { name: "Call: Book club" });
-    expect(within(dialog).getByRole("heading", { name: "Book club" })).toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("heading", { name: "Book club" }),
+    ).toBeInTheDocument();
     expect(within(dialog).getByText("1:15")).toBeInTheDocument();
     expect(within(dialog).getByText("Sam (you)")).toBeInTheDocument();
   });
@@ -485,13 +572,17 @@ describe("ActiveCallView", () => {
     useCallsIs({ media: media({ state: "reconnecting" }) });
     render(<ActiveCallView />);
     expect(screen.getByText("Reconnecting...")).toBeInTheDocument();
-    expect(screen.getByText("Connection interrupted. Reconnecting...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Connection interrupted. Reconnecting..."),
+    ).toBeInTheDocument();
   });
 
   it("says who it is waiting for while nobody else has joined", () => {
     useCallsIs({ activeCall: call({ status: "ringing" }) });
     const group = render(<ActiveCallView />);
-    expect(screen.getByText("Waiting for others to join...")).toBeInTheDocument();
+    expect(
+      screen.getByText("Waiting for others to join..."),
+    ).toBeInTheDocument();
     group.unmount();
 
     useCallsIs({ activeCall: call({ status: "ringing", conversation: 20 }) });
@@ -503,11 +594,16 @@ describe("ActiveCallView", () => {
     useCallsIs({
       activeCall: call({ status: "ringing" }),
       media: media({
-        participants: [participant(), participant({ identity: "8", name: "Alex", isLocal: false })],
+        participants: [
+          participant(),
+          participant({ identity: "8", name: "Alex", isLocal: false }),
+        ],
       }),
     });
     render(<ActiveCallView />);
-    expect(screen.queryByText("Waiting for others to join...")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Waiting for others to join..."),
+    ).not.toBeInTheDocument();
   });
 
   it("says Connected for a call with no start time yet", () => {
@@ -524,14 +620,18 @@ describe("ActiveCallView", () => {
       media: media({ participants: [], state: "connecting" }),
     });
     render(<ActiveCallView />);
-    expect(screen.getByRole("dialog", { name: "Call: Alex Sato" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Call: Alex Sato" }),
+    ).toBeInTheDocument();
     expect(screen.getAllByText("Calling...")).toHaveLength(2);
   });
 
   it("falls back to a plain title when it knows no conversation", () => {
     useCallsIs({ activeCall: null, phase: "joining" });
     render(<ActiveCallView />);
-    expect(screen.getByRole("dialog", { name: "Call: Call" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Call: Call" }),
+    ).toBeInTheDocument();
   });
 
   it("says a recording is running, and can be minimised", () => {
@@ -545,7 +645,11 @@ describe("ActiveCallView", () => {
   it("shows a device problem, and lets it be dismissed", () => {
     const state = useCallsIs({
       media: media({
-        deviceError: { kind: "camera", permissionDenied: true, message: "Camera blocked." },
+        deviceError: {
+          kind: "camera",
+          permissionDenied: true,
+          message: "Camera blocked.",
+        },
       }),
     });
     render(<ActiveCallView />);
@@ -566,7 +670,10 @@ describe("ActiveCallView", () => {
     const state = useCallsIs({
       media: media({
         isScreenSharing: true,
-        participants: [sharing, participant({ identity: "8", name: "Alex", isLocal: false })],
+        participants: [
+          sharing,
+          participant({ identity: "8", name: "Alex", isLocal: false }),
+        ],
       }),
     });
     render(<ActiveCallView />);
@@ -584,13 +691,17 @@ describe("ActiveCallView", () => {
     useCallsIs({ media: media({ screenShareSupport: "not-in-plan" }) });
     const first = render(<ActiveCallView />);
     expect(
-      screen.getByText("Screen sharing isn't included in the plan for this call."),
+      screen.getByText(
+        "Screen sharing isn't included in the plan for this call.",
+      ),
     ).toBeInTheDocument();
     first.unmount();
 
     useCallsIs({ media: media({ screenShareSupport: "unsupported" }) });
     render(<ActiveCallView />);
-    expect(screen.getByText(/This browser can't share a screen\./)).toBeInTheDocument();
+    expect(
+      screen.getByText(/This browser can't share a screen\./),
+    ).toBeInTheDocument();
   });
 
   it.each([
@@ -618,11 +729,15 @@ describe("ActiveCallView", () => {
   it("uses the avatar of each person from the call's own list", () => {
     useCallsIs({
       media: media({
-        participants: [participant({ identity: "8", name: "Alex", isLocal: false })],
+        participants: [
+          participant({ identity: "8", name: "Alex", isLocal: false }),
+        ],
       }),
     });
     const { container } = render(<ActiveCallView />);
-    expect(container.querySelector('img[src="https://cdn.example/a.png"]')).not.toBeNull();
+    expect(
+      container.querySelector('img[src="https://cdn.example/a.png"]'),
+    ).not.toBeNull();
   });
 });
 
@@ -676,12 +791,16 @@ describe("CallLayer", () => {
 
   it("shows the call full-screen, or as a bar when minimised", () => {
     const full = render(<CallLayer />);
-    expect(screen.getByRole("dialog", { name: "Call: Book club" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Call: Book club" }),
+    ).toBeInTheDocument();
     full.unmount();
 
     useCallsIs({ isMinimized: true });
     render(<CallLayer />);
-    expect(screen.getByRole("region", { name: "Call: Book club" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Call: Book club" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -724,7 +843,11 @@ describe("CallLayer", () => {
 
   it("shows a notice for a moment, then lets it go", () => {
     vi.useFakeTimers();
-    const state = useCallsIs({ phase: "ended", activeCall: null, notice: "Call ended." });
+    const state = useCallsIs({
+      phase: "ended",
+      activeCall: null,
+      notice: "Call ended.",
+    });
     render(<CallLayer />);
     expect(screen.getByRole("status")).toHaveTextContent("Call ended.");
     act(() => {
@@ -745,7 +868,9 @@ describe("CallLayer", () => {
       error: "Lost connection to the call.",
     });
     const { unmount } = render(<CallLayer />);
-    expect(screen.getByRole("status")).toHaveTextContent("Lost connection to the call.");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Lost connection to the call.",
+    );
     act(() => {
       vi.advanceTimersByTime(7999);
     });

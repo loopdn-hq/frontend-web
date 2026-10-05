@@ -63,6 +63,7 @@ const CHECKOUT_OK: Checkout = {
   checkoutUrl: "https://checkout.stripe.com/c/pay_123",
   invoice: INVOICE,
   contractId: "contract-1",
+  contractNumber: "ENT-0001",
 };
 
 /** The summary card: the selections, the estimate and the way forward. */
@@ -108,7 +109,9 @@ describe("EnterprisePlanBuilderPage - choosing", () => {
     expect(
       screen.getByRole("link", { name: "Talk to sales instead" }),
     ).toHaveAttribute("href", expect.stringMatching(/^\/contact\/?$/));
-    await waitFor(() => expect(fetchEnterprisePricingCatalog).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(fetchEnterprisePricingCatalog).toHaveBeenCalled(),
+    );
   });
 
   it("saves each choice as it is made, and re-estimates", async () => {
@@ -295,7 +298,9 @@ describe("EnterprisePlanBuilderPage - continuing", () => {
 
     await act(async () => answer.resolve(CHECKOUT_OK));
     const dialog = screen.getByRole("dialog", { name: "Review your invoice" });
-    expect(dialog).toHaveTextContent("Quarterly billing, calculated by Loopd'n.");
+    expect(dialog).toHaveTextContent(
+      "Quarterly billing, calculated by Loopd'n.",
+    );
     expect(dialog).toHaveTextContent("$598.50");
     expect(loadEnterpriseDraft()?.remoteDraftId).toBe("draft-9");
 
@@ -325,9 +330,9 @@ describe("EnterprisePlanBuilderPage - continuing", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await screen.findByRole("dialog");
-    expect(
-      vi.mocked(submitEnterpriseConfiguration).mock.calls[1][1],
-    ).toBe("draft-9");
+    expect(vi.mocked(submitEnterpriseConfiguration).mock.calls[1][1]).toBe(
+      "draft-9",
+    );
   });
 
   it("says why checkout could not be prepared, until the plan is changed", async () => {
@@ -393,16 +398,21 @@ describe("InvoicePreviewModal", () => {
   it.each([
     ["monthly", "Monthly"],
     ["annual", "Annual"],
-  ] as const)("names %s billing, with no discount row at zero", (interval, label) => {
-    show({
-      ...INVOICE,
-      billingInterval: interval,
-      discountCents: 0,
-      currency: "eur",
-    });
-    const dialog = screen.getByRole("dialog");
-    expect(dialog).toHaveTextContent(`${label} billing, calculated by Loopd'n.`);
-    expect(dialog).not.toHaveTextContent("Discount");
-    expect(dialog).toHaveTextContent("€598.50");
-  });
+  ] as const)(
+    "names %s billing, with no discount row at zero",
+    (interval, label) => {
+      show({
+        ...INVOICE,
+        billingInterval: interval,
+        discountCents: 0,
+        currency: "eur",
+      });
+      const dialog = screen.getByRole("dialog");
+      expect(dialog).toHaveTextContent(
+        `${label} billing, calculated by Loopd'n.`,
+      );
+      expect(dialog).not.toHaveTextContent("Discount");
+      expect(dialog).toHaveTextContent("€598.50");
+    },
+  );
 });

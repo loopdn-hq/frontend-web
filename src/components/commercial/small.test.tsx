@@ -1,4 +1,11 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,9 +26,9 @@ vi.mock("@/lib/auth/client", () => ({
   useAuth: () => auth,
 }));
 vi.mock("@/lib/rbac", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/rbac/requirements")>(
-    "@/lib/rbac/requirements",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/lib/rbac/requirements")
+  >("@/lib/rbac/requirements");
   return { meets: actual.meets, useFeatures: () => features };
 });
 vi.mock("@/lib/commercial/api", () => ({
@@ -72,8 +79,14 @@ vi.mock("@/components/commercial/CompanyForm", () => ({
 }));
 
 import { AddFundsDialog } from "@/components/commercial/AddFundsDialog";
-import { AudienceSummary, describeAudience } from "@/components/commercial/AudienceSummary";
-import { StepFooter, StepFrame } from "@/components/commercial/builder/StepFrame";
+import {
+  AudienceSummary,
+  describeAudience,
+} from "@/components/commercial/AudienceSummary";
+import {
+  StepFooter,
+  StepFrame,
+} from "@/components/commercial/builder/StepFrame";
 import {
   dateInputValue,
   endOfDay,
@@ -127,7 +140,10 @@ import { deferred, stubLocation } from "@/test/helpers";
 
 const NEW_COMPANY = company({ id: 9, name: "Globex" });
 
-function companiesAre(active: Company | null, list: Company[] = active ? [active] : []) {
+function companiesAre(
+  active: Company | null,
+  list: Company[] = active ? [active] : [],
+) {
   vi.mocked(fetchActiveCompany).mockResolvedValue({ ok: true, data: active });
   vi.mocked(fetchCompanyPage).mockResolvedValue({
     ok: true,
@@ -157,7 +173,10 @@ beforeEach(() => {
   features = { features: new Set(["commercial.access"]), loading: false };
   stubLocation("https://commercial.loopdn.com/");
   companiesAre(company());
-  vi.mocked(fetchMarkets).mockResolvedValue({ ok: true, data: OPTIONS.markets });
+  vi.mocked(fetchMarkets).mockResolvedValue({
+    ok: true,
+    data: OPTIONS.markets,
+  });
 });
 
 afterEach(() => {
@@ -181,7 +200,9 @@ describe("builder helpers", () => {
   });
 
   it("converts between a date input and the moments it stands for", () => {
-    expect(dateInputValue(new Date(2026, 9, 5, 15).toISOString())).toBe("2026-10-05");
+    expect(dateInputValue(new Date(2026, 9, 5, 15).toISOString())).toBe(
+      "2026-10-05",
+    );
     expect(dateInputValue(null)).toBe("");
     expect(dateInputValue("whenever")).toBe("");
     expect(new Date(startOfDay("2026-10-05")).getHours()).toBe(0);
@@ -215,7 +236,13 @@ describe("builder helpers", () => {
         title="Budget"
         description="How much to spend."
         error="Budget is too low."
-        footer={<StepFooter onBack={onBack} primaryLabel="Next" onPrimary={onPrimary} />}
+        footer={
+          <StepFooter
+            onBack={onBack}
+            primaryLabel="Next"
+            onPrimary={onPrimary}
+          />
+        }
       >
         <p>fields</p>
       </StepFrame>,
@@ -228,11 +255,16 @@ describe("builder helpers", () => {
     expect(onPrimary).toHaveBeenCalled();
 
     rerender(
-      <StepFrame title="Objective" footer={<StepFooter primaryLabel="Next" onPrimary={onPrimary} busy />}>
+      <StepFrame
+        title="Objective"
+        footer={<StepFooter primaryLabel="Next" onPrimary={onPrimary} busy />}
+      >
         <p>fields</p>
       </StepFrame>,
     );
-    expect(screen.queryByRole("button", { name: "Back" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Back" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
   });
 });
@@ -240,7 +272,11 @@ describe("builder helpers", () => {
 describe("small commercial pieces", () => {
   it("shows a company's logo, or its initial", () => {
     const { container, rerender } = render(
-      <CompanyLogo name="Acme" logoUrl="https://cdn.example/acme.png" size={48} />,
+      <CompanyLogo
+        name="Acme"
+        logoUrl="https://cdn.example/acme.png"
+        size={48}
+      />,
     );
     expect(container.querySelector("img")).toHaveAttribute(
       "src",
@@ -270,11 +306,15 @@ describe("small commercial pieces", () => {
   it("draws an icon for every objective", () => {
     const { container } = render(
       <>
-        {(["website", "lead", "booking", "group_join", "call", "text"] as const).map(
-          (objective) => (
-            <ObjectiveIcon key={objective} objective={objective} className="h-8" />
-          ),
-        )}
+        {(
+          ["website", "lead", "booking", "group_join", "call", "text"] as const
+        ).map((objective) => (
+          <ObjectiveIcon
+            key={objective}
+            objective={objective}
+            className="h-8"
+          />
+        ))}
       </>,
     );
     expect(container.querySelectorAll("svg")).toHaveLength(6);
@@ -300,7 +340,9 @@ describe("small commercial pieces", () => {
         actions={<NewCampaignLink />}
       />,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "Campaigns" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Campaigns" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Everything you are running.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "New campaign" }).getAttribute("href"),
@@ -326,7 +368,10 @@ describe("DailyBars", () => {
 
   it("fills the days with no views, so the bars are a calendar", () => {
     const { container } = render(
-      <DailyBars rows={[day("2026-10-01", 40), day("2026-10-04", 10)]} days={4} />,
+      <DailyBars
+        rows={[day("2026-10-01", 40), day("2026-10-04", 10)]}
+        days={4}
+      />,
     );
     const bars = [...container.querySelectorAll("[title]")];
     expect(bars.map((bar) => bar.getAttribute("title"))).toEqual([
@@ -351,7 +396,10 @@ describe("DailyBars", () => {
 
   it("copes with a day it cannot read", () => {
     const { container } = render(<DailyBars rows={[day("soon", 3)]} />);
-    expect(container.querySelector("[title]")).toHaveAttribute("title", "soon: 3 views");
+    expect(container.querySelector("[title]")).toHaveAttribute(
+      "title",
+      "soon: 3 views",
+    );
   });
 });
 
@@ -359,7 +407,12 @@ describe("AudienceSummary", () => {
   it("describes an audience in the names people chose from", () => {
     expect(
       describeAudience(
-        { categories: ["sports", "chess"], regions: ["US-CA", "US-ZZ"], minGroupSize: 10, maxGroupSize: 50 },
+        {
+          categories: ["sports", "chess"],
+          regions: ["US-CA", "US-ZZ"],
+          minGroupSize: 10,
+          maxGroupSize: 50,
+        },
         "US",
         OPTIONS,
       ),
@@ -371,29 +424,40 @@ describe("AudienceSummary", () => {
   });
 
   it("says anywhere, any kind and any size when nothing is narrowed", () => {
-    const open = { categories: [], regions: [], minGroupSize: null, maxGroupSize: null };
+    const open = {
+      categories: [],
+      regions: [],
+      minGroupSize: null,
+      maxGroupSize: null,
+    };
     expect(describeAudience(open, "US", OPTIONS)).toEqual({
       groups: "Any kind of group",
       where: "Anywhere in United States",
       size: "Any size",
     });
-    expect(describeAudience({ ...open, minGroupSize: 5 }, "US", OPTIONS).size).toBe(
-      "At least 5 members",
-    );
-    expect(describeAudience({ ...open, maxGroupSize: 5 }, "US", OPTIONS).size).toBe(
-      "Up to 5 members",
-    );
+    expect(
+      describeAudience({ ...open, minGroupSize: 5 }, "US", OPTIONS).size,
+    ).toBe("At least 5 members");
+    expect(
+      describeAudience({ ...open, maxGroupSize: 5 }, "US", OPTIONS).size,
+    ).toBe("Up to 5 members");
   });
 
   it("renders the three lines, or that nothing is chosen", () => {
     const { rerender } = render(
-      <AudienceSummary audience={campaign().audience} country="US" options={OPTIONS} />,
+      <AudienceSummary
+        audience={campaign().audience}
+        country="US"
+        options={OPTIONS}
+      />,
     );
     expect(screen.getByText("Sports")).toBeInTheDocument();
     expect(screen.getByText("California")).toBeInTheDocument();
     expect(screen.getByText("At least 10 members")).toBeInTheDocument();
 
-    rerender(<AudienceSummary audience={null} country="US" options={OPTIONS} />);
+    rerender(
+      <AudienceSummary audience={null} country="US" options={OPTIONS} />,
+    );
     expect(screen.getByText("Not chosen yet.")).toBeInTheDocument();
   });
 });
@@ -423,7 +487,10 @@ describe("CompanyProvider", () => {
   });
 
   it("is unavailable when either half fails, and can be reloaded", async () => {
-    vi.mocked(fetchCompanyPage).mockResolvedValue({ ok: false, message: "down" });
+    vi.mocked(fetchCompanyPage).mockResolvedValue({
+      ok: false,
+      message: "down",
+    });
     const { result } = renderHook(() => useCompany(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe("unavailable"));
 
@@ -434,7 +501,10 @@ describe("CompanyProvider", () => {
   });
 
   it("switches company, replacing its row with what the server sent", async () => {
-    companiesAre(company({ id: 3 }), [company({ id: 3 }), company({ id: 4, name: "Globex" })]);
+    companiesAre(company({ id: 3 }), [
+      company({ id: 3 }),
+      company({ id: 4, name: "Globex" }),
+    ]);
     const { result } = renderHook(() => useCompany(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe("ready"));
 
@@ -447,7 +517,10 @@ describe("CompanyProvider", () => {
     expect(result.current.switchingTo).toBe(4);
 
     await act(async () =>
-      pending.resolve({ ok: true, data: company({ id: 4, name: "Globex Ltd" }) }),
+      pending.resolve({
+        ok: true,
+        data: company({ id: 4, name: "Globex Ltd" }),
+      }),
     );
     expect((await switched!)?.name).toBe("Globex Ltd");
     expect(result.current.company?.id).toBe(4);
@@ -462,7 +535,10 @@ describe("CompanyProvider", () => {
     const { result } = renderHook(() => useCompany(), { wrapper });
     await waitFor(() => expect(result.current.status).toBe("ready"));
 
-    vi.mocked(switchActiveCompany).mockResolvedValue({ ok: false, message: "no" });
+    vi.mocked(switchActiveCompany).mockResolvedValue({
+      ok: false,
+      message: "no",
+    });
     let switched: Company | null | undefined;
     await act(async () => {
       switched = await result.current.switchTo(4);
@@ -519,7 +595,10 @@ describe("useSwitchCompany", () => {
   });
 
   it("leaves such a page before switching, and stays put otherwise", async () => {
-    vi.mocked(switchActiveCompany).mockResolvedValue({ ok: true, data: NEW_COMPANY });
+    vi.mocked(switchActiveCompany).mockResolvedValue({
+      ok: true,
+      data: NEW_COMPANY,
+    });
     const wrapper = ({ children }: { children: ReactNode }) => (
       <CompanyProvider>{children}</CompanyProvider>
     );
@@ -572,8 +651,12 @@ describe("CompanyNotice and the company dialogs", () => {
         <CompanyNotice />
       </Providers>,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Create company" }));
-    expect(screen.getByRole("dialog", { name: "Set up your company" })).toBeInTheDocument();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create company" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Set up your company" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getAllByRole("button", { name: "Create company" }).at(-1)!,
@@ -618,15 +701,24 @@ describe("CompanyNotice and the company dialogs", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     click("open companies");
-    expect(screen.getByTestId("companies-dialog")).toHaveAttribute("data-company", "");
+    expect(screen.getByTestId("companies-dialog")).toHaveAttribute(
+      "data-company",
+      "",
+    );
     click("Close companies");
     expect(screen.queryByTestId("companies-dialog")).not.toBeInTheDocument();
     click("open company 4");
-    expect(screen.getByTestId("companies-dialog")).toHaveAttribute("data-company", "4");
+    expect(screen.getByTestId("companies-dialog")).toHaveAttribute(
+      "data-company",
+      "4",
+    );
   });
 
   it("offers a retry when the companies could not be loaded", async () => {
-    vi.mocked(fetchActiveCompany).mockResolvedValue({ ok: false, message: "down" });
+    vi.mocked(fetchActiveCompany).mockResolvedValue({
+      ok: false,
+      message: "down",
+    });
     render(
       <Providers>
         <CompanyNotice />
@@ -658,7 +750,9 @@ describe("CommercialOverview and CommercialDashboard", () => {
         <CommercialOverview />
       </Providers>,
     );
-    expect(screen.getByText("Your advertising at a glance")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your advertising at a glance"),
+    ).toBeInTheDocument();
     expect(await screen.findByText("How Acme is doing")).toBeInTheDocument();
     expect(screen.getByText("$120.00")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
@@ -672,7 +766,9 @@ describe("CommercialOverview and CommercialDashboard", () => {
         <CommercialOverview />
       </Providers>,
     );
-    expect(await screen.findByText(/This company is suspended/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/This company is suspended/),
+    ).toBeInTheDocument();
   });
 
   it("mounts the page inside the shell", async () => {
@@ -737,7 +833,9 @@ describe("CommercialFrame", () => {
         <Inside />
       </CommercialFrame>,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your dashboard");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading your dashboard",
+    );
   });
 
   it("mounts the dashboard for a commercial account", async () => {
@@ -760,10 +858,9 @@ describe("CommercialFrame", () => {
       screen.getByRole("heading", { name: "This isn't a commercial account" }),
     ).toBeInTheDocument();
     expect(screen.getByText("sam")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Loopd'n chat" })).toHaveAttribute(
-      "href",
-      "https://loopdn.com/chats/",
-    );
+    expect(
+      screen.getByRole("link", { name: "Go to Loopd'n chat" }),
+    ).toHaveAttribute("href", "https://loopdn.com/chats/");
 
     click("Create a commercial account");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/signup/"));
@@ -776,7 +873,14 @@ describe("CommercialFrame", () => {
 describe("AddFundsDialog", () => {
   function open(props: Partial<Parameters<typeof AddFundsDialog>[0]> = {}) {
     const onClose = vi.fn();
-    render(<AddFundsDialog company={company()} isOpen onClose={onClose} {...props} />);
+    render(
+      <AddFundsDialog
+        company={company()}
+        isOpen
+        onClose={onClose}
+        {...props}
+      />,
+    );
     return onClose;
   }
 
@@ -797,7 +901,9 @@ describe("AddFundsDialog", () => {
 
   it("starts from what the campaign is short by, when that is more", async () => {
     open({ suggestedCents: 4550 });
-    await waitFor(() => expect(screen.getByLabelText("Amount")).toHaveValue("45.50"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Amount")).toHaveValue("45.50"),
+    );
   });
 
   it("refuses an amount that is not money, or is under the minimum", async () => {
@@ -807,11 +913,15 @@ describe("AddFundsDialog", () => {
 
     fireEvent.change(amount, { target: { value: "ten" } });
     click("Continue to payment");
-    expect(screen.getByText("Enter an amount, like 1000 or 1000.50.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter an amount, like 1000 or 1000.50."),
+    ).toBeInTheDocument();
 
     fireEvent.change(amount, { target: { value: "" } });
     click("Continue to payment");
-    expect(screen.getByText("Enter an amount, like 1000 or 1000.50.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter an amount, like 1000 or 1000.50."),
+    ).toBeInTheDocument();
 
     fireEvent.change(amount, { target: { value: "5" } });
     click("Continue to payment");
@@ -824,7 +934,9 @@ describe("AddFundsDialog", () => {
     const pending = deferred<Awaited<ReturnType<typeof startCheckout>>>();
     vi.mocked(startCheckout).mockReturnValue(pending.promise);
     const onClose = open();
-    await waitFor(() => expect(screen.getByLabelText("Amount")).toHaveValue("10"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Amount")).toHaveValue("10"),
+    );
 
     click("Continue to payment");
     expect(startCheckout).toHaveBeenCalledWith(3, {
@@ -833,21 +945,30 @@ describe("AddFundsDialog", () => {
       cancelUrl: "https://commercial.loopdn.com/balance/?checkout=cancelled",
     });
     // Nothing closes it, or sends twice, while the request is out.
-    expect(screen.getByRole("button", { name: "Continue to payment" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Continue to payment" }),
+    ).toBeDisabled();
     click("Close modal");
     expect(onClose).not.toHaveBeenCalled();
 
     await act(async () =>
       pending.resolve({ ok: true, data: "https://checkout.stripe.com/c/1" }),
     );
-    expect(location.assign).toHaveBeenCalledWith("https://checkout.stripe.com/c/1");
+    expect(location.assign).toHaveBeenCalledWith(
+      "https://checkout.stripe.com/c/1",
+    );
   });
 
   it("returns to the page it was opened from, keeping that page's query", async () => {
     stubLocation("https://commercial.loopdn.com/campaign/?id=12");
-    vi.mocked(startCheckout).mockResolvedValue({ ok: true, data: "https://stripe" });
+    vi.mocked(startCheckout).mockResolvedValue({
+      ok: true,
+      data: "https://stripe",
+    });
     open({ returnPath: "/campaign/?id=12" });
-    await waitFor(() => expect(screen.getByLabelText("Amount")).toHaveValue("10"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Amount")).toHaveValue("10"),
+    );
     click("Continue to payment");
     await waitFor(() => expect(startCheckout).toHaveBeenCalled());
     expect(vi.mocked(startCheckout).mock.calls[0][1].successUrl).toBe(
@@ -864,12 +985,18 @@ describe("AddFundsDialog", () => {
       })
       .mockResolvedValueOnce({ ok: false, message: "Stripe is unavailable." });
     const onClose = open();
-    await waitFor(() => expect(screen.getByLabelText("Amount")).toHaveValue("10"));
+    await waitFor(() =>
+      expect(screen.getByLabelText("Amount")).toHaveValue("10"),
+    );
 
     click("Continue to payment");
-    expect(await screen.findByText("That is over the limit.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("That is over the limit."),
+    ).toBeInTheDocument();
     click("Continue to payment");
-    expect(await screen.findByText("Stripe is unavailable.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Stripe is unavailable."),
+    ).toBeInTheDocument();
 
     click("Cancel");
     click("Close modal");
@@ -878,7 +1005,10 @@ describe("AddFundsDialog", () => {
 
   it("works without a known minimum, and does nothing while closed", async () => {
     vi.mocked(fetchMarkets).mockResolvedValue({ ok: false, message: "down" });
-    vi.mocked(startCheckout).mockResolvedValue({ ok: true, data: "https://stripe" });
+    vi.mocked(startCheckout).mockResolvedValue({
+      ok: true,
+      data: "https://stripe",
+    });
     const first = render(
       <AddFundsDialog company={company()} isOpen={false} onClose={() => {}} />,
     );
@@ -888,7 +1018,9 @@ describe("AddFundsDialog", () => {
     open({ company: company({ currency: "EUR" }) });
     await waitFor(() => expect(fetchMarkets).toHaveBeenCalled());
     expect(screen.queryByText(/^At least/)).not.toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "3" },
+    });
     click("Continue to payment");
     await waitFor(() => expect(startCheckout).toHaveBeenCalled());
   });
@@ -897,7 +1029,9 @@ describe("AddFundsDialog", () => {
     const pending = deferred<Awaited<ReturnType<typeof fetchMarkets>>>();
     vi.mocked(fetchMarkets).mockReturnValue(pending.promise);
     open({ company: company({ currency: "EUR" }) });
-    fireEvent.change(screen.getByLabelText("Amount"), { target: { value: "75" } });
+    fireEvent.change(screen.getByLabelText("Amount"), {
+      target: { value: "75" },
+    });
     await act(async () => pending.resolve({ ok: true, data: OPTIONS.markets }));
     expect(screen.getByLabelText("Amount")).toHaveValue("75");
     expect(screen.queryByText(/^At least/)).not.toBeInTheDocument();
@@ -933,7 +1067,9 @@ describe("CampaignResults", () => {
   it("explains that results come once the campaign has run", () => {
     render(<CampaignResults campaign={campaign({ status: "draft" })} />);
     expect(
-      screen.getByText("Results will appear here once your campaign starts running."),
+      screen.getByText(
+        "Results will appear here once your campaign starts running.",
+      ),
     ).toBeInTheDocument();
     expect(fetchCampaignReport).not.toHaveBeenCalled();
   });
@@ -956,7 +1092,12 @@ describe("CampaignResults", () => {
     resultsAre(
       report({
         result: "leads",
-        totals: { ...report().totals, reach: null, results: 7, costPerResultCents: null },
+        totals: {
+          ...report().totals,
+          reach: null,
+          results: 7,
+          costPerResultCents: null,
+        },
       }),
     );
     render(<CampaignResults campaign={campaign({ status: "ended" })} />);
@@ -968,8 +1109,12 @@ describe("CampaignResults", () => {
   });
 
   it("says there are no views yet, or why results could not be loaded", async () => {
-    resultsAre(report({ totals: { ...report().totals, viewed: 0, served: 0 } }));
-    const first = render(<CampaignResults campaign={campaign({ status: "paused" })} />);
+    resultsAre(
+      report({ totals: { ...report().totals, viewed: 0, served: 0 } }),
+    );
+    const first = render(
+      <CampaignResults campaign={campaign({ status: "paused" })} />,
+    );
     expect(await screen.findByText("No views yet.")).toBeInTheDocument();
     first.unmount();
 
@@ -978,7 +1123,9 @@ describe("CampaignResults", () => {
       message: "Couldn't load the results.",
     });
     render(<CampaignResults campaign={campaign({ status: "running" })} />);
-    expect(await screen.findByText("Results couldn't be loaded.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Results couldn't be loaded."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Couldn't load the results.")).toBeInTheDocument();
   });
 

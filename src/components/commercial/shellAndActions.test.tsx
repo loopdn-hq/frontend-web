@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -22,7 +29,8 @@ vi.mock("@/lib/commercial/CompanyProvider", () => ({
   useCompany: () => ({ company: activeCompany, reload }),
 }));
 vi.mock("@/components/ui", async () => {
-  const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
+  const actual =
+    await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
   return { ...actual, useToast: () => toast };
 });
 vi.mock("@/components/commercial/CompanySwitcher", () => ({
@@ -58,7 +66,8 @@ import type { CampaignDetail } from "@/lib/commercial/types";
 import { campaign, company } from "@/test/commercial";
 import { deferred, stubLocation } from "@/test/helpers";
 
-type Result = { ok: true; data: CampaignDetail } | { ok: false; message: string };
+type Result =
+  { ok: true; data: CampaignDetail } | { ok: false; message: string };
 
 function click(name: string | RegExp) {
   fireEvent.click(screen.getByRole("button", { name }));
@@ -132,13 +141,15 @@ describe("CommercialShell", () => {
   it("collapses to icons and remembers that", () => {
     const first = mount();
     click("Collapse navigation");
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("Advertising")).not.toBeInTheDocument();
     // With the label gone, the icon's link is named by its tooltip.
-    expect(screen.getByTitle("Overview")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTitle("Overview")).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
     expect(localStorage.getItem("loopdn_commercial_nav_collapsed")).toBe("1");
     first.unmount();
 
@@ -157,7 +168,9 @@ describe("CommercialShell", () => {
     });
     mount();
     click("Collapse navigation");
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toBeInTheDocument();
   });
 
   it("opens as a drawer on a small screen, and closes on navigating", () => {
@@ -170,11 +183,15 @@ describe("CommercialShell", () => {
     expect(nav).not.toHaveClass("hidden");
 
     // The backdrop and the drawer's own button both close it.
-    fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Close navigation" })[0],
+    );
     expect(nav).toHaveClass("hidden");
 
     click("Open navigation");
-    fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[1]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Close navigation" })[1],
+    );
     expect(nav).toHaveClass("hidden");
 
     click("Open navigation");
@@ -232,16 +249,25 @@ describe("CommercialShell", () => {
   it("falls back to a question mark with no session name", () => {
     session = null;
     mount();
-    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent("?");
+    expect(
+      screen.getByRole("button", { name: "Account menu" }),
+    ).toHaveTextContent("?");
   });
 });
 
 describe("DeleteDraftButton", () => {
   it("asks first, and can be talked out of it", () => {
     const onDeleted = vi.fn();
-    render(<DeleteDraftButton campaign={campaign({ name: " " })} onDeleted={onDeleted} />);
+    render(
+      <DeleteDraftButton
+        campaign={campaign({ name: " " })}
+        onDeleted={onDeleted}
+      />,
+    );
     click("Delete");
-    expect(screen.getByRole("dialog", { name: "Delete this draft?" })).toHaveTextContent(
+    expect(
+      screen.getByRole("dialog", { name: "Delete this draft?" }),
+    ).toHaveTextContent(
       "“Untitled campaign” and its creatives will be gone for good.",
     );
     click("Keep it");
@@ -253,10 +279,18 @@ describe("DeleteDraftButton", () => {
     const pending = deferred<Awaited<ReturnType<typeof deleteCampaign>>>();
     vi.mocked(deleteCampaign).mockReturnValue(pending.promise);
     const onDeleted = vi.fn();
-    render(<DeleteDraftButton campaign={campaign()} size="md" onDeleted={onDeleted} />);
+    render(
+      <DeleteDraftButton
+        campaign={campaign()}
+        size="md"
+        onDeleted={onDeleted}
+      />,
+    );
     click("Delete");
     click("Delete draft");
-    expect(inDialog().getByRole("button", { name: "Delete draft" })).toBeDisabled();
+    expect(
+      inDialog().getByRole("button", { name: "Delete draft" }),
+    ).toBeDisabled();
     // Nothing closes it while the request is out.
     click("Close modal");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -276,11 +310,15 @@ describe("DeleteDraftButton", () => {
     render(<DeleteDraftButton campaign={campaign()} onDeleted={() => {}} />);
     click("Delete");
     click("Delete draft");
-    expect(await screen.findByText("It has already been submitted.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("It has already been submitted."),
+    ).toBeInTheDocument();
 
     click("Close modal");
     click("Delete");
-    expect(screen.queryByText("It has already been submitted.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("It has already been submitted."),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -297,7 +335,9 @@ describe("WithdrawButton", () => {
       />,
     );
     click("Withdraw");
-    expect(screen.getByRole("dialog", { name: "Withdraw from review?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Withdraw from review?" }),
+    ).toBeInTheDocument();
     fireEvent.click(inDialog().getByRole("button", { name: "Withdraw" }));
     click("Close modal");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -313,7 +353,10 @@ describe("WithdrawButton", () => {
   });
 
   it("has different words when nothing was set aside", async () => {
-    vi.mocked(withdrawCampaign).mockResolvedValue({ ok: true, data: campaign() });
+    vi.mocked(withdrawCampaign).mockResolvedValue({
+      ok: true,
+      data: campaign(),
+    });
     render(
       <WithdrawButton
         campaign={campaign({ status: "pending_review" })}
@@ -341,13 +384,17 @@ describe("WithdrawButton", () => {
     render(<WithdrawButton campaign={campaign()} onWithdrawn={onWithdrawn} />);
     click("Withdraw");
     fireEvent.click(inDialog().getByRole("button", { name: "Withdraw" }));
-    expect(await screen.findByText("It has already been approved.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("It has already been approved."),
+    ).toBeInTheDocument();
     expect(onWithdrawn).not.toHaveBeenCalled();
 
     click("Leave it in review");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     click("Withdraw");
-    expect(screen.queryByText("It has already been approved.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("It has already been approved."),
+    ).not.toBeInTheDocument();
     click("Close modal");
   });
 });
@@ -355,16 +402,18 @@ describe("WithdrawButton", () => {
 describe("AddBudgetButton", () => {
   function open(overrides: Partial<CampaignDetail> = {}) {
     const onRaised = vi.fn();
-    render(<AddBudgetButton campaign={campaign(overrides)} onRaised={onRaised} />);
+    render(
+      <AddBudgetButton campaign={campaign(overrides)} onRaised={onRaised} />,
+    );
     click("Add budget");
     return onRaised;
   }
 
   it("shows the current total and what is available", () => {
     open();
-    expect(screen.getByRole("dialog", { name: "Add budget" })).toHaveTextContent(
-      "The total is $500.00 now.",
-    );
+    expect(
+      screen.getByRole("dialog", { name: "Add budget" }),
+    ).toHaveTextContent("The total is $500.00 now.");
     expect(screen.getByText("Available: $120.00")).toBeInTheDocument();
     expect(screen.getByLabelText("New total budget")).toHaveAttribute(
       "placeholder",
@@ -379,7 +428,9 @@ describe("AddBudgetButton", () => {
         target: { value },
       });
       click("Raise budget");
-      expect(screen.getByText("Enter a new total above $500.00.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Enter a new total above $500.00."),
+      ).toBeInTheDocument();
     }
     expect(increaseBudget).not.toHaveBeenCalled();
   });
@@ -429,21 +480,29 @@ describe("AddBudgetButton", () => {
       await screen.findByText("You need $300.00 more in your balance."),
     ).toBeInTheDocument();
     click("Raise budget");
-    expect(await screen.findByText("That is over the campaign limit.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("That is over the campaign limit."),
+    ).toBeInTheDocument();
     click("Raise budget");
-    expect(await screen.findByText("The campaign has ended.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("The campaign has ended."),
+    ).toBeInTheDocument();
 
     click("Cancel");
     click("Add budget");
     expect(screen.getByLabelText("New total budget")).toHaveValue("");
-    expect(screen.queryByText("The campaign has ended.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("The campaign has ended."),
+    ).not.toBeInTheDocument();
     click("Close modal");
   });
 
   it("copes with no budget set yet and no company loaded", () => {
     activeCompany = null;
     open({ totalBudgetCents: null });
-    expect(screen.getByRole("dialog")).toHaveTextContent("The total is $0.00 now.");
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "The total is $0.00 now.",
+    );
     expect(screen.queryByText(/^Available:/)).not.toBeInTheDocument();
   });
 });
@@ -455,7 +514,10 @@ describe("PauseResumeButton", () => {
     vi.mocked(pauseCampaign).mockReturnValue(pending.promise);
     const onChanged = vi.fn();
     render(
-      <PauseResumeButton campaign={campaign({ status: "running" })} onChanged={onChanged} />,
+      <PauseResumeButton
+        campaign={campaign({ status: "running" })}
+        onChanged={onChanged}
+      />,
     );
     click("Pause");
     expect(screen.getByRole("button", { name: "Pause" })).toBeDisabled();
@@ -474,7 +536,10 @@ describe("PauseResumeButton", () => {
       data: campaign({ status: "running" }),
     });
     render(
-      <PauseResumeButton campaign={campaign({ status: "paused" })} onChanged={() => {}} />,
+      <PauseResumeButton
+        campaign={campaign({ status: "paused" })}
+        onChanged={() => {}}
+      />,
     );
     click("Resume");
     await waitFor(() =>
@@ -486,11 +551,20 @@ describe("PauseResumeButton", () => {
   });
 
   it("says which of the two it could not do", async () => {
-    vi.mocked(pauseCampaign).mockResolvedValue({ ok: false, message: "Try again." });
-    vi.mocked(resumeCampaign).mockResolvedValue({ ok: false, message: "Out of budget." });
+    vi.mocked(pauseCampaign).mockResolvedValue({
+      ok: false,
+      message: "Try again.",
+    });
+    vi.mocked(resumeCampaign).mockResolvedValue({
+      ok: false,
+      message: "Out of budget.",
+    });
     const onChanged = vi.fn();
     const first = render(
-      <PauseResumeButton campaign={campaign({ status: "running" })} onChanged={onChanged} />,
+      <PauseResumeButton
+        campaign={campaign({ status: "running" })}
+        onChanged={onChanged}
+      />,
     );
     click("Pause");
     await waitFor(() =>
@@ -503,7 +577,10 @@ describe("PauseResumeButton", () => {
     first.unmount();
 
     render(
-      <PauseResumeButton campaign={campaign({ status: "paused" })} onChanged={onChanged} />,
+      <PauseResumeButton
+        campaign={campaign({ status: "paused" })}
+        onChanged={onChanged}
+      />,
     );
     click("Resume");
     await waitFor(() =>
@@ -528,10 +605,14 @@ describe("CancelCampaignButton", () => {
       />,
     );
     click("Cancel campaign");
-    expect(screen.getByRole("dialog", { name: "Cancel this campaign?" })).toHaveTextContent(
+    expect(
+      screen.getByRole("dialog", { name: "Cancel this campaign?" }),
+    ).toHaveTextContent(
       "The $123.45 it hasn't spent goes back to your balance.",
     );
-    fireEvent.click(inDialog().getByRole("button", { name: "Cancel campaign" }));
+    fireEvent.click(
+      inDialog().getByRole("button", { name: "Cancel campaign" }),
+    );
     click("Close modal");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
@@ -546,13 +627,19 @@ describe("CancelCampaignButton", () => {
 
   it("has plainer words when nothing is left to return", async () => {
     vi.mocked(cancelCampaign).mockResolvedValue({ ok: true, data: campaign() });
-    render(<CancelCampaignButton campaign={campaign()} onCancelled={() => {}} />);
+    render(
+      <CancelCampaignButton campaign={campaign()} onCancelled={() => {}} />,
+    );
     click("Cancel campaign");
     expect(screen.getByRole("dialog")).toHaveTextContent(
       "It stops for good and won't be shown again.",
     );
-    expect(screen.getByRole("dialog")).not.toHaveTextContent("goes back to your balance");
-    fireEvent.click(inDialog().getByRole("button", { name: "Cancel campaign" }));
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(
+      "goes back to your balance",
+    );
+    fireEvent.click(
+      inDialog().getByRole("button", { name: "Cancel campaign" }),
+    );
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
         expect.objectContaining({ description: "It won't be shown again." }),
@@ -565,10 +652,16 @@ describe("CancelCampaignButton", () => {
       ok: false,
       message: "It has already ended.",
     });
-    render(<CancelCampaignButton campaign={campaign()} onCancelled={() => {}} />);
+    render(
+      <CancelCampaignButton campaign={campaign()} onCancelled={() => {}} />,
+    );
     click("Cancel campaign");
-    fireEvent.click(inDialog().getByRole("button", { name: "Cancel campaign" }));
-    expect(await screen.findByText("It has already ended.")).toBeInTheDocument();
+    fireEvent.click(
+      inDialog().getByRole("button", { name: "Cancel campaign" }),
+    );
+    expect(
+      await screen.findByText("It has already ended."),
+    ).toBeInTheDocument();
 
     click("Keep it");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();

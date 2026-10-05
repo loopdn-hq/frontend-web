@@ -19,7 +19,10 @@ vi.mock("@react-oauth/google", () => ({
     text: string;
   }) => (
     <div data-testid="google" data-text={text}>
-      <button type="button" onClick={() => onSuccess({ credential: "google-jwt" })}>
+      <button
+        type="button"
+        onClick={() => onSuccess({ credential: "google-jwt" })}
+      >
         Google
       </button>
       <button type="button" onClick={() => onSuccess({})}>
@@ -55,7 +58,9 @@ import {
 import { deferred, stubLocation } from "@/test/helpers";
 
 function type(placeholder: string, value: string) {
-  fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
+  fireEvent.change(screen.getByPlaceholderText(placeholder), {
+    target: { value },
+  });
 }
 
 function submit(name: string) {
@@ -93,7 +98,10 @@ beforeEach(() => {
   stubLocation("https://loopdn.com/login/");
   vi.mocked(consumePostAuthRedirect).mockReturnValue(null);
   vi.mocked(authenticate).mockResolvedValue({ ok: true, displayName: "Sam" });
-  vi.mocked(registerAccount).mockResolvedValue({ ok: true, displayName: "Sam" });
+  vi.mocked(registerAccount).mockResolvedValue({
+    ok: true,
+    displayName: "Sam",
+  });
   vi.mocked(authenticateWithGoogle).mockResolvedValue({
     ok: true,
     displayName: "Sam",
@@ -108,21 +116,32 @@ afterEach(() => {
 describe("AuthScreen - logging in", () => {
   it("welcomes somebody back and offers the three ways in", () => {
     render(<AuthScreen initialMode="login" />);
-    expect(screen.getByRole("heading", { name: "Welcome Back" })).toBeInTheDocument();
-    expect(screen.getByTestId("google")).toHaveAttribute("data-text", "signin_with");
+    expect(
+      screen.getByRole("heading", { name: "Welcome Back" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("google")).toHaveAttribute(
+      "data-text",
+      "signin_with",
+    );
     expect(screen.getByText("or continue with email")).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Forgot password?" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Forgot password?" })
+        .getAttribute("href"),
     ).toMatch(/^\/forgot-password\/?$/);
     expect(screen.getByRole("link", { name: "Sign Up" })).toBeInTheDocument();
     expect(screen.getByAltText("Loopd'n")).toBeInTheDocument();
-    expect(screen.getByText("One conversation. Every channel.")).toBeInTheDocument();
+    expect(
+      screen.getByText("One conversation. Every channel."),
+    ).toBeInTheDocument();
   });
 
   it("asks for both fields before calling the server", async () => {
     render(<AuthScreen initialMode="login" />);
     submit("Continue with email");
-    expect(await screen.findByText("Enter your username or email.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Enter your username or email."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Password is required.")).toBeInTheDocument();
     expect(authenticate).not.toHaveBeenCalled();
   });
@@ -144,7 +163,9 @@ describe("AuthScreen - logging in", () => {
     render(<AuthScreen initialMode="login" />);
     fillLogin();
     submit("Continue with email");
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/enterprise/builder/"));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/enterprise/builder/"),
+    );
   });
 
   it("locks the form while the request is out", async () => {
@@ -226,7 +247,9 @@ describe("AuthScreen - Google", () => {
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/chats/"));
     expect(authenticateWithGoogle).toHaveBeenCalledWith("google-jwt");
-    expect(screen.queryByText("Connecting to Google...")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Connecting to Google..."),
+    ).not.toBeInTheDocument();
   });
 
   it("sends a brand-new chat account to add a phone number", async () => {
@@ -261,7 +284,9 @@ describe("AuthScreen - Google", () => {
   it("explains each way Google can fail", async () => {
     render(<AuthScreen initialMode="login" />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Google without credential" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Google without credential" }),
+    );
     expect(
       screen.getByText("Google didn't return a credential. Please try again."),
     ).toBeInTheDocument();
@@ -295,7 +320,10 @@ describe("AuthScreen - signing up", () => {
     expect(
       screen.getByRole("heading", { name: "Create your Loopd'n account" }),
     ).toBeInTheDocument();
-    expect(screen.getByTestId("google")).toHaveAttribute("data-text", "signup_with");
+    expect(screen.getByTestId("google")).toHaveAttribute(
+      "data-text",
+      "signup_with",
+    );
     expect(screen.getByText("or sign up with email")).toBeInTheDocument();
     expect(
       screen.getByText("Create an account with your email and phone number."),
@@ -331,7 +359,9 @@ describe("AuthScreen - signing up", () => {
     expect(
       await screen.findByText("Username must be at least 3 characters."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Enter a valid email address.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter a valid email address."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Phone number is required.")).toBeInTheDocument();
     expect(screen.getAllByText("This field is required.")).toHaveLength(2);
     expect(
@@ -345,7 +375,9 @@ describe("AuthScreen - signing up", () => {
     render(<AuthScreen initialMode="signup" />);
     fillSignup({ confirm: "Different1!" });
     submit("Create account");
-    expect(await screen.findByText("Passwords do not match.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Passwords do not match."),
+    ).toBeInTheDocument();
     expect(registerAccount).not.toHaveBeenCalled();
   });
 
@@ -357,7 +389,9 @@ describe("AuthScreen - signing up", () => {
     render(<AuthScreen initialMode="signup" />);
     fillSignup();
     submit("Create account");
-    expect(await screen.findByText("That username is taken.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("That username is taken."),
+    ).toBeInTheDocument();
     expect(push).not.toHaveBeenCalled();
 
     vi.mocked(registerAccount).mockRejectedValue(new Error("boom"));
@@ -381,7 +415,9 @@ describe("AuthScreen - signing up", () => {
 
     fireEvent.click(showConfirm);
     expect(confirm).toHaveAttribute("type", "text");
-    fireEvent.click(screen.getAllByRole("button", { name: "Hide password" })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Hide password" })[0],
+    );
     expect(password).toHaveAttribute("type", "password");
     fireEvent.click(screen.getByRole("button", { name: "Hide password" }));
     expect(confirm).toHaveAttribute("type", "password");
@@ -403,8 +439,12 @@ describe("AuthScreen - signing up", () => {
     fillSignup({ phone: "", first: "", last: "Wren" });
     type("Sam", "");
     submit("Create account");
-    expect(await screen.findByText("This field is required.")).toBeInTheDocument();
-    expect(screen.queryByText("Phone number is required.")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("This field is required."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Phone number is required."),
+    ).not.toBeInTheDocument();
   });
 
   it("builds the display name from whichever names it has", async () => {
@@ -435,14 +475,18 @@ describe("AuthScreen - switching", () => {
     expect(screen.queryByText("Nope.")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("link", { name: "Log In" }));
-    expect(screen.getByRole("heading", { name: "Welcome Back" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Welcome Back" }),
+    ).toBeInTheDocument();
     expect(screen.getByPlaceholderText("sam.loopdn")).toHaveValue("");
   });
 
   it("offers no sign-up on the admin site: admin accounts are not made here", () => {
     stubLocation("https://admin.loopdn.com/login/");
     render(<AuthScreen initialMode="login" />);
-    expect(screen.queryByRole("link", { name: "Sign Up" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Sign Up" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("Sign in with your Loopd'n admin account."),
     ).toBeInTheDocument();
@@ -452,7 +496,9 @@ describe("AuthScreen - switching", () => {
 describe("the login and signup pages", () => {
   it("show the right form to a visitor", () => {
     const login = render(<LoginPage />);
-    expect(screen.getByRole("heading", { name: "Welcome Back" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Welcome Back" }),
+    ).toBeInTheDocument();
     login.unmount();
 
     render(<SignupPage />);

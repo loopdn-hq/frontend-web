@@ -58,7 +58,10 @@ import {
   SESSION_COOKIE_NAME,
 } from "@/lib/auth/session";
 import { setHttp } from "@/lib/config/http";
-import { saveEnterpriseDraft, loadEnterpriseDraft } from "@/lib/enterprise/draft";
+import {
+  saveEnterpriseDraft,
+  loadEnterpriseDraft,
+} from "@/lib/enterprise/draft";
 import { DEFAULT_CONFIGURATION } from "@/lib/enterprise/catalog";
 import { brokenResponse, jsonResponse, stubLocation } from "@/test/helpers";
 
@@ -102,7 +105,10 @@ function blockStorage() {
   }
 }
 
-const NETWORK_ERROR = { ok: false, message: "Network error. Please try again." };
+const NETWORK_ERROR = {
+  ok: false,
+  message: "Network error. Please try again.",
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -296,7 +302,10 @@ describe("refreshTokens", () => {
         data: { tokens: { access: "access-2", refresh: "refresh-2" } },
       }),
     });
-    const [first, second] = await Promise.all([refreshTokens(), refreshTokens()]);
+    const [first, second] = await Promise.all([
+      refreshTokens(),
+      refreshTokens(),
+    ]);
     expect([first, second]).toEqual([true, true]);
     expect(requestsTo("/users/token/refresh/")).toHaveLength(1);
 
@@ -409,9 +418,9 @@ describe("authenticate", () => {
         },
       }),
     });
-    expect(await authenticate({ username: "sam@example.com", password: "pw" })).toEqual(
-      { ok: true, displayName: "Sam Wren" },
-    );
+    expect(
+      await authenticate({ username: "sam@example.com", password: "pw" }),
+    ).toEqual({ ok: true, displayName: "Sam Wren" });
     expect(requestsTo("/users/login/")[0].body).toEqual({
       username: "sam@example.com",
       password: "pw",
@@ -449,17 +458,25 @@ describe("authenticate", () => {
     });
 
     server({ "/users/login/": brokenResponse(401) });
-    expect(await authenticate({ username: "sam", password: "pw" })).toMatchObject({
+    expect(
+      await authenticate({ username: "sam", password: "pw" }),
+    ).toMatchObject({
       message: "Incorrect username or password.",
     });
 
-    server({ "/users/login/": jsonResponse(400, { data: { detail: "Locked." } }) });
-    expect(await authenticate({ username: "sam", password: "pw" })).toMatchObject({
+    server({
+      "/users/login/": jsonResponse(400, { data: { detail: "Locked." } }),
+    });
+    expect(
+      await authenticate({ username: "sam", password: "pw" }),
+    ).toMatchObject({
       message: "Locked.",
     });
 
     server({ "/users/login/": jsonResponse(400, { data: { nested: {} } }) });
-    expect(await authenticate({ username: "sam", password: "pw" })).toMatchObject({
+    expect(
+      await authenticate({ username: "sam", password: "pw" }),
+    ).toMatchObject({
       message: "Incorrect username or password.",
     });
 
@@ -559,7 +576,11 @@ describe("registerAccount", () => {
     stubLocation("https://commercial.loopdn.com/signup/");
     setPendingPhone("+1999");
     expect(
-      await registerAccount({ ...payload, displayName: undefined, phoneNumber: "" }),
+      await registerAccount({
+        ...payload,
+        displayName: undefined,
+        phoneNumber: "",
+      }),
     ).toEqual({ ok: true, displayName: "sam" });
     expect(requestsTo("/users/register/")[0].body).toMatchObject({
       phone_number: "",
@@ -598,7 +619,9 @@ describe("email verification", () => {
       email: "sam@example.com",
     });
 
-    server({ "/users/resend-code/": jsonResponse(429, { message: "Slow down." }) });
+    server({
+      "/users/resend-code/": jsonResponse(429, { message: "Slow down." }),
+    });
     expect(await resendEmailVerificationCode("sam@example.com")).toEqual({
       ok: false,
       message: "Slow down.",
@@ -658,7 +681,9 @@ describe("email verification", () => {
     });
     expect(isEmailVerified()).toBe(false);
     server({ "/users/verify-email/": new Error("offline") });
-    expect(await verifyEmailCode("sam@example.com", "1")).toEqual(NETWORK_ERROR);
+    expect(await verifyEmailCode("sam@example.com", "1")).toEqual(
+      NETWORK_ERROR,
+    );
   });
 });
 
@@ -702,7 +727,10 @@ describe("phone verification", () => {
       phone_number: "+14155552671",
     });
 
-    expect(await verifyPhoneCode("123456")).toEqual({ ok: true, displayName: "" });
+    expect(await verifyPhoneCode("123456")).toEqual({
+      ok: true,
+      displayName: "",
+    });
     expect(requestsTo("/users/me/phone/verify/")[0].body).toEqual({
       code: "123456",
     });
@@ -938,7 +966,9 @@ describe("updateUserProfile", () => {
 describe("passwords", () => {
   it("never reveals whether an email has an account", async () => {
     server({ "/users/forgot-password/": jsonResponse(404, {}) });
-    expect(await requestPasswordReset("nobody@example.com")).toEqual({ ok: true });
+    expect(await requestPasswordReset("nobody@example.com")).toEqual({
+      ok: true,
+    });
     expect(requestsTo("/users/forgot-password/")[0].body).toEqual({
       email: "nobody@example.com",
     });
@@ -967,7 +997,12 @@ describe("passwords", () => {
   });
 
   it("tells an expired link apart from a rejected password", async () => {
-    const payload = { uid: "u", token: "t", newPassword: "a", confirmPassword: "a" };
+    const payload = {
+      uid: "u",
+      token: "t",
+      newPassword: "a",
+      confirmPassword: "a",
+    };
 
     server({
       "/users/reset-password/": jsonResponse(400, {

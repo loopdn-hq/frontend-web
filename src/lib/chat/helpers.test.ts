@@ -69,9 +69,9 @@ afterEach(() => {
 
 describe("splitMemberInput", () => {
   it("splits a pasted list on commas, semicolons and new lines", () => {
-    expect(splitMemberInput(" sam, alex@example.com;\n+15550001111 ,, ")).toEqual(
-      ["sam", "alex@example.com", "+15550001111"],
-    );
+    expect(
+      splitMemberInput(" sam, alex@example.com;\n+15550001111 ,, "),
+    ).toEqual(["sam", "alex@example.com", "+15550001111"]);
   });
 });
 
@@ -329,7 +329,8 @@ describe("normalizeNotification", () => {
   });
 
   it("names the actor from the best thing it has", () => {
-    const name = (row: object) => normalizeNotification({ id: 1, ...row })?.actorName;
+    const name = (row: object) =>
+      normalizeNotification({ id: 1, ...row })?.actorName;
     expect(name({ from_user: { username: "sam", profile: {} } })).toBe("sam");
     expect(name({ from_user: { username: "sam" } })).toBe("sam");
     expect(name({ data: { display_name: "+14…2671" } })).toBe("+14…2671");
@@ -364,7 +365,8 @@ describe("normalizeNotification", () => {
   it("accepts every join mode and status, and a string conversation id", () => {
     for (const mode of ["open", "code", "approval", "invite"]) {
       expect(
-        normalizeNotification({ id: 1, conversation_join_mode: mode })?.joinMode,
+        normalizeNotification({ id: 1, conversation_join_mode: mode })
+          ?.joinMode,
       ).toBe(mode);
     }
     for (const status of ["active", "pending", "left", "removed", "blocked"]) {
@@ -398,7 +400,11 @@ describe("fetchNotifications", () => {
 
   it("puts the filters in the query, leaving out the defaults", async () => {
     respond(200, { data: {} });
-    await fetchNotifications({ category: "delivery", unreadOnly: true, page: 3 });
+    await fetchNotifications({
+      category: "delivery",
+      unreadOnly: true,
+      page: 3,
+    });
     expect(lastRequest().path).toBe(
       "/chat/notifications/?category=delivery&unread=1&page=3",
     );
@@ -444,7 +450,10 @@ describe("markNotificationsRead", () => {
     });
 
     respond(200, {});
-    expect(await markNotificationsRead([])).toEqual({ ok: true, unreadCount: 0 });
+    expect(await markNotificationsRead([])).toEqual({
+      ok: true,
+      unreadCount: 0,
+    });
     expect(lastRequest().body).toEqual({});
     await markNotificationsRead();
     expect(lastRequest().body).toEqual({});
@@ -494,21 +503,26 @@ describe("describeMessageBody", () => {
       describeMessageBody("", [file("image/png"), file("image/jpeg")]),
     ).toBe("2 photos");
     expect(
-      describeMessageBody("", [file("application/pdf"), file("application/pdf")]),
+      describeMessageBody("", [
+        file("application/pdf"),
+        file("application/pdf"),
+      ]),
     ).toBe("2 PDFs");
-    expect(describeMessageBody("", [file("image/gif"), file("image/gif")])).toBe(
-      "2 GIFs",
-    );
+    expect(
+      describeMessageBody("", [file("image/gif"), file("image/gif")]),
+    ).toBe("2 GIFs");
     expect(
       describeMessageBody("both", [file("image/png"), file("video/mp4")]),
     ).toBe("2 attachments · both");
   });
 
   it("describes a bare link rather than printing the URL", () => {
-    expect(describeMessageBody("https://youtu.be/abc123")).toBe("YouTube video");
-    expect(
-      describeMessageBody("https://www.youtube.com/watch?v=abc123"),
-    ).toBe("YouTube video");
+    expect(describeMessageBody("https://youtu.be/abc123")).toBe(
+      "YouTube video",
+    );
+    expect(describeMessageBody("https://www.youtube.com/watch?v=abc123")).toBe(
+      "YouTube video",
+    );
     expect(describeMessageBody("https://example.com/page")).toBe("Link");
     expect(describeMessageBody("see https://example.com")).toBe(
       "see https://example.com",

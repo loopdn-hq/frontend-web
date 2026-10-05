@@ -30,7 +30,11 @@ import { GroupResultsSkeleton } from "@/components/app/GroupResultsSkeleton";
 import { LoadFailed } from "@/components/app/LoadFailed";
 import { LoopdnLogo } from "@/components/app/LoopdnLogo";
 import { NavDrawerButton } from "@/components/app/NavDrawerButton";
-import { AccessIcon, SmsWebIcon, VoiceIcon } from "@/components/auth/FeatureIcons";
+import {
+  AccessIcon,
+  SmsWebIcon,
+  VoiceIcon,
+} from "@/components/auth/FeatureIcons";
 import { FormSkeleton, ProgressBar } from "@/components/auth/LoadingSkeletons";
 import { LoadingSpinner } from "@/components/auth/LoadingSpinner";
 import { ChatAvatar } from "@/components/home/ChatAvatar";
@@ -40,7 +44,9 @@ import { MessageThreadSkeleton } from "@/components/home/message/MessageThreadSk
 import { SponsoredCard } from "@/components/sponsored/SponsoredCard";
 import type { AppNotification } from "@/lib/chat/notifications";
 
-function notification(overrides: Partial<AppNotification> = {}): AppNotification {
+function notification(
+  overrides: Partial<AppNotification> = {},
+): AppNotification {
   return {
     id: 1,
     type: "general",
@@ -91,14 +97,20 @@ describe("loading skeletons", () => {
       </>,
     );
     expect(screen.getByText("Processing...")).toBeInTheDocument();
-    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(5);
+    expect(container.querySelectorAll(".animate-pulse").length).toBeGreaterThan(
+      5,
+    );
   });
 });
 
 describe("ComingSoon", () => {
   it("names the section and offers the way back", () => {
-    render(<ComingSoon title="Broadcast" description="Send to many at once." />);
-    expect(screen.getByRole("heading", { name: "Broadcast" })).toBeInTheDocument();
+    render(
+      <ComingSoon title="Broadcast" description="Send to many at once." />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Broadcast" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Send to many at once.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Back to Chats" }).getAttribute("href"),
@@ -122,13 +134,17 @@ describe("LoadFailed", () => {
     const { rerender } = render(
       <LoadFailed what="your chats" message="Signed out." onRetry={onRetry} />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load your chats");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Couldn't load your chats",
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("Signed out.");
 
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(onRetry).toHaveBeenCalledTimes(1);
 
-    rerender(<LoadFailed what="your chats" onRetry={onRetry} className="mt-4" />);
+    rerender(
+      <LoadFailed what="your chats" onRetry={onRetry} className="mt-4" />,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Check your connection and try again.",
     );
@@ -163,7 +179,11 @@ describe("feature icons", () => {
 describe("ChatAvatar", () => {
   it("shows the picture when there is one", () => {
     const { container } = render(
-      <ChatAvatar name="Sam" imageUrl="https://cdn.example/sam.png" size={32} />,
+      <ChatAvatar
+        name="Sam"
+        imageUrl="https://cdn.example/sam.png"
+        size={32}
+      />,
     );
     const image = container.querySelector("img")!;
     expect(image).toHaveAttribute("src", "https://cdn.example/sam.png");
@@ -234,7 +254,12 @@ describe("SponsoredCard", () => {
   it("runs a handler instead of linking when given one", () => {
     const onCta = vi.fn();
     render(
-      <SponsoredCard {...base} ctaKind="lead_form" ctaHref="https://x" onCta={onCta} />,
+      <SponsoredCard
+        {...base}
+        ctaKind="lead_form"
+        ctaHref="https://x"
+        onCta={onCta}
+      />,
     );
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Shop now" }));
@@ -264,7 +289,12 @@ describe("SponsoredCard", () => {
 describe("presentNotification", () => {
   it.each([
     ["join.requested", {}, "Sam requested to join", undefined],
-    ["join.approved", {}, "Your request was approved", "You are now in Book club."],
+    [
+      "join.approved",
+      {},
+      "Your request was approved",
+      "You are now in Book club.",
+    ],
     ["join.declined", {}, "Your request was declined", undefined],
     ["member.added", {}, "You were added to a group", "Added by Sam."],
     ["member.removed", {}, "You were removed from a group", undefined],
@@ -333,8 +363,9 @@ describe("presentNotification", () => {
   it("stays readable when it knows neither who nor where", () => {
     const anonymous = { actorName: null, conversationName: null };
     expect(
-      presentNotification(notification({ type: "join.requested", ...anonymous }))
-        .title,
+      presentNotification(
+        notification({ type: "join.requested", ...anonymous }),
+      ).title,
     ).toBe("Someone requested to join");
     expect(
       presentNotification(notification({ type: "join.approved", ...anonymous }))

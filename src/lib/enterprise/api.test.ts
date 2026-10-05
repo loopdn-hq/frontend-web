@@ -29,7 +29,9 @@ function requests() {
   return vi.mocked(authorizedRequest).mock.calls.map(([path, init]) => ({
     path: path as string,
     method: (init as RequestInit | undefined)?.method,
-    body: JSON.parse(((init as RequestInit | undefined)?.body as string) ?? "null"),
+    body: JSON.parse(
+      ((init as RequestInit | undefined)?.body as string) ?? "null",
+    ),
   }));
 }
 
@@ -97,11 +99,18 @@ describe("fetchEnterprisePricingCatalog", () => {
             max_members_per_group: [{ value: "100", label: "100 members" }],
           },
           features: [
-            { key: "search", label: "Search", description: "Find.", price_cents: 900 },
+            {
+              key: "search",
+              label: "Search",
+              description: "Find.",
+              price_cents: 900,
+            },
             7,
           ],
           analytics: [{ value: "basic", label: "Basic", price_cents: 1500 }],
-          credit_packages: [{ value: "10000", label: "10k", price_cents: 4900 }],
+          credit_packages: [
+            { value: "10000", label: "10k", price_cents: 4900 },
+          ],
           billing_intervals: [
             {
               value: "annual",
@@ -133,7 +142,12 @@ describe("fetchEnterprisePricingCatalog", () => {
           storageGb: [],
         },
         features: [
-          { key: "search", label: "Search", description: "Find.", priceCents: 900 },
+          {
+            key: "search",
+            label: "Search",
+            description: "Find.",
+            priceCents: 900,
+          },
         ],
         analytics: [{ value: "basic", label: "Basic", priceCents: 1500 }],
         creditPackages: [{ value: "10000", label: "10k", priceCents: 4900 }],
@@ -539,7 +553,9 @@ describe("fetchEnterpriseBillingStatus", () => {
           subtotalCents: 195600,
           discountCents: 29340,
           totalCents: 166260,
-          lineItems: [{ description: "Enterprise base fee", amountCents: 72000 }],
+          lineItems: [
+            { description: "Enterprise base fee", amountCents: 72000 },
+          ],
         },
         stripeStatus: "paid",
       },

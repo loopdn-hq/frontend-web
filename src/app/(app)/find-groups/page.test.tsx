@@ -53,7 +53,9 @@ async function search(text = "book") {
 }
 
 function resultCard(name: string) {
-  return screen.getByRole("heading", { name }).closest("article") as HTMLElement;
+  return screen
+    .getByRole("heading", { name })
+    .closest("article") as HTMLElement;
 }
 
 beforeEach(() => {
@@ -214,7 +216,9 @@ describe("FindGroupsPage - joining", () => {
       await screen.findByRole("button", { name: "Join group" }),
     );
     expect(await screen.findByText("This Loop is full.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Group 1" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Group 1" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -235,7 +239,9 @@ describe("FindGroupsPage - joining with a code", () => {
     expect(joinConversation).not.toHaveBeenCalled();
     expect(within(modal).getByPlaceholderText("e.g. ABC123")).toHaveFocus();
 
-    await userEvent.click(within(modal).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(
+      within(modal).getByRole("button", { name: "Cancel" }),
+    );
     expect(
       screen.queryByRole("heading", { name: "Join Group 4" }),
     ).not.toBeInTheDocument();
@@ -246,10 +252,15 @@ describe("FindGroupsPage - joining with a code", () => {
     await userEvent.click(
       within(modal).getByRole("button", { name: "Join group" }),
     );
-    expect(within(modal).getByText("Enter the group code.")).toBeInTheDocument();
+    expect(
+      within(modal).getByText("Enter the group code."),
+    ).toBeInTheDocument();
     expect(joinConversationWithCode).not.toHaveBeenCalled();
 
-    await userEvent.type(within(modal).getByPlaceholderText("e.g. ABC123"), "A");
+    await userEvent.type(
+      within(modal).getByPlaceholderText("e.g. ABC123"),
+      "A",
+    );
     expect(
       within(modal).queryByText("Enter the group code."),
     ).not.toBeInTheDocument();
@@ -303,8 +314,6 @@ describe("FindGroupsPage - joining with a code", () => {
       within(modal).getByPlaceholderText("e.g. ABC123"),
       "AB12{Enter}",
     );
-    expect(
-      await screen.findByText(/Your request to join/),
-    ).toBeInTheDocument();
+    expect(await screen.findByText(/Your request to join/)).toBeInTheDocument();
   });
 });

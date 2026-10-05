@@ -52,7 +52,10 @@ vi.mock("@/components/home/LoopPanelMembers", () => ({
   ),
 }));
 
-import { LoopAdminPanel, type AdminTab } from "@/components/home/LoopAdminPanel";
+import {
+  LoopAdminPanel,
+  type AdminTab,
+} from "@/components/home/LoopAdminPanel";
 import type {
   ConversationParticipant,
   GroupSettings,
@@ -60,8 +63,10 @@ import type {
 import { deferred } from "@/test/helpers";
 
 const SETTINGS = { mode: "chat" } as GroupSettings;
-const blockedMember = (id: string, extra: Partial<ConversationParticipant> = {}) =>
-  ({ id, name: `Blocked ${id}`, ...extra }) as ConversationParticipant;
+const blockedMember = (
+  id: string,
+  extra: Partial<ConversationParticipant> = {},
+) => ({ id, name: `Blocked ${id}`, ...extra }) as ConversationParticipant;
 
 function show(props: Partial<Parameters<typeof LoopAdminPanel>[0]> = {}) {
   const onTabChange = vi.fn();
@@ -228,7 +233,9 @@ describe("LoopAdminPanel", () => {
       props: Partial<Parameters<typeof LoopAdminPanel>[0]>,
     ) {
       const result = show({ activeTab: "members", ...props });
-      await userEvent.click(screen.getByRole("button", { name: "open blocked" }));
+      await userEvent.click(
+        screen.getByRole("button", { name: "open blocked" }),
+      );
       return result;
     }
 
@@ -255,7 +262,9 @@ describe("LoopAdminPanel", () => {
     it("says it is loading, then that nobody is blocked", async () => {
       const pending = deferred<ConversationParticipant[]>();
       await openBlocked({ onFetchBlockedMembers: () => pending.promise });
-      expect(screen.getByText("Loading blocked members...")).toBeInTheDocument();
+      expect(
+        screen.getByText("Loading blocked members..."),
+      ).toBeInTheDocument();
       await act(async () => pending.resolve([]));
       expect(
         screen.getByText("Nobody is blocked from this Loop."),
@@ -264,7 +273,9 @@ describe("LoopAdminPanel", () => {
 
     it("says why the list could not be loaded", async () => {
       const first = await openBlocked({
-        onFetchBlockedMembers: vi.fn().mockRejectedValue(new Error("Admins only.")),
+        onFetchBlockedMembers: vi
+          .fn()
+          .mockRejectedValue(new Error("Admins only.")),
       });
       expect(await screen.findByText("Admins only.")).toBeInTheDocument();
       expect(
@@ -419,7 +430,9 @@ describe("LoopAdminPanel", () => {
         pendingRequests: REQUESTS,
         isLoading: true,
       });
-      expect(screen.getAllByRole("button", { name: "Approve" })[0]).toBeDisabled();
+      expect(
+        screen.getAllByRole("button", { name: "Approve" })[0],
+      ).toBeDisabled();
       first.unmount();
 
       await openRequests({ pendingRequests: [REQUESTS[0]] });
@@ -463,7 +476,9 @@ describe("LoopAdminPanel", () => {
       expect(
         within(confirm).getByRole("button", { name: "Leaving..." }),
       ).toHaveAttribute("aria-disabled", "true");
-      expect(within(confirm).getByRole("button", { name: "Cancel" })).toBeDisabled();
+      expect(
+        within(confirm).getByRole("button", { name: "Cancel" }),
+      ).toBeDisabled();
       await userEvent.click(
         within(confirm).getByRole("button", { name: "Keep me in this Loop" }),
       );

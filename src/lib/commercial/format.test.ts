@@ -48,7 +48,10 @@ beforeEach(() => {
     ok: true,
     data: OPTIONS.categories,
   });
-  vi.mocked(fetchMarkets).mockResolvedValue({ ok: true, data: OPTIONS.markets });
+  vi.mocked(fetchMarkets).mockResolvedValue({
+    ok: true,
+    data: OPTIONS.markets,
+  });
 });
 
 describe("commercial formatting", () => {

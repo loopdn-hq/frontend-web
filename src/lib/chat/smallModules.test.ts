@@ -125,7 +125,10 @@ describe("fetchGroupOptions", () => {
     await fetchGroupOptions();
     expect(request).toHaveBeenCalledTimes(1);
     expect(first).toBe(second);
-    expect(first).toEqual({ ok: true, data: { categories: [], countries: [] } });
+    expect(first).toEqual({
+      ok: true,
+      data: { categories: [], countries: [] },
+    });
   });
 
   it("tries again after a failure", async () => {

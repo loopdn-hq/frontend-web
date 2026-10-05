@@ -199,10 +199,21 @@ const CONVERSATION = {
   cleared: true,
   is_admin: true,
   features: ["group.message.send", 5],
-  sms_number: { number: "+15550009999", country: "US", status: "active", provider: "x" },
+  sms_number: {
+    number: "+15550009999",
+    country: "US",
+    status: "active",
+    provider: "x",
+  },
   created_by: { username: "sam" },
   participants: [
-    { id: 1, role: "admin", joined_at: "2026-01-01", user: SAM, last_read_message: 501 },
+    {
+      id: 1,
+      role: "admin",
+      joined_at: "2026-01-01",
+      user: SAM,
+      last_read_message: 501,
+    },
     "junk",
   ],
 };
@@ -510,7 +521,8 @@ describe("normalizeMessagePayload", () => {
 
   it("names a sender from whichever label it carries", () => {
     const sender = (value: object) =>
-      normalizeMessagePayload({ id: 1, conversation: 1, sender: value })?.sender;
+      normalizeMessagePayload({ id: 1, conversation: 1, sender: value })
+        ?.sender;
     expect(sender({ display_label: "Top" })).toBe("Top");
     expect(sender({ profile: { display_label: "Nested" } })).toBe("Nested");
     expect(sender({ username: "sam" })).toBe("sam");
@@ -526,7 +538,10 @@ describe("normalizeMessagePayload", () => {
     const preview = normalizeMessagePayload({
       id: 1,
       conversation: 1,
-      link_preview: { url: "https://x.example", image_url: "https://x.example/i.png" },
+      link_preview: {
+        url: "https://x.example",
+        image_url: "https://x.example/i.png",
+      },
     })?.linkPreview;
     expect(preview).toEqual({
       url: "https://x.example",
@@ -640,9 +655,9 @@ describe("normalizeParticipant", () => {
       email: undefined,
       avatarUrl: undefined,
     });
-    expect(normalizeParticipant({ id: 3, user: { id: null, username: "x" } })).toMatchObject(
-      { userId: undefined, name: "x" },
-    );
+    expect(
+      normalizeParticipant({ id: 3, user: { id: null, username: "x" } }),
+    ).toMatchObject({ userId: undefined, name: "x" });
   });
 
   it("refuses a row with no id", () => {
@@ -658,9 +673,15 @@ describe("small helpers", () => {
       { id: "2" },
       { id: "3", username: "alex" },
     ] as Conversation["participants"];
-    expect(directCounterpart({ kind: "direct", participants }, "sam")?.id).toBe("3");
-    expect(directCounterpart({ kind: "direct", participants: [] }, "sam")).toBeNull();
-    expect(directCounterpart({ kind: "group", participants }, "sam")).toBeNull();
+    expect(directCounterpart({ kind: "direct", participants }, "sam")?.id).toBe(
+      "3",
+    );
+    expect(
+      directCounterpart({ kind: "direct", participants: [] }, "sam"),
+    ).toBeNull();
+    expect(
+      directCounterpart({ kind: "group", participants }, "sam"),
+    ).toBeNull();
   });
 
   it("knows whether somebody has reacted", () => {
@@ -778,7 +799,9 @@ describe("createConversation", () => {
 
 describe("listing and searching conversations", () => {
   it("lists a page of conversations", async () => {
-    respond(200, { data: { next: "page2", results: [CONVERSATION, { id: 1 }, "x"] } });
+    respond(200, {
+      data: { next: "page2", results: [CONVERSATION, { id: 1 }, "x"] },
+    });
     const result = await fetchConversations();
     expect(lastRequest().url).toBe("/chat/conversations/");
     expect(result).toMatchObject({ ok: true, hasMore: true });
@@ -871,7 +894,10 @@ describe("listing and searching conversations", () => {
       body: { identifier: "@sam" },
     });
 
-    respond(400, { data: { identifier: ["Nobody by that name."] }, message: "Bad." });
+    respond(400, {
+      data: { identifier: ["Nobody by that name."] },
+      message: "Bad.",
+    });
     expect(await startDirectConversation("x")).toEqual({
       ok: false,
       message: "Nobody by that name.",
@@ -881,7 +907,10 @@ describe("listing and searching conversations", () => {
       ok: false,
       message: "They do not accept messages.",
     });
-    for (const response of [brokenResponse(500), jsonResponse(200, { data: {} })]) {
+    for (const response of [
+      brokenResponse(500),
+      jsonResponse(200, { data: {} }),
+    ]) {
       http.mockResolvedValue(response);
       expect(await startDirectConversation("x")).toEqual({
         ok: false,
@@ -916,7 +945,10 @@ describe("joining", () => {
 
     respond(202, { data: null });
     expect(await joinConversation(12)).toEqual({ ok: true, status: "pending" });
-    await expectFailures(() => joinConversation(12), "Unable to join this Loop.");
+    await expectFailures(
+      () => joinConversation(12),
+      "Unable to join this Loop.",
+    );
   });
 
   it("joins with a code", async () => {
@@ -944,7 +976,10 @@ describe("joining", () => {
       ok: false,
       message: "Unable to load the join code.",
     });
-    await expectFailures(() => fetchJoinCode(12), "Unable to load the join code.");
+    await expectFailures(
+      () => fetchJoinCode(12),
+      "Unable to load the join code.",
+    );
   });
 });
 
@@ -985,16 +1020,22 @@ describe("one conversation", () => {
       "DELETE",
       "Unable to unpin this.",
     ],
-  ])("%s, returning the conversation as it now is", async (_n, call, url, method, fallback) => {
-    respond(200, { data: CONVERSATION });
-    expect(await call()).toMatchObject({ ok: true, conversation: { id: 12 } });
-    expect(lastRequest().url).toBe(url);
-    expect(lastRequest().method).toBe(method);
+  ])(
+    "%s, returning the conversation as it now is",
+    async (_n, call, url, method, fallback) => {
+      respond(200, { data: CONVERSATION });
+      expect(await call()).toMatchObject({
+        ok: true,
+        conversation: { id: 12 },
+      });
+      expect(lastRequest().url).toBe(url);
+      expect(lastRequest().method).toBe(method);
 
-    respond(200, { data: { id: 12 } });
-    expect(await call()).toEqual({ ok: false, message: fallback });
-    await expectFailures(call, fallback);
-  });
+      respond(200, { data: { id: 12 } });
+      expect(await call()).toEqual({ ok: false, message: fallback });
+      await expectFailures(call, fallback);
+    },
+  );
 
   it("sends changed settings as JSON, and a picture change as a form", async () => {
     respond(200, { data: CONVERSATION });
@@ -1123,7 +1164,10 @@ describe("members", () => {
       url: "/chat/conversations/12/",
       method: "DELETE",
     });
-    await expectFailures(() => deleteConversation(12), "Unable to delete this Loop.");
+    await expectFailures(
+      () => deleteConversation(12),
+      "Unable to delete this Loop.",
+    );
   });
 
   it("loads every member, a page at a time until a short page", async () => {
@@ -1227,22 +1271,31 @@ describe("members", () => {
         },
       ],
     });
-    expect(lastRequest().url).toBe("/chat/conversations/12/members/search/?q=sa");
+    expect(lastRequest().url).toBe(
+      "/chat/conversations/12/members/search/?q=sa",
+    );
 
-    respond(200, { data: { results: [], invite: { email: "x@y.co", status: "?" } } });
+    respond(200, {
+      data: { results: [], invite: { email: "x@y.co", status: "?" } },
+    });
     expect(await searchMemberCandidates(12, "x")).toMatchObject({
       hasMore: false,
       invite: { email: "x@y.co", status: "refused" },
     });
     respond(200, { data: { results: [], invite: { status: "ready" } } });
-    expect(await searchMemberCandidates(12, "x")).toMatchObject({ invite: null });
+    expect(await searchMemberCandidates(12, "x")).toMatchObject({
+      invite: null,
+    });
 
     respond(200, { data: { results: 0 } });
     expect(await searchMemberCandidates(12, "x")).toEqual({
       ok: false,
       message: "Search failed.",
     });
-    await expectFailures(() => searchMemberCandidates(12, "x"), "Search failed.");
+    await expectFailures(
+      () => searchMemberCandidates(12, "x"),
+      "Search failed.",
+    );
   });
 
   it("nudges a member who has not answered, by text unless told otherwise", async () => {
@@ -1287,9 +1340,16 @@ describe("messages", () => {
   });
 
   it("catches up after a message without reordering, ignoring the page", async () => {
-    respond(200, { data: [{ ...MESSAGE, id: 4 }, { ...MESSAGE, id: 5 }] });
+    respond(200, {
+      data: [
+        { ...MESSAGE, id: 4 },
+        { ...MESSAGE, id: 5 },
+      ],
+    });
     const result = await fetchMessageHistory(12, { afterId: 3, page: 9 });
-    expect(lastRequest().url).toBe("/chat/conversations/12/messages/?after_id=3");
+    expect(lastRequest().url).toBe(
+      "/chat/conversations/12/messages/?after_id=3",
+    );
     expect(result.ok && result.messages.map((m) => m.id)).toEqual([4, 5]);
     expect(result.ok && result.hasMore).toBe(false);
 

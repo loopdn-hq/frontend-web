@@ -25,13 +25,18 @@ vi.mock("@/lib/app/AppShellProvider", () => ({
   }),
 }));
 vi.mock("@/lib/calls/useLiveKitRoom", () => ({
-  useLiveKitRoom: ({ onDisconnected }: { onDisconnected?: (cause: string) => void }) => {
+  useLiveKitRoom: ({
+    onDisconnected,
+  }: {
+    onDisconnected?: (cause: string) => void;
+  }) => {
     onMediaDisconnected = onDisconnected;
     return media;
   },
 }));
 vi.mock("@/lib/calls/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/calls/api")>("@/lib/calls/api");
+  const actual =
+    await vi.importActual<typeof import("@/lib/calls/api")>("@/lib/calls/api");
   return {
     ...actual,
     endCall: vi.fn(),
@@ -60,7 +65,11 @@ import {
 import { CallProvider, useCalls } from "@/lib/calls/CallProvider";
 import { deferred } from "@/test/helpers";
 
-const CONNECTION = { url: "wss://livekit.example", token: "jwt", expiresAt: "" };
+const CONNECTION = {
+  url: "wss://livekit.example",
+  token: "jwt",
+  expiresAt: "",
+};
 
 /** A call as the API and the socket send it. */
 function raw(overrides: Record<string, unknown> = {}) {
@@ -81,7 +90,11 @@ function call(overrides: Record<string, unknown> = {}): Call {
   return normalizeCall(raw(overrides))!;
 }
 
-function frame(type: string, overrides: Record<string, unknown> = {}, extra: object = {}) {
+function frame(
+  type: string,
+  overrides: Record<string, unknown> = {},
+  extra: object = {},
+) {
   act(() => socketListener!({ type, call: raw(overrides), ...extra }));
 }
 
@@ -126,7 +139,11 @@ beforeEach(() => {
     ],
   };
   media.connect.mockResolvedValue({ ok: true });
-  vi.mocked(fetchCalls).mockResolvedValue({ ok: true, calls: [], hasMore: false });
+  vi.mocked(fetchCalls).mockResolvedValue({
+    ok: true,
+    calls: [],
+    hasMore: false,
+  });
   vi.mocked(leaveCall).mockResolvedValue({ ok: true, call: call() });
 });
 
@@ -162,14 +179,21 @@ describe("CallProvider - starting and joining", () => {
       started = result.current.startCall(12, "video");
     });
     expect(result.current.phase).toBe("starting");
-    expect(result.current.pendingStart).toEqual({ conversationId: 12, type: "video" });
+    expect(result.current.pendingStart).toEqual({
+      conversationId: 12,
+      type: "video",
+    });
 
     // A second press while the first is starting does nothing.
     await act(() => result.current.startCall(12, "video"));
     expect(startCall).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      pending.resolve({ ok: true, call: call({ call_type: "video" }), connection: CONNECTION });
+      pending.resolve({
+        ok: true,
+        call: call({ call_type: "video" }),
+        connection: CONNECTION,
+      });
       await started;
     });
     expect(media.connect).toHaveBeenCalledWith(CONNECTION, { camera: true });
@@ -185,7 +209,11 @@ describe("CallProvider - starting and joining", () => {
       status: 409,
       existingCallId: 31,
     });
-    vi.mocked(joinCall).mockResolvedValue({ ok: true, call: call(), connection: CONNECTION });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: true,
+      call: call(),
+      connection: CONNECTION,
+    });
     const { result } = mount();
     await act(() => result.current.startCall(12, "audio"));
     expect(joinCall).toHaveBeenCalledWith(31);
@@ -247,7 +275,10 @@ describe("CallProvider - starting and joining", () => {
   });
 
   it("says why a call could not be joined", async () => {
-    vi.mocked(joinCall).mockResolvedValue({ ok: false, message: "This call has ended." });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: false,
+      message: "This call has ended.",
+    });
     const { result } = mount();
     await act(() => result.current.joinCall(31));
     expect(result.current.phase).toBe("idle");
@@ -255,8 +286,15 @@ describe("CallProvider - starting and joining", () => {
   });
 
   it("leaves the call on the server when its media will not connect", async () => {
-    media.connect.mockResolvedValue({ ok: false, message: "Couldn't connect to the call." });
-    vi.mocked(joinCall).mockResolvedValue({ ok: true, call: call(), connection: CONNECTION });
+    media.connect.mockResolvedValue({
+      ok: false,
+      message: "Couldn't connect to the call.",
+    });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: true,
+      call: call(),
+      connection: CONNECTION,
+    });
     const { result } = mount();
     await act(() => result.current.joinCall(31));
     expect(leaveCall).toHaveBeenCalledWith(31);
@@ -268,7 +306,11 @@ describe("CallProvider - starting and joining", () => {
   it("drops media that connects after the call was left", async () => {
     const connecting = deferred<{ ok: true }>();
     media.connect.mockReturnValue(connecting.promise);
-    vi.mocked(joinCall).mockResolvedValue({ ok: true, call: call(), connection: CONNECTION });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: true,
+      call: call(),
+      connection: CONNECTION,
+    });
     const { result } = mount();
     let joining!: Promise<void>;
     await act(async () => {
@@ -294,12 +336,19 @@ describe("CallProvider - leaving and ending", () => {
     await act(() => result.current.leaveCall());
     expect(media.disconnect).toHaveBeenCalled();
     expect(leaveCall).toHaveBeenCalledWith(31);
-    expect(result.current).toMatchObject({ phase: "idle", activeCall: null, notice: null });
+    expect(result.current).toMatchObject({
+      phase: "idle",
+      activeCall: null,
+      notice: null,
+    });
   });
 
   it("reports a leave the server refused, having left anyway", async () => {
     const { result } = await inCall();
-    vi.mocked(leaveCall).mockResolvedValue({ ok: false, message: "Unable to leave the call." });
+    vi.mocked(leaveCall).mockResolvedValue({
+      ok: false,
+      message: "Unable to leave the call.",
+    });
     await act(() => result.current.leaveCall());
     expect(result.current.activeCall).toBeNull();
     expect(result.current.error).toBe("Unable to leave the call.");
@@ -312,7 +361,10 @@ describe("CallProvider - leaving and ending", () => {
 
   it("ends the call for everyone", async () => {
     const { result } = await inCall();
-    vi.mocked(endCall).mockResolvedValue({ ok: true, call: call({ status: "ended" }) });
+    vi.mocked(endCall).mockResolvedValue({
+      ok: true,
+      call: call({ status: "ended" }),
+    });
     await act(() => result.current.endCallForEveryone());
     expect(endCall).toHaveBeenCalledWith(31);
     expect(result.current.phase).toBe("idle");
@@ -321,7 +373,10 @@ describe("CallProvider - leaving and ending", () => {
 
   it("stays in the call when ending it is refused", async () => {
     const { result } = await inCall();
-    vi.mocked(endCall).mockResolvedValue({ ok: false, message: "Only the host can end it." });
+    vi.mocked(endCall).mockResolvedValue({
+      ok: false,
+      message: "Only the host can end it.",
+    });
     await act(() => result.current.endCallForEveryone());
     expect(result.current.phase).toBe("in-call");
     expect(result.current.error).toBe("Only the host can end it.");
@@ -352,12 +407,16 @@ describe("CallProvider - who may administer", () => {
   });
 
   it("lets a group admin, and either side of a direct chat", async () => {
-    shell.conversations = [{ id: 12, kind: "group", isAdmin: true, participants: [] }];
+    shell.conversations = [
+      { id: 12, kind: "group", isAdmin: true, participants: [] },
+    ];
     const admin = await inCall();
     expect(admin.result.current.canAdministerActiveCall).toBe(true);
     admin.unmount();
 
-    shell.conversations = [{ id: 12, kind: "direct", isAdmin: false, participants: [] }];
+    shell.conversations = [
+      { id: 12, kind: "direct", isAdmin: false, participants: [] },
+    ];
     const direct = await inCall();
     expect(direct.result.current.canAdministerActiveCall).toBe(true);
   });
@@ -366,7 +425,9 @@ describe("CallProvider - who may administer", () => {
     const { result } = await inCall();
     expect(result.current.canAdministerActiveCall).toBe(false);
     expect(result.current.conversationFor(call())?.id).toBe(12);
-    expect(result.current.conversationFor(call({ conversation: 999 }))).toBeUndefined();
+    expect(
+      result.current.conversationFor(call({ conversation: 999 })),
+    ).toBeUndefined();
   });
 });
 
@@ -516,7 +577,11 @@ describe("CallProvider - socket events", () => {
 
 describe("CallProvider - answering", () => {
   it("accepts an incoming call by joining it", async () => {
-    vi.mocked(joinCall).mockResolvedValue({ ok: true, call: call(), connection: CONNECTION });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: true,
+      call: call(),
+      connection: CONNECTION,
+    });
     const { result } = mount();
     frame("call.incoming", { status: "ringing" });
     await act(() => result.current.acceptIncomingCall());
@@ -526,7 +591,11 @@ describe("CallProvider - answering", () => {
   });
 
   it("declines, staying quiet when the call had already moved on", async () => {
-    vi.mocked(rejectCall).mockResolvedValue({ ok: false, message: "Gone.", status: 409 });
+    vi.mocked(rejectCall).mockResolvedValue({
+      ok: false,
+      message: "Gone.",
+      status: 409,
+    });
     const { result } = mount();
     frame("call.incoming", { status: "ringing" });
     await act(async () => result.current.declineIncomingCall());
@@ -544,7 +613,9 @@ describe("CallProvider - answering", () => {
     const { result } = mount();
     frame("call.incoming", { status: "ringing" });
     await act(async () => result.current.declineIncomingCall());
-    await waitFor(() => expect(result.current.error).toBe("Unable to decline the call."));
+    await waitFor(() =>
+      expect(result.current.error).toBe("Unable to decline the call."),
+    );
   });
 
   it("has nothing to accept or decline when nothing is ringing", async () => {
@@ -572,17 +643,27 @@ describe("CallProvider - calls already live on arrival", () => {
     }));
     const { result } = mount();
     await waitFor(() => expect(result.current.incomingCall?.id).toBe(31));
-    expect(Object.keys(result.current.liveCallsByConversation).sort()).toEqual(["12", "20"]);
+    expect(Object.keys(result.current.liveCallsByConversation).sort()).toEqual([
+      "12",
+      "20",
+    ]);
     expect(fetchCalls).toHaveBeenCalledWith({ status: "ringing" });
     expect(fetchCalls).toHaveBeenCalledWith({ status: "active" });
   });
 
   it.each([
     ["one this account started", { created_by: { id: 7, username: "sam" } }],
-    ["one that has rung for over a minute", { created_at: "2026-10-05T11:00:00Z" }],
+    [
+      "one that has rung for over a minute",
+      { created_at: "2026-10-05T11:00:00Z" },
+    ],
     [
       "one this account is already in",
-      { participants: [{ id: 1, user: { id: 7, username: "sam" }, left_at: null }] },
+      {
+        participants: [
+          { id: 1, user: { id: 7, username: "sam" }, left_at: null },
+        ],
+      },
     ],
   ])("does not ring for %s", async (_name, overrides) => {
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -590,11 +671,16 @@ describe("CallProvider - calls already live on arrival", () => {
     vi.mocked(fetchCalls).mockImplementation(async (options) => ({
       ok: true,
       hasMore: false,
-      calls: options?.status === "ringing" ? [call({ status: "ringing", ...overrides })] : [],
+      calls:
+        options?.status === "ringing"
+          ? [call({ status: "ringing", ...overrides })]
+          : [],
     }));
     const { result } = mount();
     await waitFor(() =>
-      expect(Object.keys(result.current.liveCallsByConversation)).toEqual(["12"]),
+      expect(Object.keys(result.current.liveCallsByConversation)).toEqual([
+        "12",
+      ]),
     );
     expect(result.current.incomingCall).toBeNull();
   });
@@ -633,7 +719,9 @@ describe("CallProvider - losing the media connection", () => {
   it("says so when this account joined from another device", async () => {
     const { result } = await inCall();
     act(() => onMediaDisconnected!("replaced"));
-    expect(result.current.notice).toBe("You joined this call from another device.");
+    expect(result.current.notice).toBe(
+      "You joined this call from another device.",
+    );
   });
 
   it("ignores a disconnect it asked for, or one with no call", async () => {
@@ -655,7 +743,10 @@ describe("CallProvider - losing the media connection", () => {
 
   it("gives up after two failed attempts, and leaves on the server", async () => {
     const { result } = await inCall();
-    media.connect.mockResolvedValue({ ok: false, message: "Couldn't connect to the call." });
+    media.connect.mockResolvedValue({
+      ok: false,
+      message: "Couldn't connect to the call.",
+    });
     await act(async () => onMediaDisconnected!("lost"));
     await waitFor(() => expect(result.current.activeCall).toBeNull());
     expect(result.current.error).toBe("Couldn't connect to the call.");
@@ -676,7 +767,11 @@ describe("CallProvider - losing the media connection", () => {
 
   it("treats a rejoin refused with 409 as the call having ended", async () => {
     const { result } = await inCall();
-    vi.mocked(joinCall).mockResolvedValue({ ok: false, message: "Gone.", status: 409 });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: false,
+      message: "Gone.",
+      status: 409,
+    });
     await act(async () => onMediaDisconnected!("lost"));
     await waitFor(() => expect(result.current.notice).toBe("Call ended."));
     expect(result.current.error).toBeNull();
@@ -684,7 +779,11 @@ describe("CallProvider - losing the media connection", () => {
 
   it("reports any other refusal to rejoin", async () => {
     const { result } = await inCall();
-    vi.mocked(joinCall).mockResolvedValue({ ok: false, message: "Server error.", status: 500 });
+    vi.mocked(joinCall).mockResolvedValue({
+      ok: false,
+      message: "Server error.",
+      status: 500,
+    });
     await act(async () => onMediaDisconnected!("lost"));
     await waitFor(() => expect(result.current.error).toBe("Server error."));
     expect(result.current.phase).toBe("idle");

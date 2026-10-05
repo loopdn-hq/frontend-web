@@ -281,7 +281,11 @@ describe("LinkPreviewCard", () => {
 
 describe("MentionPicker", () => {
   const options = [
-    { id: "everyone" as const, label: "everyone", hint: "Everyone in this Loop" },
+    {
+      id: "everyone" as const,
+      label: "everyone",
+      hint: "Everyone in this Loop",
+    },
     { id: 3, label: "Ada" },
   ];
 
@@ -733,9 +737,9 @@ describe("MessageBubble", () => {
     });
     const bubble = screen.getByRole("article");
     expect(bubble).toHaveTextContent("Forwarded");
-    expect(within(bubble).getByText("Lin").closest("blockquote")).toHaveTextContent(
-      "LinWhen?",
-    );
+    expect(
+      within(bubble).getByText("Lin").closest("blockquote"),
+    ).toHaveTextContent("LinWhen?");
     expect(within(bubble).getByText("edited")).toBeInTheDocument();
   });
 
@@ -808,7 +812,10 @@ describe("MessageBubble", () => {
   });
 
   it("copes with a message that carries no mention fields", () => {
-    show({ mentions: undefined as never, mentionsEveryone: undefined as never });
+    show({
+      mentions: undefined as never,
+      mentionsEveryone: undefined as never,
+    });
     expect(screen.getByText("See you at noon")).toBeInTheDocument();
   });
 
@@ -816,9 +823,23 @@ describe("MessageBubble", () => {
     const { container } = show({
       text: "",
       attachments: [
-        { id: 1, url: "/a.png", originalName: "a.png", contentType: "image/png" },
-        { id: 2, url: "/b.webm", originalName: "b.webm", contentType: "audio/webm" },
-        { url: "/c.pdf", originalName: "c.pdf", contentType: "application/pdf" },
+        {
+          id: 1,
+          url: "/a.png",
+          originalName: "a.png",
+          contentType: "image/png",
+        },
+        {
+          id: 2,
+          url: "/b.webm",
+          originalName: "b.webm",
+          contentType: "audio/webm",
+        },
+        {
+          url: "/c.pdf",
+          originalName: "c.pdf",
+          contentType: "application/pdf",
+        },
         { url: "/d", originalName: "d" },
       ],
     });

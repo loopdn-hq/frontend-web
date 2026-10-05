@@ -129,7 +129,9 @@ describe("companies", () => {
     });
     const result = await fetchCompanyPage({ search: " acme ", page: 2 });
 
-    expect(lastRequest().path).toBe("/commercial/companies/?page=2&search=acme");
+    expect(lastRequest().path).toBe(
+      "/commercial/companies/?page=2&search=acme",
+    );
     expect(result).toEqual({
       ok: true,
       data: {
@@ -164,7 +166,10 @@ describe("companies", () => {
     respond(200, { data: [{ id: 1 }] });
     const result = await fetchCompanyPage();
     expect(lastRequest().path).toBe("/commercial/companies/?page=1");
-    expect(result.ok && result.data).toMatchObject({ count: 1, hasMore: false });
+    expect(result.ok && result.data).toMatchObject({
+      count: 1,
+      hasMore: false,
+    });
     expect(result.ok && result.data.companies[0]).toMatchObject({
       currency: "USD",
       status: "active",
@@ -273,7 +278,11 @@ describe("companies", () => {
 describe("reference lists", () => {
   it("reads the industries, labelled by slug when there is no label", async () => {
     respond(200, {
-      data: [{ slug: "retail", label: "Retail" }, { slug: "food" }, { label: "x" }],
+      data: [
+        { slug: "retail", label: "Retail" },
+        { slug: "food" },
+        { label: "x" },
+      ],
     });
     expect(await fetchIndustries()).toEqual({
       ok: true,
@@ -296,7 +305,11 @@ describe("reference lists", () => {
             code: "US",
             name: "United States",
             default_currency: "USD",
-            regions: [{ code: "US-CA", name: "California" }, { code: "US-NY" }, 3],
+            regions: [
+              { code: "US-CA", name: "California" },
+              { code: "US-NY" },
+              3,
+            ],
           },
           { code: "PH" },
           "junk",
@@ -340,7 +353,9 @@ describe("reference lists", () => {
 
   it("reads the group categories, dropping any without a slug", async () => {
     respond(200, {
-      data: { results: [{ slug: "sports", label: "Sports" }, { slug: "arts" }, {}] },
+      data: {
+        results: [{ slug: "sports", label: "Sports" }, { slug: "arts" }, {}],
+      },
     });
     expect(await fetchCategories()).toEqual({
       ok: true,
@@ -366,7 +381,10 @@ describe("campaigns", () => {
     expect(lastRequest().path).toBe(
       "/commercial/campaigns/?company=3&page=2&status=running&search=sale",
     );
-    expect(result.ok && result.data).toMatchObject({ count: 9, hasMore: false });
+    expect(result.ok && result.data).toMatchObject({
+      count: 9,
+      hasMore: false,
+    });
     expect(result.ok && result.data.campaigns[0]).toEqual({
       id: 12,
       companyId: 3,
@@ -423,7 +441,13 @@ describe("campaigns", () => {
         },
       ],
       events: [
-        { kind: "submitted", label: "submitted", by: "sam", note: "", createdAt: null },
+        {
+          kind: "submitted",
+          label: "submitted",
+          by: "sam",
+          note: "",
+          createdAt: null,
+        },
       ],
     });
   });
@@ -451,7 +475,11 @@ describe("campaigns", () => {
 
   it("starts a campaign", async () => {
     respond(201, { data: CAMPAIGN });
-    await createCampaign({ companyId: 3, objective: "lead", name: "Autumn sale" });
+    await createCampaign({
+      companyId: 3,
+      objective: "lead",
+      name: "Autumn sale",
+    });
     expect(lastRequest()).toMatchObject({
       path: "/commercial/campaigns/",
       method: "POST",
@@ -568,7 +596,10 @@ describe("audience", () => {
         members: { low: 5000, high: null },
       },
     });
-    expect(lastRequest().body).toMatchObject({ company: 3, categories: ["sports"] });
+    expect(lastRequest().body).toMatchObject({
+      company: 3,
+      categories: ["sports"],
+    });
 
     respond(200, { data: { available: false, reason: "Pick a region." } });
     expect(await estimateReach(3, audience)).toEqual({

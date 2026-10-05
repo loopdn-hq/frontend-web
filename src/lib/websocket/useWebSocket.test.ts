@@ -31,7 +31,9 @@ class FakeWebSocket {
   }
 
   receive(data: unknown) {
-    this.onmessage?.({ data: typeof data === "string" ? data : JSON.stringify(data) });
+    this.onmessage?.({
+      data: typeof data === "string" ? data : JSON.stringify(data),
+    });
   }
 
   send(data: string) {
@@ -52,7 +54,11 @@ function socket(index = -1) {
 /** Mount the hook and let its deferred connect run. */
 function connect(options: Partial<Parameters<typeof useWebSocket>[0]> = {}) {
   const view = renderHook(() =>
-    useWebSocket({ url: "wss://loopdn.example/ws/", reconnectDelay: 1000, ...options }),
+    useWebSocket({
+      url: "wss://loopdn.example/ws/",
+      reconnectDelay: 1000,
+      ...options,
+    }),
   );
   act(() => {
     vi.advanceTimersByTime(0);
@@ -121,7 +127,9 @@ describe("useWebSocket", () => {
     const { result } = connect({ onError });
 
     act(() => result.current.send({ type: "typing" }));
-    expect(result.current.error?.message).toBe("WebSocket connection not ready");
+    expect(result.current.error?.message).toBe(
+      "WebSocket connection not ready",
+    );
 
     act(() => socket().open());
     socket().failSend = true;

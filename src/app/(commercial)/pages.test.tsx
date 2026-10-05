@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +29,8 @@ vi.mock("@/lib/commercial/CompanyProvider", () => ({
   useCompany: () => ({ ...companyState, reload, update }),
 }));
 vi.mock("@/components/ui", async () => {
-  const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
+  const actual =
+    await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
   return { ...actual, useToast: () => toast };
 });
 vi.mock("@/lib/commercial/api", () => ({
@@ -55,11 +63,19 @@ vi.mock("@/components/commercial/CompanyForm", () => ({
     submitLabel: string;
     onSaved: (company: unknown) => void;
   }) => (
-    <button onClick={() => onSaved({ ...editing, name: "Acme Ltd" })}>{submitLabel}</button>
+    <button onClick={() => onSaved({ ...editing, name: "Acme Ltd" })}>
+      {submitLabel}
+    </button>
   ),
 }));
 vi.mock("@/components/commercial/AddFundsDialog", () => ({
-  AddFundsDialog: ({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) =>
+  AddFundsDialog: ({
+    isOpen,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+  }) =>
     isOpen ? (
       <div data-testid="add-funds">
         <button onClick={onClose}>Close add funds</button>
@@ -98,7 +114,9 @@ vi.mock("@/components/commercial/CampaignDetail", () => ({
   }) => (
     <div data-testid="detail" data-campaign={campaignId}>
       <button
-        onClick={() => onChanged({ ...ROW(campaignId), name: "Renamed", status: "paused" })}
+        onClick={() =>
+          onChanged({ ...ROW(campaignId), name: "Renamed", status: "paused" })
+        }
       >
         stub change
       </button>
@@ -137,7 +155,10 @@ function ROW(id: number, overrides: Partial<Campaign> = {}): Campaign {
 
 type CampaignPage = Awaited<ReturnType<typeof fetchCampaignPage>>;
 
-function campaignsAre(rows: Campaign[], extra: { count?: number; hasMore?: boolean } = {}) {
+function campaignsAre(
+  rows: Campaign[],
+  extra: { count?: number; hasMore?: boolean } = {},
+) {
   vi.mocked(fetchCampaignPage).mockResolvedValue({
     ok: true,
     data: {
@@ -174,14 +195,20 @@ describe("the commercial layout and small pages", () => {
         <p>page</p>
       </CommercialLayout>,
     );
-    expect(screen.getByTestId("frame")).toContainElement(screen.getByTestId("dashboard"));
+    expect(screen.getByTestId("frame")).toContainElement(
+      screen.getByTestId("dashboard"),
+    );
     expect(screen.getByTestId("dashboard")).toHaveTextContent("page");
   });
 
   it("shows the account page with who is signed in", () => {
     render(<CommercialAccountPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Settings" })).toBeInTheDocument();
-    expect(screen.getByText(/username \(sam\) and password/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Settings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/username \(sam\) and password/),
+    ).toBeInTheDocument();
   });
 
   it("forwards the old one-campaign address to the workspace", () => {
@@ -203,27 +230,52 @@ describe("the commercial layout and small pages", () => {
 describe("the new campaign page", () => {
   it("opens the builder on a new campaign", () => {
     render(<CommercialNewCampaignPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "New campaign" })).toBeInTheDocument();
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-campaign", "new");
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-step", "objective");
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-company", "Acme");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "New campaign" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-campaign",
+      "new",
+    );
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-step",
+      "objective",
+    );
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-company",
+      "Acme",
+    );
     expect(hrefOf("Back to campaigns")).toMatch(/^\/campaigns\/?$/);
   });
 
   it("opens a draft on the step in the address", () => {
     search = "id=12&step=budget";
     render(<CommercialNewCampaignPage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Edit campaign" })).toBeInTheDocument();
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-campaign", "12");
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-step", "budget");
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Edit campaign" }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-campaign",
+      "12",
+    );
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-step",
+      "budget",
+    );
     expect(hrefOf("Back to campaigns")).toMatch(/^\/campaigns\/?\?id=12$/);
   });
 
   it("ignores a step or an id it does not recognise", () => {
     search = "id=zero&step=payment";
     render(<CommercialNewCampaignPage />);
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-campaign", "new");
-    expect(screen.getByTestId("builder")).toHaveAttribute("data-step", "objective");
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-campaign",
+      "new",
+    );
+    expect(screen.getByTestId("builder")).toHaveAttribute(
+      "data-step",
+      "objective",
+    );
   });
 
   it("shows only the company notice until there is a company", () => {
@@ -242,7 +294,9 @@ describe("the company page", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     click("Save changes");
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ name: "Acme Ltd" }));
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Acme Ltd" }),
+    );
     expect(toast).toHaveBeenCalledWith({
       title: "Changes saved",
       description: "Acme Ltd's details are up to date.",
@@ -250,7 +304,10 @@ describe("the company page", () => {
   });
 
   it("warns when the company is suspended", () => {
-    companyState = { company: company({ status: "suspended" }), status: "ready" };
+    companyState = {
+      company: company({ status: "suspended" }),
+      status: "ready",
+    };
     render(<CommercialCompanyPage />);
     expect(screen.getByText(/This company is suspended/)).toBeInTheDocument();
   });
@@ -258,14 +315,20 @@ describe("the company page", () => {
   it("shows a placeholder while loading, and nothing to edit with no company", () => {
     companyState = { company: null, status: "loading" };
     const loading = render(<CommercialCompanyPage />);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your company");
-    expect(screen.getByText("What your ads are labelled with")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading your company",
+    );
+    expect(
+      screen.getByText("What your ads are labelled with"),
+    ).toBeInTheDocument();
     loading.unmount();
 
     companyState = { company: null, status: "ready" };
     render(<CommercialCompanyPage />);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save changes" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save changes" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -280,7 +343,11 @@ describe("the campaigns page", () => {
   it("lists the company's campaigns", async () => {
     campaignsAre(
       [
-        ROW(1, { status: "running", objective: "lead", createdAt: "2026-10-01T12:00:00" }),
+        ROW(1, {
+          status: "running",
+          objective: "lead",
+          createdAt: "2026-10-01T12:00:00",
+        }),
         ROW(2, { name: " ", totalBudgetCents: null, createdAt: null }),
         ROW(3, { createdAt: "not a date" }),
       ],
@@ -289,7 +356,9 @@ describe("the campaigns page", () => {
     render(<CommercialCampaignsPage />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading campaigns");
 
-    expect(await screen.findByRole("link", { name: /campaign 1/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /campaign 1/i }),
+    ).toBeInTheDocument();
     expect(fetchCampaignPage).toHaveBeenCalledWith({
       companyId: 3,
       status: undefined,
@@ -301,15 +370,17 @@ describe("the campaigns page", () => {
     expect(first).toHaveTextContent("Leads · $500.00");
     expect(first).toHaveTextContent("10/1/26");
     expect(first.getAttribute("href")).toMatch(/^\/campaigns\/?\?id=1$/);
-    expect(screen.getByRole("link", { name: /untitled campaign/i })).toHaveTextContent(
-      "No budget yet",
-    );
+    expect(
+      screen.getByRole("link", { name: /untitled campaign/i }),
+    ).toHaveTextContent("No budget yet");
     expect(screen.getByText("Pick a campaign")).toBeInTheDocument();
   });
 
   it("invites a first campaign when the company has none", async () => {
     render(<CommercialCampaignsPage />);
-    expect(await screen.findByText("No campaigns for Acme yet.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No campaigns for Acme yet."),
+    ).toBeInTheDocument();
     expect(screen.getByText("No campaigns for Acme yet")).toBeInTheDocument();
     expect(screen.getByText("Acme · 0 campaigns")).toBeInTheDocument();
   });
@@ -343,12 +414,17 @@ describe("the campaigns page", () => {
     expect(screen.getByText("No campaigns match.")).toBeInTheDocument();
     expect(screen.getByText("Acme · 0 matching")).toBeInTheDocument();
     // Filtered to nothing is not the same as having none: no invitation.
-    expect(screen.queryByText("No campaigns for Acme yet")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("No campaigns for Acme yet"),
+    ).not.toBeInTheDocument();
 
     const calls = vi.mocked(fetchCampaignPage).mock.calls.length;
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search campaigns" }), {
-      target: { value: "  sale " },
-    });
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Search campaigns" }),
+      {
+        target: { value: "  sale " },
+      },
+    );
     await act(async () => {
       await vi.advanceTimersByTimeAsync(299);
     });
@@ -385,8 +461,12 @@ describe("the campaigns page", () => {
         data: { campaigns: [ROW(2), ROW(3)], count: 4, hasMore: false },
       }),
     );
-    expect(screen.getAllByRole("link", { name: /^campaign \d/i })).toHaveLength(3);
-    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /^campaign \d/i })).toHaveLength(
+      3,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
   });
 
   it("says why more could not be loaded, and clears that on success", async () => {
@@ -394,7 +474,10 @@ describe("the campaigns page", () => {
     render(<CommercialCampaignsPage />);
     await screen.findByRole("link", { name: /campaign 1/i });
 
-    vi.mocked(fetchCampaignPage).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchCampaignPage).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     click("Load more");
     expect(await screen.findByText("Lost connection.")).toBeInTheDocument();
 
@@ -419,7 +502,9 @@ describe("the campaigns page", () => {
     campaignsAre([ROW(1)]);
     click(/try again/i);
     expect(screen.getByRole("status")).toBeInTheDocument();
-    expect(await screen.findByRole("link", { name: /campaign 1/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: /campaign 1/i }),
+    ).toBeInTheDocument();
   });
 
   it("opens the campaign named in the address beside the list", async () => {
@@ -427,10 +512,9 @@ describe("the campaigns page", () => {
     campaignsAre([ROW(1), ROW(2)], { count: 2 });
     render(<CommercialCampaignsPage />);
     expect(screen.getByTestId("detail")).toHaveAttribute("data-campaign", "2");
-    expect(await screen.findByRole("link", { name: /campaign 2/i })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      await screen.findByRole("link", { name: /campaign 2/i }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("complementary")).toHaveClass("hidden");
   });
 
@@ -443,7 +527,9 @@ describe("the campaigns page", () => {
     click("stub change");
     const row = screen.getByRole("link", { name: /renamed/i });
     expect(row).toHaveTextContent("Paused");
-    expect(screen.getByRole("link", { name: /campaign 1/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /campaign 1/i }),
+    ).toBeInTheDocument();
   });
 
   it("drops a deleted draft from the list and closes it", async () => {
@@ -453,7 +539,9 @@ describe("the campaigns page", () => {
     await screen.findByRole("link", { name: /campaign 2/i });
 
     click("stub delete");
-    expect(screen.queryByRole("link", { name: /campaign 2/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /campaign 2/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Acme · 1 campaign")).toBeInTheDocument();
     expect(replace).toHaveBeenCalledWith("/campaigns/", { scroll: false });
   });
@@ -463,7 +551,10 @@ describe("the campaigns page", () => {
     vi.mocked(fetchCampaignPage).mockReturnValue(pending.promise);
     const { unmount } = render(<CommercialCampaignsPage />);
     unmount();
-    pending.resolve({ ok: true, data: { campaigns: [], count: 0, hasMore: false } });
+    pending.resolve({
+      ok: true,
+      data: { campaigns: [], count: 0, hasMore: false },
+    });
     await expect(pending.promise).resolves.toBeTruthy();
   });
 });
@@ -499,12 +590,18 @@ describe("the billing page", () => {
 
   it("shows what is available and what is set aside", async () => {
     render(<CommercialBalancePage />);
-    expect(screen.getByRole("heading", { level: 1, name: "Billing" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Billing" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("$120.00")).toBeInTheDocument();
     expect(screen.getByText("$50.00")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Loading transactions");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading transactions",
+    );
     expect(
-      await screen.findByText("No money has moved yet. Add funds to start a campaign."),
+      await screen.findByText(
+        "No money has moved yet. Add funds to start a campaign.",
+      ),
     ).toBeInTheDocument();
     expect(reload).toHaveBeenCalledTimes(1);
     expect(fetchTransactions).toHaveBeenCalledWith(3);
@@ -530,13 +627,19 @@ describe("the billing page", () => {
     expect(first).toHaveTextContent("Available $170.00 · Set aside $50.00");
     expect(first).toHaveTextContent("Oct 2, 2026");
 
-    const second = screen.getByRole("link", { name: "Autumn sale" }).closest("li")!;
+    const second = screen
+      .getByRole("link", { name: "Autumn sale" })
+      .closest("li")!;
     expect(second).toHaveTextContent("Set aside · Autumn sale");
     expect(second).toHaveTextContent("−$500.00");
-    expect(within(second).getByRole("link", { name: "Autumn sale" }).getAttribute("href")).toMatch(
-      /^\/campaigns\/?\?id=12$/,
+    expect(
+      within(second)
+        .getByRole("link", { name: "Autumn sale" })
+        .getAttribute("href"),
+    ).toMatch(/^\/campaigns\/?\?id=12$/);
+    expect(screen.getByText("Adjustment").closest("li")).not.toHaveTextContent(
+      /[+−]\$/,
     );
-    expect(screen.getByText("Adjustment").closest("li")).not.toHaveTextContent(/[+−]\$/);
   });
 
   it("loads more onto the end, without repeating a row", async () => {
@@ -553,11 +656,16 @@ describe("the billing page", () => {
     await act(async () =>
       more.resolve({
         ok: true,
-        data: { transactions: [row(2), row(3, { label: "Third" })], hasMore: false },
+        data: {
+          transactions: [row(2), row(3, { label: "Third" })],
+          hasMore: false,
+        },
       }),
     );
     expect(screen.getAllByRole("listitem")).toHaveLength(3);
-    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers a retry when the ledger, or more of it, cannot be loaded", async () => {
@@ -574,9 +682,14 @@ describe("the billing page", () => {
     click(/try again/i);
     await screen.findByText("Top-up");
 
-    vi.mocked(fetchTransactions).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchTransactions).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     click("Load more");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Lost connection.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Lost connection.",
+    );
   });
 
   it("opens Add funds", async () => {
@@ -603,7 +716,9 @@ describe("the billing page", () => {
 
     search = "checkout=cancelled";
     render(<CommercialBalancePage />);
-    expect(screen.getByText("Payment cancelled. Nothing was charged.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Payment cancelled. Nothing was charged."),
+    ).toBeInTheDocument();
   });
 
   it("reloads the ledger when the balance changes", async () => {
@@ -611,7 +726,10 @@ describe("the billing page", () => {
     await screen.findByText(/No money has moved yet/);
     expect(fetchTransactions).toHaveBeenCalledTimes(1);
 
-    companyState = { company: company({ balanceCents: 17_000 }), status: "ready" };
+    companyState = {
+      company: company({ balanceCents: 17_000 }),
+      status: "ready",
+    };
     view.rerender(<CommercialBalancePage />);
     await waitFor(() => expect(fetchTransactions).toHaveBeenCalledTimes(2));
   });
@@ -621,7 +739,9 @@ describe("the billing page", () => {
     const pending = deferred<Ledger>();
     vi.mocked(fetchTransactions).mockReturnValue(pending.promise);
     render(<CommercialBalancePage />);
-    expect(screen.queryByRole("button", { name: "Add funds" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add funds" }),
+    ).not.toBeInTheDocument();
     expect(fetchTransactions).not.toHaveBeenCalled();
   });
 
@@ -652,7 +772,10 @@ describe("the leads page", () => {
     };
   }
 
-  function leadsAre(items: Lead[], extra: { count?: number; hasMore?: boolean } = {}) {
+  function leadsAre(
+    items: Lead[],
+    extra: { count?: number; hasMore?: boolean } = {},
+  ) {
     vi.mocked(fetchLeads).mockResolvedValue({
       ok: true,
       data: {
@@ -664,7 +787,10 @@ describe("the leads page", () => {
   }
 
   it("lists each lead with how to reach them and the campaign that brought them", async () => {
-    leadsAre([lead(1), lead(2, { phone: "", email: "", message: "", createdAt: null })]);
+    leadsAre([
+      lead(1),
+      lead(2, { phone: "", email: "", message: "", createdAt: null }),
+    ]);
     render(<CommercialLeadsPage />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading leads");
 
@@ -674,14 +800,15 @@ describe("the leads page", () => {
       "href",
       "tel:+14155552671",
     );
-    expect(screen.getByRole("link", { name: "sam@example.com" })).toHaveAttribute(
-      "href",
-      "mailto:sam@example.com",
-    );
+    expect(
+      screen.getByRole("link", { name: "sam@example.com" }),
+    ).toHaveAttribute("href", "mailto:sam@example.com");
     expect(screen.getByText("Call me")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Autumn sale" })[0].getAttribute("href")).toMatch(
-      /^\/campaigns\/?\?id=12$/,
-    );
+    expect(
+      screen
+        .getAllByRole("link", { name: "Autumn sale" })[0]
+        .getAttribute("href"),
+    ).toMatch(/^\/campaigns\/?\?id=12$/);
     expect(screen.getAllByRole("link", { name: /^\+1|@/ })).toHaveLength(2);
     expect(fetchLeads).toHaveBeenCalledWith(3);
   });
@@ -721,17 +848,27 @@ describe("the leads page", () => {
   });
 
   it("offers a retry when the leads, or more of them, cannot be loaded", async () => {
-    vi.mocked(fetchLeads).mockResolvedValue({ ok: false, message: "Couldn't load your leads." });
+    vi.mocked(fetchLeads).mockResolvedValue({
+      ok: false,
+      message: "Couldn't load your leads.",
+    });
     render(<CommercialLeadsPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load your leads.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load your leads.",
+    );
 
     leadsAre([lead(1)], { hasMore: true });
     click(/try again/i);
     await screen.findByText("Lead 1");
 
-    vi.mocked(fetchLeads).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchLeads).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     click("Load more");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Lost connection.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Lost connection.",
+    );
   });
 
   it("shows only the notice without a company, and ignores a late answer", async () => {
@@ -746,7 +883,10 @@ describe("the leads page", () => {
     vi.mocked(fetchLeads).mockReturnValue(pending.promise);
     const { unmount } = render(<CommercialLeadsPage />);
     unmount();
-    pending.resolve({ ok: true, data: { items: [], count: 0, hasMore: false } });
+    pending.resolve({
+      ok: true,
+      data: { items: [], count: 0, hasMore: false },
+    });
     await expect(pending.promise).resolves.toBeTruthy();
   });
 });
@@ -823,7 +963,10 @@ describe("the analytics page", () => {
   }
 
   it("summarises the company's results and breaks them down by campaign", async () => {
-    vi.mocked(fetchCompanyReport).mockResolvedValue({ ok: true, data: report() });
+    vi.mocked(fetchCompanyReport).mockResolvedValue({
+      ok: true,
+      data: report(),
+    });
     render(<CommercialReportsPage />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading results");
 
@@ -841,7 +984,9 @@ describe("the analytics page", () => {
     expect(rows[1]).not.toHaveTextContent("per click");
     expect(rows[2].querySelectorAll("td")[5]).toHaveTextContent(/^-$/);
     expect(
-      within(rows[0]).getByRole("link", { name: "Autumn sale" }).getAttribute("href"),
+      within(rows[0])
+        .getByRole("link", { name: "Autumn sale" })
+        .getAttribute("href"),
     ).toMatch(/^\/campaigns\/?\?id=12$/);
   });
 
@@ -851,7 +996,9 @@ describe("the analytics page", () => {
       data: report({ days: [], campaigns: [] }),
     });
     render(<CommercialReportsPage />);
-    expect(await screen.findByText(/Nothing yet\. Views appear here/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Nothing yet\. Views appear here/),
+    ).toBeInTheDocument();
     expect(screen.getByText("No submitted campaigns yet.")).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
@@ -862,9 +1009,14 @@ describe("the analytics page", () => {
       message: "Couldn't load the results.",
     });
     render(<CommercialReportsPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't load the results.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't load the results.",
+    );
 
-    vi.mocked(fetchCompanyReport).mockResolvedValue({ ok: true, data: report() });
+    vi.mocked(fetchCompanyReport).mockResolvedValue({
+      ok: true,
+      data: report(),
+    });
     click(/try again/i);
     expect(await screen.findByRole("table")).toBeInTheDocument();
   });

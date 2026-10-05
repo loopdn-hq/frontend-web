@@ -75,7 +75,9 @@ describe("SiteTopNav", () => {
     session = "sam";
     render(<SiteTopNav />);
     expect(hrefOf("sam")).toBe("/chats");
-    expect(screen.queryByRole("link", { name: "Log In" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Log In" }),
+    ).not.toBeInTheDocument();
   });
 
   it("switches the theme", () => {
@@ -97,9 +99,14 @@ describe("LegalLayout", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Privacy Policy" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Last Updated: October 1, 2026")).toBeInTheDocument();
+    expect(
+      screen.getByText("Last Updated: October 1, 2026"),
+    ).toBeInTheDocument();
     expect(screen.getByText("We collect very little.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
     expect(screen.getByRole("contentinfo")).toBeInTheDocument();
     expect(screen.getByRole("banner")).toBeInTheDocument();
   });
@@ -110,7 +117,8 @@ describe("DownloadHero", () => {
     vi.stubGlobal("navigator", { userAgent });
   }
 
-  const MAC = "https://downloads.loopdn.com/desktop/stable/Loopdn_universal.dmg";
+  const MAC =
+    "https://downloads.loopdn.com/desktop/stable/Loopdn_universal.dmg";
   const WINDOWS =
     "https://downloads.loopdn.com/desktop/stable/Loopdn_x64-setup.exe";
 
@@ -121,12 +129,14 @@ describe("DownloadHero", () => {
     expect(
       screen.getByRole("link", { name: "Download for Desktop" }),
     ).toHaveAttribute("href", WINDOWS);
-    expect(screen.getByRole("link", { name: /windows.*yours/i })).toHaveAttribute(
-      "href",
-      WINDOWS,
-    );
+    expect(
+      screen.getByRole("link", { name: /windows.*yours/i }),
+    ).toHaveAttribute("href", WINDOWS);
     // The other one is always reachable: a wrong guess costs a click.
-    expect(screen.getByRole("link", { name: "Mac" })).toHaveAttribute("href", MAC);
+    expect(screen.getByRole("link", { name: "Mac" })).toHaveAttribute(
+      "href",
+      MAC,
+    );
   });
 
   it("marks the Mac installer on a Mac", () => {
@@ -147,7 +157,9 @@ describe("DownloadHero", () => {
     ).toHaveAttribute("href", MAC);
     expect(screen.queryByText("(yours)")).not.toBeInTheDocument();
     expect(
-      screen.getByAltText("The Loopd'n desktop app showing a group conversation"),
+      screen.getByAltText(
+        "The Loopd'n desktop app showing a group conversation",
+      ),
     ).toBeInTheDocument();
   });
 });

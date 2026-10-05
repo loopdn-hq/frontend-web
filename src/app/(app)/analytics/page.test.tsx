@@ -30,7 +30,9 @@ const WALLET = {
   },
 };
 
-function analytics(overrides: Partial<BillingAnalytics> = {}): BillingAnalytics {
+function analytics(
+  overrides: Partial<BillingAnalytics> = {},
+): BillingAnalytics {
   return {
     access: {
       hasBasicAnalytics: true,
@@ -152,10 +154,16 @@ describe("AnalyticsPage", () => {
     expect(card("Groups in total")).toHaveTextContent("6");
     expect(card("Broadcast groups")).toHaveTextContent("1");
     expect(card("Largest active group")).toHaveTextContent("18 members");
-    expect(screen.getAllByText("Your groups, by your role").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Your groups, by type").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Your groups, by your role").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Your groups, by type").length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getAllByText("Wallet movement").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Active members per group").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Active members per group").length,
+    ).toBeGreaterThan(0);
     // The average is shown to one decimal place.
     expect(screen.getAllByText("4.3").length).toBeGreaterThan(0);
   });

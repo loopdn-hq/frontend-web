@@ -1,8 +1,18 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let calls: Record<string, unknown>;
-let shell: { conversations: Record<string, unknown>[]; userProfile: { username?: string } };
+let shell: {
+  conversations: Record<string, unknown>[];
+  userProfile: { username?: string };
+};
 let socketListener: ((frame: Record<string, unknown>) => void) | null = null;
 const unsubscribe = vi.fn();
 const openNavDrawer = vi.fn();
@@ -19,7 +29,8 @@ vi.mock("@/lib/app/AppShellProvider", () => ({
   }),
 }));
 vi.mock("@/lib/calls/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/calls/api")>("@/lib/calls/api");
+  const actual =
+    await vi.importActual<typeof import("@/lib/calls/api")>("@/lib/calls/api");
   return {
     ...actual,
     deleteRecording: vi.fn(),
@@ -46,7 +57,11 @@ import {
 import { deferred } from "@/test/helpers";
 
 const SAM = { id: 7, username: "sam", profile: { display_label: "Sam Wren" } };
-const ALEX = { id: 8, username: "alex", profile: { display_label: "Alex Sato" } };
+const ALEX = {
+  id: 8,
+  username: "alex",
+  profile: { display_label: "Alex Sato" },
+};
 
 function raw(overrides: Record<string, unknown> = {}) {
   return {
@@ -141,17 +156,29 @@ describe("CallDetailPanel", () => {
   const onBack = vi.fn();
 
   function show(target: Call = call()) {
-    return render(<CallDetailPanel call={target} title="Book club" onBack={onBack} />);
+    return render(
+      <CallDetailPanel call={target} title="Book club" onBack={onBack} />,
+    );
   }
 
   it("says what the call was, how long it lasted, and who was on it", async () => {
     show();
-    expect(screen.getByRole("heading", { name: "Book club" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Book club" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Voice call -/)).toBeInTheDocument();
-    expect(screen.getByText(/Lasted 2:05 - started by Alex Sato/)).toBeInTheDocument();
-    expect(screen.getByText("Alex Sato").closest("li")).toHaveTextContent("2:05");
-    expect(screen.getByText("Sam Wren").closest("li")).toHaveTextContent("1:00");
-    expect(await screen.findByText("This call wasn't recorded.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Lasted 2:05 - started by Alex Sato/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Alex Sato").closest("li")).toHaveTextContent(
+      "2:05",
+    );
+    expect(screen.getByText("Sam Wren").closest("li")).toHaveTextContent(
+      "1:00",
+    );
+    expect(
+      await screen.findByText("This call wasn't recorded."),
+    ).toBeInTheDocument();
 
     click("Calls");
     expect(onBack).toHaveBeenCalled();
@@ -167,8 +194,12 @@ describe("CallDetailPanel", () => {
         ],
       }),
     );
-    expect(screen.getByText("Sam Wren").closest("li")).toHaveTextContent("1:15");
-    expect(screen.getByText("Alex Sato").closest("li")).toHaveTextContent("In the call");
+    expect(screen.getByText("Sam Wren").closest("li")).toHaveTextContent(
+      "1:15",
+    );
+    expect(screen.getByText("Alex Sato").closest("li")).toHaveTextContent(
+      "In the call",
+    );
   });
 
   it.each([
@@ -198,7 +229,9 @@ describe("CallDetailPanel", () => {
   it("says you are already in it, and waits while another call connects", () => {
     calls = { ...calls, activeCall: call({ status: "active" }) };
     const current = show(call({ status: "active", ended_at: null }));
-    expect(screen.getByRole("button", { name: "You're in this call" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "You're in this call" }),
+    ).toBeDisabled();
     current.unmount();
 
     calls = { ...calls, activeCall: null, phase: "joining" };
@@ -209,19 +242,37 @@ describe("CallDetailPanel", () => {
   it("lists each recording with its state, length, size and expiry", async () => {
     recordingsAre([
       recording(),
-      recording({ id: 6, status: "recording", durationSeconds: null, startedBy: null }),
+      recording({
+        id: 6,
+        status: "recording",
+        durationSeconds: null,
+        startedBy: null,
+      }),
       recording({ id: 7, status: "failed", sizeBytes: 500, expiresAt: null }),
-      recording({ id: 8, status: "completed", sizeBytes: 2048, expiresAt: null }),
+      recording({
+        id: 8,
+        status: "completed",
+        sizeBytes: 2048,
+        expiresAt: null,
+      }),
     ]);
     show();
     const ready = (await screen.findAllByText(/Ready/))[0].closest("li")!;
     expect(ready).toHaveTextContent("Ready - 1:50");
-    expect(ready).toHaveTextContent("Started by Alex Sato - 3.0 MB - kept until");
-    expect(screen.getByText("Recording now").closest("li")).toHaveTextContent("Recording");
-    expect(screen.getAllByRole("button", { name: "Download recording" })).toHaveLength(2);
+    expect(ready).toHaveTextContent(
+      "Started by Alex Sato - 3.0 MB - kept until",
+    );
+    expect(screen.getByText("Recording now").closest("li")).toHaveTextContent(
+      "Recording",
+    );
+    expect(
+      screen.getAllByRole("button", { name: "Download recording" }),
+    ).toHaveLength(2);
     expect(screen.getByText(/2 KB/)).toBeInTheDocument();
     // Deleting is for whoever runs the call; this account does not.
-    expect(screen.queryByRole("button", { name: "Delete recording" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete recording" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a recording's download link in a new tab", async () => {
@@ -231,8 +282,12 @@ describe("CallDetailPanel", () => {
     const pending = deferred<Awaited<ReturnType<typeof fetchRecording>>>();
     vi.mocked(fetchRecording).mockReturnValue(pending.promise);
     show();
-    fireEvent.click(await screen.findByRole("button", { name: "Download recording" }));
-    expect(screen.getByRole("button", { name: "Download recording" })).toBeDisabled();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download recording" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Download recording" }),
+    ).toBeDisabled();
 
     await act(async () =>
       pending.resolve({
@@ -252,9 +307,14 @@ describe("CallDetailPanel", () => {
     const open = vi.fn();
     vi.stubGlobal("open", open);
     recordingsAre([recording()]);
-    vi.mocked(fetchRecording).mockResolvedValue({ ok: true, recording: recording() });
+    vi.mocked(fetchRecording).mockResolvedValue({
+      ok: true,
+      recording: recording(),
+    });
     show();
-    fireEvent.click(await screen.findByRole("button", { name: "Download recording" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Download recording" }),
+    );
     expect(
       await screen.findByText("This recording isn't ready to download yet."),
     ).toBeInTheDocument();
@@ -264,7 +324,9 @@ describe("CallDetailPanel", () => {
       message: "Unable to load the recording.",
     });
     click("Download recording");
-    expect(await screen.findByText("Unable to load the recording.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Unable to load the recording."),
+    ).toBeInTheDocument();
     expect(open).not.toHaveBeenCalled();
   });
 
@@ -274,17 +336,25 @@ describe("CallDetailPanel", () => {
     vi.mocked(deleteRecording).mockReturnValue(pending.promise);
     show(call({ created_by: SAM }));
 
-    fireEvent.click(await screen.findByRole("button", { name: "Delete recording" }));
-    const dialog = within(screen.getByRole("dialog", { name: "Delete this recording?" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Delete recording" }),
+    );
+    const dialog = within(
+      screen.getByRole("dialog", { name: "Delete this recording?" }),
+    );
     fireEvent.click(dialog.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     click("Delete recording");
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
     );
     expect(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Deleting..." }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Deleting...",
+      }),
     ).toBeDisabled();
 
     await act(async () => pending.resolve({ ok: true }));
@@ -292,20 +362,30 @@ describe("CallDetailPanel", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     // It stays in the history, marked as deleted, with nothing left to do to it.
     expect(screen.getByText(/Deleted/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Download recording" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Download recording" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lets a group admin, or either side of a direct call, delete too", async () => {
     recordingsAre([recording({ status: "failed" })]);
-    shell.conversations = [{ id: 12, kind: "group", name: "Book club", isAdmin: true }];
+    shell.conversations = [
+      { id: 12, kind: "group", name: "Book club", isAdmin: true },
+    ];
     const admin = show();
-    expect(await screen.findByRole("button", { name: "Delete recording" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Delete recording" }),
+    ).toBeInTheDocument();
     admin.unmount();
 
-    shell.conversations = [{ id: 12, kind: "direct", name: "Alex", isAdmin: false }];
+    shell.conversations = [
+      { id: 12, kind: "direct", name: "Alex", isAdmin: false },
+    ];
     shell.userProfile = {};
     show();
-    expect(await screen.findByRole("button", { name: "Delete recording" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: "Delete recording" }),
+    ).toBeInTheDocument();
   });
 
   it("says why a recording could not be deleted", async () => {
@@ -315,11 +395,17 @@ describe("CallDetailPanel", () => {
       message: "Unable to delete the recording.",
     });
     show(call({ created_by: SAM }));
-    fireEvent.click(await screen.findByRole("button", { name: "Delete recording" }));
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Delete" }),
+      await screen.findByRole("button", { name: "Delete recording" }),
     );
-    expect(await screen.findByText("Unable to delete the recording.")).toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Delete",
+      }),
+    );
+    expect(
+      await screen.findByText("Unable to delete the recording."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText(/Ready/)).toBeInTheDocument();
 
@@ -336,7 +422,9 @@ describe("CallDetailPanel", () => {
     });
     const hidden = show();
     await waitFor(() =>
-      expect(screen.queryByRole("heading", { name: "Recordings" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("heading", { name: "Recordings" }),
+      ).not.toBeInTheDocument(),
     );
     hidden.unmount();
 
@@ -346,12 +434,16 @@ describe("CallDetailPanel", () => {
       status: 500,
     });
     show();
-    expect(await screen.findByText("Unable to load recordings.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Unable to load recordings."),
+    ).toBeInTheDocument();
 
     recordingsAre([]);
     click("Retry");
     expect(screen.getByText("Loading...")).toBeInTheDocument();
-    expect(await screen.findByText("This call wasn't recorded.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This call wasn't recorded."),
+    ).toBeInTheDocument();
   });
 
   it("ignores recordings that arrive after it has gone", async () => {
@@ -366,9 +458,9 @@ describe("CallDetailPanel", () => {
 
 describe("CallsPage", () => {
   function rows() {
-    return screen.getAllByRole("button", { current: false }).filter((button) =>
-      button.hasAttribute("aria-current"),
-    );
+    return screen
+      .getAllByRole("button", { current: false })
+      .filter((button) => button.hasAttribute("aria-current"));
   }
 
   function rowFor(title: string, index = 0) {
@@ -380,10 +472,14 @@ describe("CallsPage", () => {
 
   it("shows a placeholder, then that there are no calls yet", async () => {
     render(<CallsPage />);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading your activity");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading your activity",
+    );
     expect(await screen.findByText("No calls yet")).toBeInTheDocument();
     expect(
-      screen.getByText("Select a call to see who was on it and any recordings."),
+      screen.getByText(
+        "Select a call to see who was on it and any recordings.",
+      ),
     ).toBeInTheDocument();
     click("Open navigation");
     expect(openNavDrawer).toHaveBeenCalled();
@@ -394,11 +490,28 @@ describe("CallsPage", () => {
       // Answered: this account was on it.
       call({ id: 1 }),
       // Started by this account, and nobody picked up.
-      call({ id: 2, created_by: SAM, started_at: null, ended_at: null, participants: [], end_reason: "unanswered" }),
+      call({
+        id: 2,
+        created_by: SAM,
+        started_at: null,
+        ended_at: null,
+        participants: [],
+        end_reason: "unanswered",
+      }),
       // Went ahead without this account.
-      call({ id: 3, conversation: 20, call_type: "video", participants: [{ id: 1, user: ALEX, left_at: "x", duration: 5 }] }),
+      call({
+        id: 3,
+        conversation: 20,
+        call_type: "video",
+        participants: [{ id: 1, user: ALEX, left_at: "x", duration: 5 }],
+      }),
       // Declined.
-      call({ id: 4, started_at: null, participants: [], end_reason: "declined" }),
+      call({
+        id: 4,
+        started_at: null,
+        participants: [],
+        end_reason: "declined",
+      }),
       // Still going.
       call({ id: 5, status: "active", ended_at: null }),
       // Yesterday, started by this account and answered.
@@ -414,10 +527,14 @@ describe("CallsPage", () => {
 
     const answered = rowFor("Book club", 0);
     expect(answered).toHaveTextContent("2:05");
-    expect(within(answered).getByLabelText("Answered, incoming")).toBeInTheDocument();
+    expect(
+      within(answered).getByLabelText("Answered, incoming"),
+    ).toBeInTheDocument();
 
     expect(rowFor("Book club", 1)).toHaveTextContent("No answer");
-    expect(within(rowFor("Book club", 1)).getByLabelText("No answer")).toBeInTheDocument();
+    expect(
+      within(rowFor("Book club", 1)).getByLabelText("No answer"),
+    ).toBeInTheDocument();
 
     const missed = rowFor("Alex Sato");
     expect(missed).toHaveTextContent("Missed");
@@ -425,8 +542,12 @@ describe("CallsPage", () => {
 
     expect(rowFor("Book club", 2)).toHaveTextContent("Declined");
     expect(rowFor("Book club", 3)).toHaveTextContent("In progress");
-    expect(within(rowFor("Book club", 3)).getByLabelText("In progress")).toBeInTheDocument();
-    expect(within(rowFor("Book club", 4)).getByLabelText("Answered, outgoing")).toBeInTheDocument();
+    expect(
+      within(rowFor("Book club", 3)).getByLabelText("In progress"),
+    ).toBeInTheDocument();
+    expect(
+      within(rowFor("Book club", 4)).getByLabelText("Answered, outgoing"),
+    ).toBeInTheDocument();
     expect(rowFor("Conversation")).toBeInTheDocument();
   });
 
@@ -434,11 +555,15 @@ describe("CallsPage", () => {
     callsAre([call()]);
     render(<CallsPage />);
     fireEvent.click(await screen.findByText("Book club"));
-    expect(screen.getByRole("heading", { name: "Book club" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Book club" }),
+    ).toBeInTheDocument();
     expect(rowFor("Book club")).toHaveAttribute("aria-current", "true");
 
     click("Calls");
-    expect(screen.queryByRole("heading", { name: "Book club" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Book club" }),
+    ).not.toBeInTheDocument();
   });
 
   it("puts a new call at the top, and updates one already listed", async () => {
@@ -453,7 +578,12 @@ describe("CallsPage", () => {
     act(() =>
       socketListener!({
         type: "call.incoming",
-        call: raw({ id: 9, conversation: 20, status: "ringing", ended_at: null }),
+        call: raw({
+          id: 9,
+          conversation: 20,
+          status: "ringing",
+          ended_at: null,
+        }),
       }),
     );
     expect(rows()).toHaveLength(2);
@@ -482,14 +612,19 @@ describe("CallsPage", () => {
       }),
     );
     expect(rows()).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: "Load older calls" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Load older calls" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the list and says why older calls could not be loaded", async () => {
     callsAre([call({ id: 1 })], true);
     render(<CallsPage />);
     await screen.findByText("Book club");
-    vi.mocked(fetchCalls).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchCalls).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     click("Load older calls");
     expect(await screen.findByText("Lost connection.")).toBeInTheDocument();
     expect(rows()).toHaveLength(1);
@@ -501,7 +636,9 @@ describe("CallsPage", () => {
       message: "Unable to load your calls.",
     });
     render(<CallsPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load your calls.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to load your calls.",
+    );
 
     callsAre([call()]);
     click(/try again/i);

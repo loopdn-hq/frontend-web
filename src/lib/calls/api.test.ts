@@ -204,10 +204,16 @@ describe("parseCallEvent", () => {
   });
 
   it("reads a system event as caused by nobody", () => {
-    const event = parseCallEvent({ type: "call.ended", call: CALL, user_id: null });
+    const event = parseCallEvent({
+      type: "call.ended",
+      call: CALL,
+      user_id: null,
+    });
     expect(event?.userId).toBeNull();
     expect(event?.recordingId).toBeUndefined();
-    expect(parseCallEvent({ type: "call.ended", call: CALL })?.userId).toBeNull();
+    expect(
+      parseCallEvent({ type: "call.ended", call: CALL })?.userId,
+    ).toBeNull();
   });
 
   it("ignores other frames, and a call frame with no call", () => {

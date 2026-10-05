@@ -96,11 +96,19 @@ describe("comparePlansByPrice", () => {
     ]
       .sort(comparePlansByPrice)
       .map((item) => item.name);
-    expect(sorted).toEqual(["Free", "Starter", "Premium", "Enterprise", "Quote"]);
+    expect(sorted).toEqual([
+      "Free",
+      "Starter",
+      "Premium",
+      "Enterprise",
+      "Quote",
+    ]);
   });
 
   it("breaks a tie on price by name", () => {
-    expect(comparePlansByPrice(plan("B", 500), plan("A", 500))).toBeGreaterThan(0);
+    expect(comparePlansByPrice(plan("B", 500), plan("A", 500))).toBeGreaterThan(
+      0,
+    );
     expect(comparePlansByPrice(plan("A", 500), plan("B", 500))).toBeLessThan(0);
     // A plan flagged custom sorts as custom even with a price attached.
     expect(
@@ -310,7 +318,10 @@ describe("fetchBillingSummary", () => {
 
   it("leaves a plan it has no defaults for as it came", async () => {
     respond(200, {
-      data: { subscription: { plan_code: "team", plan_name: "Team" }, wallet: {} },
+      data: {
+        subscription: { plan_code: "team", plan_name: "Team" },
+        wallet: {},
+      },
     });
     const result = await fetchBillingSummary();
     expect(result.ok && result.data.subscription).toMatchObject({
@@ -364,19 +375,30 @@ describe("fetchBillingAnalytics", () => {
           plan_info: planInfo,
           wallet,
           conversation_counts: { total: 12, group: 9, direct: 3 },
-          message_activity: { sent_last_30_days: 140, received_last_30_days: 610 },
+          message_activity: {
+            sent_last_30_days: 140,
+            received_last_30_days: 610,
+          },
         },
         advanced: {
           plan_info: planInfo,
           wallet,
-          group_admin_stats: { admin_groups: 4, member_groups: 5, broadcast_groups: 1 },
+          group_admin_stats: {
+            admin_groups: 4,
+            member_groups: 5,
+            broadcast_groups: 1,
+          },
           group_size: {
             average_active_members: 18.5,
             largest_group_active_members: 64,
           },
         },
         suggestions: [
-          { code: "upgrade", title: "Upgrade", detail: "You are near your limit." },
+          {
+            code: "upgrade",
+            title: "Upgrade",
+            detail: "You are near your limit.",
+          },
           { code: "bare" },
           "junk",
         ],
@@ -419,11 +441,22 @@ describe("fetchBillingAnalytics", () => {
         advanced: {
           planInfo: expect.objectContaining({ code: "premium" }),
           wallet: expect.objectContaining({ balanceCents: 1250 }),
-          groupAdminStats: { adminGroups: 4, memberGroups: 5, broadcastGroups: 1 },
-          groupSize: { averageActiveMembers: 18.5, largestGroupActiveMembers: 64 },
+          groupAdminStats: {
+            adminGroups: 4,
+            memberGroups: 5,
+            broadcastGroups: 1,
+          },
+          groupSize: {
+            averageActiveMembers: 18.5,
+            largestGroupActiveMembers: 64,
+          },
         },
         suggestions: [
-          { code: "upgrade", title: "Upgrade", detail: "You are near your limit." },
+          {
+            code: "upgrade",
+            title: "Upgrade",
+            detail: "You are near your limit.",
+          },
           { code: "bare", title: "Suggestion", detail: "" },
         ],
       },
@@ -445,7 +478,11 @@ describe("fetchBillingAnalytics", () => {
         messageActivity: { sentLast30Days: 0, receivedLast30Days: 0 },
       },
       advanced: {
-        groupAdminStats: { adminGroups: 0, memberGroups: 0, broadcastGroups: 0 },
+        groupAdminStats: {
+          adminGroups: 0,
+          memberGroups: 0,
+          broadcastGroups: 0,
+        },
         groupSize: { averageActiveMembers: 0, largestGroupActiveMembers: 0 },
       },
     });
@@ -535,10 +572,12 @@ describe("starting a payment", () => {
 
   it("starts a plan checkout", async () => {
     respond(200, { data: { checkout_url: "https://checkout.stripe.com/c/1" } });
-    expect(await createPlanCheckoutSession("premium", SUCCESS, CANCEL)).toEqual({
-      ok: true,
-      data: { checkoutUrl: "https://checkout.stripe.com/c/1" },
-    });
+    expect(await createPlanCheckoutSession("premium", SUCCESS, CANCEL)).toEqual(
+      {
+        ok: true,
+        data: { checkoutUrl: "https://checkout.stripe.com/c/1" },
+      },
+    );
     expect(lastRequest()).toEqual({
       path: "/billing/checkout/plan/",
       method: "POST",
@@ -561,9 +600,12 @@ describe("starting a payment", () => {
 
   it("opens the billing portal", async () => {
     respond(200, { data: { portal_url: "https://billing.stripe.com/p/1" } });
-    expect(await createBillingPortalLink("https://loopdn.com/settings/")).toEqual(
-      { ok: true, data: { portalUrl: "https://billing.stripe.com/p/1" } },
-    );
+    expect(
+      await createBillingPortalLink("https://loopdn.com/settings/"),
+    ).toEqual({
+      ok: true,
+      data: { portalUrl: "https://billing.stripe.com/p/1" },
+    });
     expect(lastRequest()).toEqual({
       path: "/billing/portal/",
       method: "POST",

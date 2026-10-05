@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let search = "";
@@ -28,7 +35,11 @@ vi.mock("@/components/admin/review/ReviewDetail", () => ({
     <div data-testid="detail" data-campaign={campaignId}>
       <button
         onClick={() =>
-          onDecided({ id: campaignId, status: "approved", statusLabel: "Approved" })
+          onDecided({
+            id: campaignId,
+            status: "approved",
+            statusLabel: "Approved",
+          })
         }
       >
         stub approve
@@ -50,7 +61,10 @@ import { deferred } from "@/test/helpers";
 
 type Queue = Awaited<ReturnType<typeof fetchReviewQueue>>;
 
-function item(id: number, overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
+function item(
+  id: number,
+  overrides: Partial<ReviewQueueItem> = {},
+): ReviewQueueItem {
   return {
     id,
     name: `Campaign ${id}`,
@@ -66,7 +80,10 @@ function item(id: number, overrides: Partial<ReviewQueueItem> = {}): ReviewQueue
   };
 }
 
-function queueIs(items: ReviewQueueItem[], extra: { count?: number; hasMore?: boolean } = {}) {
+function queueIs(
+  items: ReviewQueueItem[],
+  extra: { count?: number; hasMore?: boolean } = {},
+) {
   vi.mocked(fetchReviewQueue).mockResolvedValue({
     ok: true,
     data: {
@@ -84,7 +101,10 @@ function click(name: string | RegExp) {
 beforeEach(() => {
   vi.clearAllMocks();
   search = "";
-  features = { features: new Set(["platform.permissions.edit"]), loading: false };
+  features = {
+    features: new Set(["platform.permissions.edit"]),
+    loading: false,
+  };
   queueIs([]);
 });
 
@@ -100,10 +120,15 @@ describe("the campaign review queue", () => {
     ]);
     render(<AdminCampaignReviewPage />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading the queue");
-    expect(screen.getByText("Campaigns companies have submitted")).toBeInTheDocument();
+    expect(
+      screen.getByText("Campaigns companies have submitted"),
+    ).toBeInTheDocument();
 
     const first = await screen.findByRole("link", { name: /campaign 1/i });
-    expect(fetchReviewQueue).toHaveBeenCalledWith({ status: "pending_review", search: "" });
+    expect(fetchReviewQueue).toHaveBeenCalledWith({
+      status: "pending_review",
+      search: "",
+    });
     expect(screen.getByText("2 waiting")).toBeInTheDocument();
     expect(first).toHaveTextContent("Acme · Website visits");
     expect(first).toHaveTextContent("$500.00 · submitted Oct 1, 2026");
@@ -117,7 +142,9 @@ describe("the campaign review queue", () => {
 
   it("says when nothing is waiting", async () => {
     render(<AdminCampaignReviewPage />);
-    expect(await screen.findByText("Nothing waiting for review.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Nothing waiting for review."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Nothing waiting for review")).toBeInTheDocument();
     expect(screen.getByText("0 waiting")).toBeInTheDocument();
   });
@@ -127,12 +154,19 @@ describe("the campaign review queue", () => {
     await screen.findByText("Nothing waiting for review.");
 
     queueIs([item(3, { status: "running", statusLabel: "Running" })]);
-    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "running" } });
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "running" },
+    });
     expect(await screen.findByText("1 campaign")).toBeInTheDocument();
-    expect(fetchReviewQueue).toHaveBeenLastCalledWith({ status: "running", search: "" });
+    expect(fetchReviewQueue).toHaveBeenLastCalledWith({
+      status: "running",
+      search: "",
+    });
 
     queueIs([]);
-    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "all" } });
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "all" },
+    });
     expect(await screen.findByText("No campaigns match.")).toBeInTheDocument();
     expect(screen.getByText("0 campaigns")).toBeInTheDocument();
     expect(screen.getByText("Pick a campaign")).toBeInTheDocument();
@@ -182,10 +216,17 @@ describe("the campaign review queue", () => {
     });
 
     await act(async () =>
-      more.resolve({ ok: true, data: { items: [item(1), item(2)], count: 3, hasMore: false } }),
+      more.resolve({
+        ok: true,
+        data: { items: [item(1), item(2)], count: 3, hasMore: false },
+      }),
     );
-    expect(screen.getAllByRole("link", { name: /^campaign \d/i })).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /^campaign \d/i })).toHaveLength(
+      2,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Load more" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers a retry when the queue, or more of it, cannot be loaded", async () => {
@@ -197,15 +238,22 @@ describe("the campaign review queue", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Couldn't load the review queue.",
     );
-    expect(screen.getByText("Campaigns companies have submitted")).toBeInTheDocument();
+    expect(
+      screen.getByText("Campaigns companies have submitted"),
+    ).toBeInTheDocument();
 
     queueIs([item(1)], { hasMore: true });
     click(/try again/i);
     await screen.findByRole("link", { name: /campaign 1/i });
 
-    vi.mocked(fetchReviewQueue).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchReviewQueue).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     click("Load more");
-    expect(await screen.findByRole("alert")).toHaveTextContent("Lost connection.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Lost connection.",
+    );
   });
 
   it("opens the campaign named in the address beside the queue", async () => {
@@ -213,10 +261,9 @@ describe("the campaign review queue", () => {
     queueIs([item(1), item(2)]);
     render(<AdminCampaignReviewPage />);
     expect(screen.getByTestId("detail")).toHaveAttribute("data-campaign", "2");
-    expect(await screen.findByRole("link", { name: /campaign 2/i })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    expect(
+      await screen.findByRole("link", { name: /campaign 2/i }),
+    ).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("complementary")).toHaveClass("hidden");
   });
 
@@ -227,7 +274,9 @@ describe("the campaign review queue", () => {
     await screen.findByRole("link", { name: /campaign 2/i });
 
     click("stub approve");
-    expect(screen.queryByRole("link", { name: /campaign 2/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /campaign 2/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("1 waiting")).toBeInTheDocument();
   });
 
@@ -236,11 +285,15 @@ describe("the campaign review queue", () => {
     queueIs([item(1), item(2)]);
     render(<AdminCampaignReviewPage />);
     await screen.findByRole("link", { name: /campaign 2/i });
-    fireEvent.change(screen.getByLabelText("Show"), { target: { value: "all" } });
+    fireEvent.change(screen.getByLabelText("Show"), {
+      target: { value: "all" },
+    });
     await screen.findByText("2 campaigns");
 
     click("stub approve");
-    expect(screen.getByRole("link", { name: /campaign 2/i })).toHaveTextContent("Approved");
+    expect(screen.getByRole("link", { name: /campaign 2/i })).toHaveTextContent(
+      "Approved",
+    );
     expect(screen.getByRole("link", { name: /campaign 1/i })).toHaveTextContent(
       "Pending review",
     );
@@ -254,7 +307,10 @@ describe("the campaign review queue", () => {
     const { unmount } = render(<AdminCampaignReviewPage />);
     expect(screen.queryByTestId("detail")).not.toBeInTheDocument();
     unmount();
-    pending.resolve({ ok: true, data: { items: [], count: 0, hasMore: false } });
+    pending.resolve({
+      ok: true,
+      data: { items: [], count: 0, hasMore: false },
+    });
     await expect(pending.promise).resolves.toBeTruthy();
   });
 });
@@ -324,7 +380,9 @@ describe("the permissions page", () => {
     render(<PermissionsPage />);
     expect(screen.getByText("Loading permissions…")).toBeInTheDocument();
 
-    expect(await screen.findByRole("heading", { name: "Account" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Account" }),
+    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Group" })).toBeInTheDocument();
     expect(
       screen.getByText("Which areas of the product a person can reach at all."),
@@ -350,13 +408,19 @@ describe("the permissions page", () => {
     expect(editable[1]).toHaveAttribute("aria-pressed", "false");
     expect(editable[1]).toHaveAttribute("title", "Click to allow");
 
-    expect(row("Use the admin site").queryByRole("button")).not.toBeInTheDocument();
     expect(
-      row("Use the admin site").getByTitle("Never grantable below account admin"),
+      row("Use the admin site").queryByRole("button"),
+    ).not.toBeInTheDocument();
+    expect(
+      row("Use the admin site").getByTitle(
+        "Never grantable below account admin",
+      ),
     ).toBeInTheDocument();
     // A cell nobody ever wrote down is shown as its own thing.
     expect(
-      row("Pin a message").getByTitle("No grant recorded. Denies, but nobody set it."),
+      row("Pin a message").getByTitle(
+        "No grant recorded. Denies, but nobody set it.",
+      ),
     ).toBeInTheDocument();
   });
 
@@ -433,11 +497,16 @@ describe("the permissions page", () => {
     features = { features: new Set(), loading: false };
     const first = render(<PermissionsPage />);
     await screen.findByRole("heading", { name: "Account" });
-    expect(screen.getByText("What each role can use. Read-only.")).toBeInTheDocument();
+    expect(
+      screen.getByText("What each role can use. Read-only."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     first.unmount();
 
-    features = { features: new Set(["platform.permissions.edit"]), loading: true };
+    features = {
+      features: new Set(["platform.permissions.edit"]),
+      loading: true,
+    };
     render(<PermissionsPage />);
     await screen.findByRole("heading", { name: "Account" });
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -450,14 +519,17 @@ describe("the permissions page", () => {
     });
     render(<PermissionsPage />);
     expect(
-      await screen.findByText("You need the account admin role to view permissions."),
+      await screen.findByText(
+        "You need the account admin role to view permissions.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Loading permissions…")).not.toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("ignores a matrix that arrives after the page has gone", async () => {
-    const pending = deferred<Awaited<ReturnType<typeof fetchPermissionsMatrix>>>();
+    const pending =
+      deferred<Awaited<ReturnType<typeof fetchPermissionsMatrix>>>();
     vi.mocked(fetchPermissionsMatrix).mockReturnValue(pending.promise);
     const { unmount } = render(<PermissionsPage />);
     unmount();

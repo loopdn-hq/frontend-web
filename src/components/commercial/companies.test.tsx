@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const openCreateCompany = vi.fn();
@@ -21,7 +28,8 @@ vi.mock("@/components/commercial/useSwitchCompany", () => ({
   useSwitchCompany: () => switchCompany,
 }));
 vi.mock("@/components/ui", async () => {
-  const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
+  const actual =
+    await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
   return { ...actual, useToast: () => toast };
 });
 vi.mock("@/lib/commercial/api", () => ({ fetchCompanyPage: vi.fn() }));
@@ -76,7 +84,9 @@ function page(companies: Company[], hasMore = false): Page {
 /** jsdom has no IntersectionObserver; this one fires when the test says so. */
 let intersect: (() => void) | null = null;
 class FakeIntersectionObserver {
-  constructor(private callback: (entries: { isIntersecting: boolean }[]) => void) {}
+  constructor(
+    private callback: (entries: { isIntersecting: boolean }[]) => void,
+  ) {}
   observe() {
     intersect = () => this.callback([{ isIntersecting: true }]);
   }
@@ -128,7 +138,9 @@ describe("CompanySwitcher", () => {
 
   it("names the active company and lists it first, then the others by name", () => {
     render(<CompanySwitcher />);
-    const pill = screen.getByRole("button", { name: "Company: Acme. Show companies" });
+    const pill = screen.getByRole("button", {
+      name: "Company: Acme. Show companies",
+    });
     expect(pill).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(pill);
@@ -139,7 +151,10 @@ describe("CompanySwitcher", () => {
       "GGlobexEnergy",
       "IInitechSuspended",
     ]);
-    expect(within(rows[0]).getByRole("button")).toHaveAttribute("aria-current", "true");
+    expect(within(rows[0]).getByRole("button")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
     expect(within(rows[0]).getByLabelText("Active")).toBeInTheDocument();
   });
 
@@ -148,12 +163,16 @@ describe("CompanySwitcher", () => {
     const pill = screen.getByRole("button", { name: /show companies/i });
 
     fireEvent.click(pill);
-    fireEvent.click(within(screen.getAllByRole("listitem")[0]).getByRole("button"));
+    fireEvent.click(
+      within(screen.getAllByRole("listitem")[0]).getByRole("button"),
+    );
     expect(switchCompany).not.toHaveBeenCalled();
     expect(pill).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(pill);
-    fireEvent.click(within(screen.getAllByRole("listitem")[1]).getByRole("button"));
+    fireEvent.click(
+      within(screen.getAllByRole("listitem")[1]).getByRole("button"),
+    );
     expect(switchCompany).toHaveBeenCalledWith(4);
   });
 
@@ -167,7 +186,9 @@ describe("CompanySwitcher", () => {
     expect(pill).toHaveAttribute("aria-expanded", "false");
 
     fireEvent.click(pill);
-    expect(screen.getByRole("button", { name: /view all companies/i })).toHaveTextContent("3");
+    expect(
+      screen.getByRole("button", { name: /view all companies/i }),
+    ).toHaveTextContent("3");
     click("Create new company");
     expect(openCreateCompany).toHaveBeenCalled();
   });
@@ -191,7 +212,9 @@ describe("CompanySwitcher", () => {
     context = { ...context, company: null, companies: [], companyCount: 0 };
     render(<CompanySwitcher />);
     click("No company yet. Show companies");
-    expect(screen.getByText(/You haven't created a company yet/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/You haven't created a company yet/),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("listitem")).not.toBeInTheDocument();
   });
 
@@ -213,12 +236,20 @@ describe("CompanySwitcher", () => {
 describe("CompaniesDialog", () => {
   function open(initialCompanyId?: number) {
     const onClose = vi.fn();
-    render(<CompaniesDialog isOpen initialCompanyId={initialCompanyId} onClose={onClose} />);
+    render(
+      <CompaniesDialog
+        isOpen
+        initialCompanyId={initialCompanyId}
+        onClose={onClose}
+      />,
+    );
     return onClose;
   }
 
   function rows() {
-    return within(screen.getByRole("list")).queryAllByRole("button", { current: undefined });
+    return within(screen.getByRole("list")).queryAllByRole("button", {
+      current: undefined,
+    });
   }
 
   it("renders nothing while closed", () => {
@@ -230,10 +261,15 @@ describe("CompaniesDialog", () => {
   it("lists the companies and opens on the active one", async () => {
     open();
     expect(screen.getByRole("status")).toHaveTextContent("Loading companies");
-    expect(await screen.findByRole("button", { name: /globex/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /globex/i }),
+    ).toBeInTheDocument();
 
     expect(fetchCompanyPage).toHaveBeenCalledWith({ search: "", page: 1 });
-    expect(screen.getByTestId("company-form")).toHaveAttribute("data-editing", "3");
+    expect(screen.getByTestId("company-form")).toHaveAttribute(
+      "data-editing",
+      "3",
+    );
     expect(screen.getByRole("heading", { name: "Acme" })).toBeInTheDocument();
     // The active company has no "switch to" button of its own.
     expect(
@@ -249,7 +285,10 @@ describe("CompaniesDialog", () => {
   it("opens on the company it was asked for, or on a new one when there are none", async () => {
     open(4);
     await screen.findByRole("button", { name: /acme/i });
-    expect(screen.getByTestId("company-form")).toHaveAttribute("data-editing", "4");
+    expect(screen.getByTestId("company-form")).toHaveAttribute(
+      "data-editing",
+      "4",
+    );
     expect(
       screen.getByRole("button", { name: "Switch to this company" }),
     ).toBeInTheDocument();
@@ -260,7 +299,9 @@ describe("CompaniesDialog", () => {
     vi.mocked(fetchCompanyPage).mockResolvedValue(page([]));
     const onClose = open();
     expect(await screen.findByText("No companies yet.")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "New company" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "New company" }),
+    ).toBeInTheDocument();
     click("Cancel form");
     expect(onClose).toHaveBeenCalled();
   });
@@ -273,7 +314,9 @@ describe("CompaniesDialog", () => {
     expect(screen.getAllByText("Suspended").length).toBeGreaterThan(0);
 
     click("Switch to this company");
-    expect(screen.getByRole("button", { name: "Switch to this company" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Switch to this company" }),
+    ).toBeDisabled();
     await act(async () => switching.resolve(INITECH));
     expect(switchCompany).toHaveBeenCalledWith(5);
     expect(toast).toHaveBeenCalledWith(
@@ -288,7 +331,10 @@ describe("CompaniesDialog", () => {
     click("Switch to this company");
     await waitFor(() =>
       expect(toast).toHaveBeenCalledWith(
-        expect.objectContaining({ tone: "error", title: "Couldn't switch company" }),
+        expect.objectContaining({
+          tone: "error",
+          title: "Couldn't switch company",
+        }),
       ),
     );
   });
@@ -298,8 +344,12 @@ describe("CompaniesDialog", () => {
     fireEvent.click(await screen.findByRole("button", { name: /globex/i }));
     click("Save changes");
 
-    expect(update).toHaveBeenCalledWith(expect.objectContaining({ name: "Globex (edited)" }));
-    expect(screen.getByRole("button", { name: /globex \(edited\)/i })).toBeInTheDocument();
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Globex (edited)" }),
+    );
+    expect(
+      screen.getByRole("button", { name: /globex \(edited\)/i }),
+    ).toBeInTheDocument();
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({
         title: "Changes saved",
@@ -312,9 +362,13 @@ describe("CompaniesDialog", () => {
     open();
     await screen.findByRole("button", { name: /acme/i });
     click("Create new company");
-    expect(screen.getByRole("heading", { name: "New company" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "New company" }),
+    ).toBeInTheDocument();
 
-    vi.mocked(fetchCompanyPage).mockResolvedValue(page([ACME, GLOBEX, INITECH, CREATED]));
+    vi.mocked(fetchCompanyPage).mockResolvedValue(
+      page([ACME, GLOBEX, INITECH, CREATED]),
+    );
     click("Create company");
     expect(adopt).toHaveBeenCalledWith(CREATED);
     expect(toast).toHaveBeenCalledWith(
@@ -323,8 +377,13 @@ describe("CompaniesDialog", () => {
         description: "Newco is now your active company.",
       }),
     );
-    expect(await screen.findByRole("button", { name: /newco/i })).toBeInTheDocument();
-    expect(screen.getByTestId("company-form")).toHaveAttribute("data-editing", "9");
+    expect(
+      await screen.findByRole("button", { name: /newco/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("company-form")).toHaveAttribute(
+      "data-editing",
+      "9",
+    );
   });
 
   it("goes back to the active company when creating is cancelled", async () => {
@@ -332,7 +391,10 @@ describe("CompaniesDialog", () => {
     await screen.findByRole("button", { name: /acme/i });
     click("Create new company");
     click("Cancel form");
-    expect(screen.getByTestId("company-form")).toHaveAttribute("data-editing", "3");
+    expect(screen.getByTestId("company-form")).toHaveAttribute(
+      "data-editing",
+      "3",
+    );
   });
 
   it("steps back to the list on a narrow screen", async () => {
@@ -351,14 +413,20 @@ describe("CompaniesDialog", () => {
     });
 
     vi.mocked(fetchCompanyPage).mockResolvedValue(page([]));
-    fireEvent.change(screen.getByRole("searchbox", { name: "Search companies" }), {
-      target: { value: "  zed " },
-    });
+    fireEvent.change(
+      screen.getByRole("searchbox", { name: "Search companies" }),
+      {
+        target: { value: "  zed " },
+      },
+    );
     expect(fetchCompanyPage).toHaveBeenCalledTimes(1);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
-    expect(fetchCompanyPage).toHaveBeenLastCalledWith({ search: "zed", page: 1 });
+    expect(fetchCompanyPage).toHaveBeenLastCalledWith({
+      search: "zed",
+      page: 1,
+    });
     expect(screen.getByText("No companies match “zed”.")).toBeInTheDocument();
 
     vi.mocked(fetchCompanyPage).mockResolvedValue(page([ACME]));
@@ -371,7 +439,9 @@ describe("CompaniesDialog", () => {
   });
 
   it("loads the next page when the end of the list comes into view", async () => {
-    vi.mocked(fetchCompanyPage).mockResolvedValueOnce(page([ACME, GLOBEX], true));
+    vi.mocked(fetchCompanyPage).mockResolvedValueOnce(
+      page([ACME, GLOBEX], true),
+    );
     open();
     await screen.findByRole("button", { name: /globex/i });
 
@@ -387,7 +457,9 @@ describe("CompaniesDialog", () => {
     // A row already shown is not listed twice.
     await act(async () => next.resolve(page([GLOBEX, INITECH])));
     expect(screen.getAllByRole("button", { name: /globex/i })).toHaveLength(1);
-    expect(screen.getByRole("button", { name: /initech/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /initech/i }),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Loading more…")).not.toBeInTheDocument();
   });
 
@@ -396,13 +468,18 @@ describe("CompaniesDialog", () => {
     open();
     await screen.findByRole("button", { name: /acme/i });
 
-    vi.mocked(fetchCompanyPage).mockResolvedValue({ ok: false, message: "Lost connection." });
+    vi.mocked(fetchCompanyPage).mockResolvedValue({
+      ok: false,
+      message: "Lost connection.",
+    });
     act(() => intersect!());
     expect(await screen.findByText(/Lost connection\./)).toBeInTheDocument();
 
     vi.mocked(fetchCompanyPage).mockResolvedValue(page([GLOBEX]));
     click("Try again");
-    expect(await screen.findByRole("button", { name: /globex/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /globex/i }),
+    ).toBeInTheDocument();
     expect(fetchCompanyPage).toHaveBeenLastCalledWith({ search: "", page: 2 });
   });
 
@@ -412,11 +489,15 @@ describe("CompaniesDialog", () => {
       message: "Couldn't load your companies.",
     });
     open();
-    expect(await screen.findByText(/Couldn't load your companies\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Couldn't load your companies\./),
+    ).toBeInTheDocument();
 
     vi.mocked(fetchCompanyPage).mockResolvedValue(page([ACME]));
     click("Try again");
-    expect(await screen.findByRole("button", { name: /acme/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /acme/i }),
+    ).toBeInTheDocument();
     expect(fetchCompanyPage).toHaveBeenLastCalledWith({ search: "", page: 1 });
   });
 

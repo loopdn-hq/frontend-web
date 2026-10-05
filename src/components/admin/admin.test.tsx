@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -19,13 +26,14 @@ vi.mock("@/lib/auth/client", () => ({
   useAuth: () => auth,
 }));
 vi.mock("@/lib/rbac", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/rbac/requirements")>(
-    "@/lib/rbac/requirements",
-  );
+  const actual = await vi.importActual<
+    typeof import("@/lib/rbac/requirements")
+  >("@/lib/rbac/requirements");
   return { meets: actual.meets, useFeatures: () => features };
 });
 vi.mock("@/components/ui", async () => {
-  const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
+  const actual =
+    await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
   return { ...actual, useToast: () => toast };
 });
 vi.mock("@/lib/admin/api", () => ({
@@ -121,7 +129,13 @@ function review(overrides: Partial<ReviewCampaign> = {}): ReviewCampaign {
       },
     ],
     events: [
-      { kind: "created", label: "Created", by: null, note: "", createdAt: "2026-09-30T09:00:00" },
+      {
+        kind: "created",
+        label: "Created",
+        by: null,
+        note: "",
+        createdAt: "2026-09-30T09:00:00",
+      },
       {
         kind: "submitted",
         label: "Submitted",
@@ -198,7 +212,9 @@ describe("AdminFrame", () => {
         <Inside />
       </AdminFrame>,
     );
-    expect(screen.getByRole("status")).toHaveTextContent("Loading the admin site");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading the admin site",
+    );
   });
 
   it("hands its features to the pages below it", () => {
@@ -213,10 +229,9 @@ describe("AdminFrame", () => {
       screen.getByRole("heading", { name: "This isn't an admin account" }),
     ).toBeInTheDocument();
     expect(screen.getByText("sam")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Go to Loopd'n chat" })).toHaveAttribute(
-      "href",
-      "https://loopdn.com/chats/",
-    );
+    expect(
+      screen.getByRole("link", { name: "Go to Loopd'n chat" }),
+    ).toHaveAttribute("href", "https://loopdn.com/chats/");
 
     click("Sign out");
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/login/"));
@@ -254,7 +269,9 @@ describe("AdminShell", () => {
       "Campaign review",
       "Permissions",
     ]);
-    expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Overview" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Tools.")).toBeInTheDocument();
   });
 
@@ -286,10 +303,9 @@ describe("AdminShell", () => {
   it("collapses to icons and remembers that", () => {
     const first = mount();
     click("Collapse navigation");
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(screen.queryByText("Advertising")).not.toBeInTheDocument();
     expect(screen.getByTitle("Campaign review")).toBeInTheDocument();
     expect(localStorage.getItem("loopdn_admin_nav_collapsed")).toBe("1");
@@ -309,7 +325,9 @@ describe("AdminShell", () => {
     });
     mount();
     click("Collapse navigation");
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toBeInTheDocument();
   });
 
   it("opens as a drawer on a small screen, and closes on navigating", () => {
@@ -319,11 +337,15 @@ describe("AdminShell", () => {
 
     click("Open navigation");
     expect(nav).toHaveClass("flex");
-    fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[0]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Close navigation" })[0],
+    );
     expect(nav).toHaveClass("hidden");
 
     click("Open navigation");
-    fireEvent.click(screen.getAllByRole("button", { name: "Close navigation" })[1]);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Close navigation" })[1],
+    );
     expect(nav).toHaveClass("hidden");
 
     click("Open navigation");
@@ -339,8 +361,14 @@ describe("AdminShell", () => {
     expect(row).toHaveTextContent("sam");
 
     fireEvent.click(row);
-    fireEvent.click(screen.getByRole("menuitem", { name: /open loopd'n chat/i }));
-    expect(open).toHaveBeenCalledWith("https://loopdn.com/chats/", "_blank", "noopener");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: /open loopd'n chat/i }),
+    );
+    expect(open).toHaveBeenCalledWith(
+      "https://loopdn.com/chats/",
+      "_blank",
+      "noopener",
+    );
 
     fireEvent.click(row);
     fireEvent.click(screen.getByRole("menuitem", { name: /log out/i }));
@@ -350,7 +378,9 @@ describe("AdminShell", () => {
 
   it("heads a page without a description too", () => {
     render(<AdminPageHeader title="Permissions" />);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Permissions");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+      "Permissions",
+    );
   });
 });
 
@@ -361,7 +391,9 @@ describe("the admin layout and overview", () => {
         <p>admin page</p>
       </AdminLayout>,
     );
-    expect(screen.getByRole("navigation", { name: "Admin" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Admin" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("admin page")).toBeInTheDocument();
   });
 
@@ -372,7 +404,9 @@ describe("the admin layout and overview", () => {
       </AdminFrame>,
     );
     expect(
-      screen.getByRole("link", { name: /campaign review/i }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: /campaign review/i })
+        .getAttribute("href"),
     ).toMatch(/^\/admin\/campaigns\/?$/);
     expect(
       screen.getByRole("link", { name: /permissions/i }).getAttribute("href"),
@@ -386,14 +420,18 @@ describe("the admin layout and overview", () => {
         <AdminOverviewPage />
       </AdminFrame>,
     );
-    expect(screen.getByRole("heading", { level: 1, name: "Overview" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Overview" }),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 });
 
 describe("GroupMatchCheck", () => {
   function check(value: string) {
-    fireEvent.change(screen.getByLabelText(/does a group match/i), { target: { value } });
+    fireEvent.change(screen.getByLabelText(/does a group match/i), {
+      target: { value },
+    });
     click("Check");
   }
 
@@ -401,7 +439,9 @@ describe("GroupMatchCheck", () => {
     render(<GroupMatchCheck campaignId={12} />);
     for (const value of ["", "abc", "0", "-4", "1.5"]) {
       check(value);
-      expect(screen.getByText("Enter the group's number, e.g. 42.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Enter the group's number, e.g. 42."),
+      ).toBeInTheDocument();
     }
     expect(checkGroupMatch).not.toHaveBeenCalled();
   });
@@ -421,8 +461,18 @@ describe("GroupMatchCheck", () => {
           group: { id: 42, name: "Runners", memberCount: 30 },
           matches: false,
           checks: [
-            { code: "size", label: "Group size", passed: true, detail: "30 members" },
-            { code: "region", label: "Region", passed: false, detail: "In New York" },
+            {
+              code: "size",
+              label: "Group size",
+              passed: true,
+              detail: "30 members",
+            },
+            {
+              code: "region",
+              label: "Region",
+              passed: false,
+              detail: "In New York",
+            },
           ],
         },
       }),
@@ -438,7 +488,11 @@ describe("GroupMatchCheck", () => {
   it("names a group with no name by its number, and clears a result on failure", async () => {
     vi.mocked(checkGroupMatch).mockResolvedValue({
       ok: true,
-      data: { group: { id: 7, name: "", memberCount: 4 }, matches: true, checks: [] },
+      data: {
+        group: { id: 7, name: "", memberCount: 4 },
+        matches: true,
+        checks: [],
+      },
     });
     render(<GroupMatchCheck campaignId={12} />);
     check("7");
@@ -450,25 +504,36 @@ describe("GroupMatchCheck", () => {
       message: "No group with that number.",
     });
     check("8");
-    expect(await screen.findByText("No group with that number.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("No group with that number."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Group 7")).not.toBeInTheDocument();
 
     check("x");
-    expect(screen.getByText("Enter the group's number, e.g. 42.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter the group's number, e.g. 42."),
+    ).toBeInTheDocument();
   });
 });
 
 describe("RejectDialog", () => {
   function open(onRejected = vi.fn(), onClose = vi.fn()) {
-    render(<RejectDialog campaign={review()} isOpen onClose={onClose} onRejected={onRejected} />);
+    render(
+      <RejectDialog
+        campaign={review()}
+        isOpen
+        onClose={onClose}
+        onRejected={onRejected}
+      />,
+    );
     return { onRejected, onClose };
   }
 
   it("says where the campaign goes back to", () => {
     open();
-    expect(screen.getByRole("dialog", { name: "Send back to the company" })).toHaveTextContent(
-      '"Autumn sale" returns to Acme as a draft',
-    );
+    expect(
+      screen.getByRole("dialog", { name: "Send back to the company" }),
+    ).toHaveTextContent('"Autumn sale" returns to Acme as a draft');
   });
 
   it("needs a reason, and a note for each creative marked", () => {
@@ -478,7 +543,9 @@ describe("RejectDialog", () => {
       screen.getByText("Say why, so the company knows what to fix."),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText("Why"), { target: { value: "Fix the link." } });
+    fireEvent.change(screen.getByLabelText("Why"), {
+      target: { value: "Fix the link." },
+    });
     fireEvent.click(screen.getByRole("checkbox", { name: "Half off" }));
     click("Send back");
     expect(
@@ -493,7 +560,9 @@ describe("RejectDialog", () => {
     vi.mocked(rejectCampaign).mockReturnValue(pending.promise);
     const { onRejected, onClose } = open();
 
-    fireEvent.change(screen.getByLabelText("Why"), { target: { value: "  Fix the link. " } });
+    fireEvent.change(screen.getByLabelText("Why"), {
+      target: { value: "  Fix the link. " },
+    });
     fireEvent.click(screen.getByRole("checkbox", { name: "Half off" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Get a quote" }));
     // Unmarking takes the creative back out of the rejection.
@@ -522,9 +591,13 @@ describe("RejectDialog", () => {
       message: "It has already been approved.",
     });
     const { onRejected, onClose } = open();
-    fireEvent.change(screen.getByLabelText("Why"), { target: { value: "No." } });
+    fireEvent.change(screen.getByLabelText("Why"), {
+      target: { value: "No." },
+    });
     click("Send back");
-    expect(await screen.findByText("It has already been approved.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("It has already been approved."),
+    ).toBeInTheDocument();
     expect(onRejected).not.toHaveBeenCalled();
 
     click("Cancel");
@@ -549,7 +622,10 @@ describe("ReviewDetail", () => {
   const onDecided = vi.fn();
 
   async function show(overrides: Partial<ReviewCampaign> = {}) {
-    vi.mocked(fetchReviewCampaign).mockResolvedValue({ ok: true, data: review(overrides) });
+    vi.mocked(fetchReviewCampaign).mockResolvedValue({
+      ok: true,
+      data: review(overrides),
+    });
     const view = render(<ReviewDetail campaignId={12} onDecided={onDecided} />);
     await screen.findByRole("heading", { level: 1 });
     return view;
@@ -560,13 +636,21 @@ describe("ReviewDetail", () => {
     vi.mocked(fetchReviewCampaign).mockReturnValue(pending.promise);
     render(<ReviewDetail campaignId={12} onDecided={onDecided} />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading campaign");
-    expect(render(<ReviewDetailSkeleton />).container).not.toBeEmptyDOMElement();
+    expect(
+      render(<ReviewDetailSkeleton />).container,
+    ).not.toBeEmptyDOMElement();
 
     await act(async () => pending.resolve({ ok: true, data: review() }));
-    expect(screen.getByRole("heading", { level: 1, name: "Autumn sale" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Autumn sale" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Acme · Website visits")).toBeInTheDocument();
-    expect(screen.getByText(/^Submitted Oct 1, 2026 at 10:00/)).toBeInTheDocument();
-    expect(screen.getByText("The automatic checks found nothing.")).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Submitted Oct 1, 2026 at 10:00/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The automatic checks found nothing."),
+    ).toBeInTheDocument();
     expect(screen.getByText("$8.00 per 1,000 views")).toBeInTheDocument();
     expect(screen.getByText("No cap")).toBeInTheDocument();
     expect(screen.getByText("As soon as it's approved")).toBeInTheDocument();
@@ -575,8 +659,12 @@ describe("ReviewDetail", () => {
     expect(screen.getByText("Sports")).toBeInTheDocument();
     expect(screen.getByText("California")).toBeInTheDocument();
     expect(screen.getByText("10 to 200 members")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Creatives (2)" })).toBeInTheDocument();
-    expect(screen.getByText("Button opens Loopd'n's lead form")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Creatives (2)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Button opens Loopd'n's lead form"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Too vague last time.")).toBeInTheDocument();
     expect(screen.getByText("Second try.")).toBeInTheDocument();
     expect(
@@ -598,9 +686,16 @@ describe("ReviewDetail", () => {
       endsAt: "2026-10-20T12:00:00",
       audience: null,
       creatives: [],
-      company: { ...review().company, website: "", contactEmail: "", status: "suspended" },
+      company: {
+        ...review().company,
+        website: "",
+        contactEmail: "",
+        status: "suspended",
+      },
     });
-    expect(screen.getByRole("heading", { level: 1, name: "Untitled campaign" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Untitled campaign" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Not set")).toBeInTheDocument();
     expect(screen.getByText("Not fixed")).toBeInTheDocument();
     expect(screen.getByText("$25.00")).toBeInTheDocument();
@@ -625,28 +720,52 @@ describe("ReviewDetail", () => {
   it("lists the automatic findings, the ones about creatives beside them", async () => {
     await show({
       findings: [
-        { code: "budget_low", severity: "warning", message: "Budget is small.", creativeId: null },
-        { code: "link_dead", severity: "blocker", message: "Dead link.", creativeId: 1 },
+        {
+          code: "budget_low",
+          severity: "warning",
+          message: "Budget is small.",
+          creativeId: null,
+        },
+        {
+          code: "link_dead",
+          severity: "blocker",
+          message: "Dead link.",
+          creativeId: 1,
+        },
       ],
     });
-    expect(screen.getByRole("heading", { name: "Automatic checks" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Automatic checks" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Budget is small.")).toBeInTheDocument();
     expect(
       screen.getByText("1 about the creatives - shown with each one below."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Dead link.").closest("p")).toHaveTextContent("Blocker:");
-    expect(screen.getByText("Budget is small.").closest("p")).toHaveTextContent("Check:");
+    expect(screen.getByText("Dead link.").closest("p")).toHaveTextContent(
+      "Blocker:",
+    );
+    expect(screen.getByText("Budget is small.").closest("p")).toHaveTextContent(
+      "Check:",
+    );
   });
 
   it("will not approve past a blocker", async () => {
     await show({
       findings: [
-        { code: "link_dead", severity: "blocker", message: "Dead link.", creativeId: null },
+        {
+          code: "link_dead",
+          severity: "blocker",
+          message: "Dead link.",
+          creativeId: null,
+        },
       ],
     });
     const approve = screen.getByRole("button", { name: "Approve" });
     expect(approve).toBeDisabled();
-    expect(approve).toHaveAttribute("title", "Fix the blockers below before approving");
+    expect(approve).toHaveAttribute(
+      "title",
+      "Fix the blockers below before approving",
+    );
     expect(screen.getByRole("button", { name: "Send back" })).toBeEnabled();
   });
 
@@ -656,16 +775,25 @@ describe("ReviewDetail", () => {
     vi.mocked(approveCampaign).mockReturnValue(pending.promise);
     await show({
       findings: [
-        { code: "budget_low", severity: "warning", message: "Budget is small.", creativeId: null },
+        {
+          code: "budget_low",
+          severity: "warning",
+          message: "Budget is small.",
+          creativeId: null,
+        },
       ],
     });
 
     click("Approve");
-    const dialog = within(screen.getByRole("dialog", { name: "Approve this campaign?" }));
+    const dialog = within(
+      screen.getByRole("dialog", { name: "Approve this campaign?" }),
+    );
     expect(screen.getByRole("dialog")).toHaveTextContent(
       "The automatic checks raised 1 point to look at.",
     );
-    fireEvent.change(dialog.getByRole("textbox"), { target: { value: " Looks good. " } });
+    fireEvent.change(dialog.getByRole("textbox"), {
+      target: { value: " Looks good. " },
+    });
     fireEvent.click(dialog.getByRole("button", { name: "Approve" }));
     expect(approveCampaign).toHaveBeenCalledWith(12, "Looks good.");
     fireEvent.click(dialog.getByRole("button", { name: "Approve" }));
@@ -678,7 +806,9 @@ describe("ReviewDetail", () => {
     expect(toast).toHaveBeenCalledWith({ title: "Campaign approved" });
     expect(onDecided).toHaveBeenCalledWith(approved);
     // Decided, so there is nothing left to decide.
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();
   });
 
@@ -690,12 +820,16 @@ describe("ReviewDetail", () => {
       ],
     });
     click("Approve");
-    expect(screen.getByRole("dialog")).toHaveTextContent("raised 2 points to look at.");
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "raised 2 points to look at.",
+    );
     first.unmount();
 
     await show();
     click("Approve");
-    expect(screen.getByRole("dialog")).not.toHaveTextContent("automatic checks raised");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent(
+      "automatic checks raised",
+    );
   });
 
   it("says why it could not be approved, and can be cancelled", async () => {
@@ -706,7 +840,9 @@ describe("ReviewDetail", () => {
     await show();
     click("Approve");
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Approve",
+      }),
     );
     expect(
       await screen.findByText("The company's balance is too low."),
@@ -721,8 +857,12 @@ describe("ReviewDetail", () => {
     vi.mocked(rejectCampaign).mockResolvedValue({ ok: true, data: rejected });
     await show();
     click("Send back");
-    const dialog = within(screen.getByRole("dialog", { name: "Send back to the company" }));
-    fireEvent.change(dialog.getByLabelText("Why"), { target: { value: "Fix it." } });
+    const dialog = within(
+      screen.getByRole("dialog", { name: "Send back to the company" }),
+    );
+    fireEvent.change(dialog.getByLabelText("Why"), {
+      target: { value: "Fix it." },
+    });
     fireEvent.click(dialog.getByRole("button", { name: "Send back" }));
 
     await waitFor(() => expect(onDecided).toHaveBeenCalledWith(rejected));
@@ -732,8 +872,12 @@ describe("ReviewDetail", () => {
 
   it("offers no decision for a campaign that is not waiting", async () => {
     await show({ status: "running", statusLabel: "Running" });
-    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send back" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Approve" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Send back" }),
+    ).not.toBeInTheDocument();
     expect(STATUS_TONE.running).toBe("success");
   });
 
@@ -747,15 +891,22 @@ describe("ReviewDetail", () => {
       "Couldn't load this campaign.",
     );
 
-    vi.mocked(fetchReviewCampaign).mockResolvedValue({ ok: true, data: review() });
+    vi.mocked(fetchReviewCampaign).mockResolvedValue({
+      ok: true,
+      data: review(),
+    });
     click(/try again/i);
-    expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { level: 1 }),
+    ).toBeInTheDocument();
   });
 
   it("ignores a campaign that arrives after it has gone", async () => {
     const pending = deferred<Awaited<ReturnType<typeof fetchReviewCampaign>>>();
     vi.mocked(fetchReviewCampaign).mockReturnValue(pending.promise);
-    const { unmount } = render(<ReviewDetail campaignId={12} onDecided={onDecided} />);
+    const { unmount } = render(
+      <ReviewDetail campaignId={12} onDecided={onDecided} />,
+    );
     unmount();
     pending.resolve({ ok: true, data: review() });
     await expect(pending.promise).resolves.toBeTruthy();

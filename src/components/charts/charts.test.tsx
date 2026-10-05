@@ -57,21 +57,35 @@ describe("ChartCard", () => {
       <ChartCard
         title="Messages"
         subtitle="Last 30 days"
-        table={{ valueHeading: "Count", rows: [{ label: "Sent", value: "140" }] }}
+        table={{
+          valueHeading: "Count",
+          rows: [{ label: "Sent", value: "140" }],
+        }}
       >
         <p>the chart</p>
       </ChartCard>,
     );
-    expect(screen.getByRole("heading", { name: "Messages" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Messages" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Last 30 days")).toBeInTheDocument();
     expect(screen.getByText("the chart")).toBeInTheDocument();
-    expect(screen.getByRole("columnheader", { name: "Count" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Count" }),
+    ).toBeInTheDocument();
     expect(tableRows()).toEqual(["Sent140"]);
   });
 
   it("names a series colour by its token", () => {
     expect(seriesColor("series-2")).toBe("var(--viz-series-2)");
-    render(<ChartTooltip label="Sent" value="140" tone="series-1" className="top-0" />);
+    render(
+      <ChartTooltip
+        label="Sent"
+        value="140"
+        tone="series-1"
+        className="top-0"
+      />,
+    );
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("140");
     expect(tooltip).toHaveTextContent("Sent");
@@ -82,13 +96,22 @@ describe("ChartCard", () => {
 describe("ColumnChart", () => {
   const data = [
     { label: "Sent", value: 140, display: "140", tone: "series-1" as const },
-    { label: "Received", value: 610, display: "610", tone: "series-2" as const },
+    {
+      label: "Received",
+      value: 610,
+      display: "610",
+      tone: "series-2" as const,
+    },
   ];
 
   it("draws a labelled column for each value against a rounded axis", () => {
-    render(<ColumnChart title="Messages" data={data} emptyMessage="Nothing yet." />);
+    render(
+      <ColumnChart title="Messages" data={data} emptyMessage="Nothing yet." />,
+    );
     expect(screen.getByRole("img", { name: "Sent: 140" })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Received: 610" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Received: 610" }),
+    ).toBeInTheDocument();
     // 610 rounds up to an axis of 1,000, with a tick at the half.
     expect(screen.getByText("1,000")).toBeInTheDocument();
     expect(screen.getByText("500")).toBeInTheDocument();
@@ -98,7 +121,9 @@ describe("ColumnChart", () => {
   });
 
   it("shows a tooltip for the column under the pointer or the keyboard", () => {
-    render(<ColumnChart title="Messages" data={data} emptyMessage="Nothing yet." />);
+    render(
+      <ColumnChart title="Messages" data={data} emptyMessage="Nothing yet." />,
+    );
     const sent = screen.getByRole("img", { name: "Sent: 140" });
 
     fireEvent.pointerEnter(sent);
@@ -162,8 +187,12 @@ describe("DonutChart", () => {
         name: "Conversations: Groups 9 of 12, Direct 3 of 12",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: "Groups: 9 of 12 chats" })).toBeInTheDocument();
-    expect(screen.queryByRole("img", { name: /archived/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "Groups: 9 of 12 chats" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /archived/i }),
+    ).not.toBeInTheDocument();
     // Once in the hole of the ring, once as the table's total.
     expect(screen.getAllByText("12")).toHaveLength(2);
     expect(tableRows()).toEqual([
@@ -219,12 +248,19 @@ describe("ShareBar", () => {
 
   it("splits one bar by share, and totals it in the subtitle", () => {
     render(
-      <ShareBar title="Groups" unit="groups" segments={segments} emptyMessage="None." />,
+      <ShareBar
+        title="Groups"
+        unit="groups"
+        segments={segments}
+        emptyMessage="None."
+      />,
     );
     expect(screen.getByText("9 groups in total")).toBeInTheDocument();
     const admin = screen.getByRole("img", { name: "Admin of: 4 of 9 groups" });
     expect(admin.style.width).toMatch(/^44\.4/);
-    expect(screen.queryByRole("img", { name: /broadcast/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("img", { name: /broadcast/i }),
+    ).not.toBeInTheDocument();
     expect(tableRows()).toEqual([
       "Admin of4 (44%)",
       "Member of5 (56%)",
@@ -235,9 +271,16 @@ describe("ShareBar", () => {
 
   it("shows a tooltip for the segment under the pointer or the keyboard", () => {
     render(
-      <ShareBar title="Groups" unit="groups" segments={segments} emptyMessage="None." />,
+      <ShareBar
+        title="Groups"
+        unit="groups"
+        segments={segments}
+        emptyMessage="None."
+      />,
     );
-    const member = screen.getByRole("img", { name: "Member of: 5 of 9 groups" });
+    const member = screen.getByRole("img", {
+      name: "Member of: 5 of 9 groups",
+    });
     fireEvent.pointerEnter(member);
     expect(screen.getByRole("tooltip")).toHaveTextContent("5 of 9");
     fireEvent.pointerLeave(member);

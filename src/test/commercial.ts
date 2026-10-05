@@ -1,9 +1,5 @@
 import type { CampaignOptions } from "@/lib/commercial/useCampaignOptions";
-import type {
-  CampaignDetail,
-  Company,
-  Creative,
-} from "@/lib/commercial/types";
+import type { CampaignDetail, Company, Creative } from "@/lib/commercial/types";
 
 /** Fixtures for the commercial dashboard's tests. */
 
@@ -46,7 +42,9 @@ export function creative(overrides: Partial<Creative> = {}): Creative {
   };
 }
 
-export function campaign(overrides: Partial<CampaignDetail> = {}): CampaignDetail {
+export function campaign(
+  overrides: Partial<CampaignDetail> = {},
+): CampaignDetail {
   return {
     id: 12,
     companyId: 3,

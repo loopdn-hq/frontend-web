@@ -64,11 +64,21 @@ afterEach(() => {
 describe("WhatsApp connections", () => {
   it("reads the config that says whether the feature is on", async () => {
     respond(200, {
-      data: { enabled: true, app_id: "app-1", config_id: "cfg-1", graph_version: "v21.0" },
+      data: {
+        enabled: true,
+        app_id: "app-1",
+        config_id: "cfg-1",
+        graph_version: "v21.0",
+      },
     });
     expect(await fetchWhatsAppConfig()).toEqual({
       ok: true,
-      data: { enabled: true, appId: "app-1", configId: "cfg-1", graphVersion: "v21.0" },
+      data: {
+        enabled: true,
+        appId: "app-1",
+        configId: "cfg-1",
+        graphVersion: "v21.0",
+      },
     });
     expect(lastRequest().path).toBe("/whatsapp/config/");
 
@@ -87,7 +97,12 @@ describe("WhatsApp connections", () => {
     expect(lastRequest()).toEqual({
       path: "/whatsapp/connections/",
       method: "POST",
-      body: { code: "c1", waba_id: "w1", phone_number_id: "p1", business_id: "b1" },
+      body: {
+        code: "c1",
+        waba_id: "w1",
+        phone_number_id: "p1",
+        business_id: "b1",
+      },
     });
     // A status it does not know is shown as needing attention, not as fine.
     expect(result.ok && result.data.status).toBe("error");
@@ -133,7 +148,9 @@ describe("WhatsApp connections", () => {
       method: "DELETE",
     });
 
-    respond(200, { data: { connected: false, channel: { connection_status: "odd" } } });
+    respond(200, {
+      data: { connected: false, channel: { connection_status: "odd" } },
+    });
     const detached = await detachGroupWhatsApp(9);
     expect(lastRequest()).toMatchObject({
       path: "/whatsapp/groups/9/",
@@ -147,7 +164,9 @@ describe("WhatsApp connections", () => {
   });
 
   it("reads an invitation's outcome, treating an unknown one as not sent", async () => {
-    respond(201, { data: { outcome: "teleported", participant: 5, channel: null } });
+    respond(201, {
+      data: { outcome: "teleported", participant: 5, channel: null },
+    });
     const result = await inviteByWhatsApp(9, { participant: 5 });
     expect(result.ok && result.data).toEqual({
       outcome: "not_sent",
@@ -164,7 +183,12 @@ describe("WhatsApp connections", () => {
 
 describe("useWhatsAppConfig", () => {
   const CONFIG = {
-    data: { enabled: true, app_id: "app-1", config_id: "cfg-1", graph_version: "v21.0" },
+    data: {
+      enabled: true,
+      app_id: "app-1",
+      config_id: "cfg-1",
+      graph_version: "v21.0",
+    },
   };
 
   it("loads the config once and shares it between every screen that asks", async () => {
@@ -220,7 +244,9 @@ describe("loadFacebookSdk", () => {
   }
 
   function sdkScript() {
-    return document.getElementById("facebook-jssdk") as HTMLScriptElement | null;
+    return document.getElementById(
+      "facebook-jssdk",
+    ) as HTMLScriptElement | null;
   }
 
   it("initialises an SDK that is already on the page without loading it again", async () => {

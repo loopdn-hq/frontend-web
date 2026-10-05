@@ -362,7 +362,10 @@ describe("syncPush", () => {
   });
 
   it("does nothing without permission, without a subscription, or on failure", async () => {
-    let mock = browser({ permission: "default", subscription: makeSubscription() });
+    let mock = browser({
+      permission: "default",
+      subscription: makeSubscription(),
+    });
     await syncPush();
     expect(mock.serviceWorker.getRegistration).not.toHaveBeenCalled();
 

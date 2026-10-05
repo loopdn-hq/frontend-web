@@ -42,7 +42,9 @@ function lastRequest() {
   return {
     path,
     method: (init as RequestInit | undefined)?.method,
-    body: JSON.parse(((init as RequestInit | undefined)?.body as string) ?? "null"),
+    body: JSON.parse(
+      ((init as RequestInit | undefined)?.body as string) ?? "null",
+    ),
   };
 }
 
@@ -71,7 +73,10 @@ describe("fetchAccountSettings", () => {
       data: {
         messaging: { enter_to_send: false, sms_enabled: true, unknown: 1 },
         notifications: { mentions_replies: false, sound: "none" },
-        privacy: { direct_messages_from: "loops", read_receipts_enabled: false },
+        privacy: {
+          direct_messages_from: "loops",
+          read_receipts_enabled: false,
+        },
       },
     });
 
@@ -128,9 +133,9 @@ describe("saveAccountSettings", () => {
 
   it("returns nothing changed when the server sends no data back", async () => {
     respond(200, {});
-    expect(await saveAccountSettings("messaging", { enterToSend: true })).toEqual(
-      { ok: true, values: {} },
-    );
+    expect(
+      await saveAccountSettings("messaging", { enterToSend: true }),
+    ).toEqual({ ok: true, values: {} });
   });
 
   it("reports a refusal", async () => {
@@ -164,7 +169,13 @@ describe("blocked users", () => {
         row,
         { ...row, id: 2, display_label: null },
         { ...row, id: 3, display_label: "", username: null },
-        { ...row, id: 4, display_label: null, username: null, phone_number: null },
+        {
+          ...row,
+          id: 4,
+          display_label: null,
+          username: null,
+          phone_number: null,
+        },
       ],
     });
 
@@ -282,7 +293,10 @@ describe("searchUsers", () => {
           {
             id: 7,
             username: "sam",
-            profile: { display_label: "Sam Wren", avatar_url: "https://a/1.png" },
+            profile: {
+              display_label: "Sam Wren",
+              avatar_url: "https://a/1.png",
+            },
           },
           { id: "8", username: "sasha", profile: { display_label: null } },
           { id: 9, username: "" },
@@ -295,7 +309,12 @@ describe("searchUsers", () => {
       ok: true,
       hasMore: true,
       users: [
-        { id: "7", username: "sam", name: "Sam Wren", avatarUrl: "https://a/1.png" },
+        {
+          id: "7",
+          username: "sam",
+          name: "Sam Wren",
+          avatarUrl: "https://a/1.png",
+        },
         { id: "8", username: "sasha", name: "sasha", avatarUrl: undefined },
       ],
     });
@@ -346,9 +365,9 @@ describe("the browser's copy of each settings screen", () => {
     expect(messaging.result.current.enterToSend).toBe(false);
     expect(notifications.result.current.sound).toBe("none");
     expect(privacy.result.current.groupAdds).toBe("nobody");
-    expect(JSON.parse(localStorage.getItem("loopdn_privacy_prefs")!)).toMatchObject(
-      { groupAdds: "nobody" },
-    );
+    expect(
+      JSON.parse(localStorage.getItem("loopdn_privacy_prefs")!),
+    ).toMatchObject({ groupAdds: "nobody" });
   });
 
   it("has a row for every setting each screen stores", () => {

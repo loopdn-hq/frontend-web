@@ -19,7 +19,8 @@ vi.mock("@/lib/platform", () => ({
   platform: { openExternal: vi.fn(async () => {}) },
 }));
 vi.mock("@/lib/billing", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/billing")>("@/lib/billing");
+  const actual =
+    await vi.importActual<typeof import("@/lib/billing")>("@/lib/billing");
   return {
     ...actual,
     createPlanCheckoutSession: vi.fn(),
@@ -124,7 +125,9 @@ describe("PricingPage", () => {
 
     pending.resolve(jsonResponse(200, { data: [PREMIUM] }));
     await loaded();
-    expect(screen.getByText("Showing latest plans from billing API.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Showing latest plans from billing API."),
+    ).toBeInTheDocument();
   });
 
   it("lists the plans cheapest first, with Free and Enterprise around the server's", async () => {
@@ -133,7 +136,9 @@ describe("PricingPage", () => {
 
     expect(fetchMock).toHaveBeenCalledWith("https://api.test/billing/plans/");
     expect(
-      screen.getAllByRole("article").map((article) => article.getAttribute("aria-label")),
+      screen
+        .getAllByRole("article")
+        .map((article) => article.getAttribute("aria-label")),
     ).toEqual([
       "Free plan",
       "Starter plan",
@@ -142,8 +147,12 @@ describe("PricingPage", () => {
       "Enterprise plan",
     ]);
     expect(within(card("Premium")).getByText("$9.99/mo")).toBeInTheDocument();
-    expect(within(card("Premium")).getByText("Recommended")).toBeInTheDocument();
-    expect(within(card("Free")).queryByText("Recommended")).not.toBeInTheDocument();
+    expect(
+      within(card("Premium")).getByText("Recommended"),
+    ).toBeInTheDocument();
+    expect(
+      within(card("Free")).queryByText("Recommended"),
+    ).not.toBeInTheDocument();
   });
 
   it("describes each plan's limits and calling in words", async () => {
@@ -180,7 +189,14 @@ describe("PricingPage", () => {
   });
 
   it("uses the server's own Free plan instead of the built-in one", async () => {
-    plansAre([{ ...PREMIUM, code: "free", name: "Free forever", monthly_price_cents: 0 }]);
+    plansAre([
+      {
+        ...PREMIUM,
+        code: "free",
+        name: "Free forever",
+        monthly_price_cents: 0,
+      },
+    ]);
     render(<PricingPage />);
     await screen.findByRole("article", { name: "Free forever plan" });
     expect(screen.getAllByRole("article")).toHaveLength(2);
@@ -192,7 +208,9 @@ describe("PricingPage", () => {
     expect(
       screen.getByRole("table", { name: /features included in each/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("rowheader", { name: "Search" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("rowheader", { name: "Search" }),
+    ).toBeInTheDocument();
   });
 
   it("sends a visitor to log in, and anybody to the builder for Enterprise", async () => {
@@ -201,12 +219,16 @@ describe("PricingPage", () => {
     await loaded();
 
     await user.click(
-      within(card("Premium")).getByRole("button", { name: "Log in to continue" }),
+      within(card("Premium")).getByRole("button", {
+        name: "Log in to continue",
+      }),
     );
     expect(push).toHaveBeenLastCalledWith("/login/");
 
     await user.click(
-      within(card("Enterprise")).getByRole("button", { name: "Build Your Plan" }),
+      within(card("Enterprise")).getByRole("button", {
+        name: "Build Your Plan",
+      }),
     );
     expect(push).toHaveBeenLastCalledWith("/enterprise/builder/");
     expect(createPlanCheckoutSession).not.toHaveBeenCalled();
@@ -218,7 +240,8 @@ describe("PricingPage", () => {
     stubLocation("https://loopdn.com/pricing/");
     vi.stubGlobal("fetch", fetchMock);
     auth = { session: "sam", isLoaded: true };
-    const checkout = deferred<Awaited<ReturnType<typeof createPlanCheckoutSession>>>();
+    const checkout =
+      deferred<Awaited<ReturnType<typeof createPlanCheckoutSession>>>();
     vi.mocked(createPlanCheckoutSession).mockReturnValue(checkout.promise);
     render(<PricingPage />);
     await loaded();
@@ -235,13 +258,18 @@ describe("PricingPage", () => {
     );
     // Every plan's button waits while one checkout is starting.
     expect(
-      within(card("Business Plus")).getByRole("button", { name: "Redirecting..." }),
+      within(card("Business Plus")).getByRole("button", {
+        name: "Redirecting...",
+      }),
     ).toBeDisabled();
     expect(
       within(card("Premium")).getByRole("button", { name: "Choose Premium" }),
     ).toBeDisabled();
 
-    checkout.resolve({ ok: true, data: { checkoutUrl: "https://checkout.stripe.com/c/1" } });
+    checkout.resolve({
+      ok: true,
+      data: { checkoutUrl: "https://checkout.stripe.com/c/1" },
+    });
     await waitFor(() =>
       expect(platform.openExternal).toHaveBeenCalledWith(
         "https://checkout.stripe.com/c/1",
@@ -265,7 +293,9 @@ describe("PricingPage", () => {
     await user.click(
       within(card("Premium")).getByRole("button", { name: "Choose Premium" }),
     );
-    expect(await screen.findByText("Unable to start checkout")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Unable to start checkout"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Card required.")).toBeInTheDocument();
     expect(platform.openExternal).not.toHaveBeenCalled();
 
@@ -277,7 +307,9 @@ describe("PricingPage", () => {
       within(card("Premium")).getByRole("button", { name: "Choose Premium" }),
     );
     await waitFor(() => expect(platform.openExternal).toHaveBeenCalled());
-    expect(screen.queryByText("Unable to start checkout")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Unable to start checkout"),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the plan somebody is on, and offers no button for it", async () => {
@@ -313,7 +345,9 @@ describe("PricingPage", () => {
     await loaded();
     expect(fetchBillingSummary).not.toHaveBeenCalled();
     expect(
-      within(card("Premium")).getByRole("button", { name: "Log in to continue" }),
+      within(card("Premium")).getByRole("button", {
+        name: "Log in to continue",
+      }),
     ).toBeInTheDocument();
   });
 
@@ -333,7 +367,9 @@ describe("PricingPage", () => {
 
   it("explains a failed load in the server's words, and retries", async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(503, { message: "Billing is down." }));
+    fetchMock.mockResolvedValue(
+      jsonResponse(503, { message: "Billing is down." }),
+    );
     render(<PricingPage />);
 
     expect(
@@ -345,7 +381,9 @@ describe("PricingPage", () => {
     ).toMatch(/^\/contact\/?$/);
 
     plansAre([PREMIUM]);
-    await user.click(screen.getByRole("button", { name: "Retry loading plans" }));
+    await user.click(
+      screen.getByRole("button", { name: "Retry loading plans" }),
+    );
     await loaded();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
@@ -411,8 +449,13 @@ describe("PricingPage", () => {
         .getAttribute("href"),
     ).toMatch(/^\/enterprise\/builder\/?$/);
     expect(
-      screen.getByRole("link", { name: "Talk to sales instead" }).getAttribute("href"),
+      screen
+        .getByRole("link", { name: "Talk to sales instead" })
+        .getAttribute("href"),
     ).toMatch(/^\/contact\/?$/);
-    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute(
+      "href",
+      "/",
+    );
   });
 });

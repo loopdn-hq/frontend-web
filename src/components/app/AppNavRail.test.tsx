@@ -15,14 +15,18 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/app/AppShellProvider", () => ({ useAppShell: () => shell }));
 vi.mock("@/lib/billing", () => ({ fetchBillingSummary: vi.fn() }));
 vi.mock("@/lib/rbac", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/rbac")>("@/lib/rbac");
+  const actual =
+    await vi.importActual<typeof import("@/lib/rbac")>("@/lib/rbac");
   return {
     ...actual,
     useFeatures: () => ({ features, loading: featuresLoading }),
   };
 });
 vi.mock("@/components/settings/useUserSettingsProps", () => ({
-  useUserSettingsProps: () => ({ profile: { displayName: "Sam Wren" }, onSaveProfile: vi.fn() }),
+  useUserSettingsProps: () => ({
+    profile: { displayName: "Sam Wren" },
+    onSaveProfile: vi.fn(),
+  }),
 }));
 vi.mock("@/components/settings/EditProfileModal", () => ({
   EditProfileModal: ({ onClose }: { onClose: () => void }) => (
@@ -94,7 +98,10 @@ beforeEach(() => {
     isNavDrawerOpen: false,
     closeNavDrawer: vi.fn(),
   };
-  vi.mocked(fetchBillingSummary).mockResolvedValue({ ok: false, message: "x" } as never);
+  vi.mocked(fetchBillingSummary).mockResolvedValue({
+    ok: false,
+    message: "x",
+  } as never);
 });
 
 afterEach(() => {
@@ -127,19 +134,25 @@ describe("AppNavRail - destinations", () => {
   it("shows Analytics only when the plan includes it as well", async () => {
     planHas(["Unlimited groups", " Advanced Analytics "]);
     render(<AppNavRail />);
-    expect(await screen.findByRole("link", { name: "Analytics" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Analytics" }),
+    ).toBeInTheDocument();
   });
 
   it("counts basic analytics as analytics, and nothing else", async () => {
     planHas(["Basic analytics"]);
     const first = render(<AppNavRail />);
-    expect(await screen.findByRole("link", { name: "Analytics" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("link", { name: "Analytics" }),
+    ).toBeInTheDocument();
     first.unmount();
 
     planHas(["Unlimited groups"]);
     render(<AppNavRail />);
     await waitFor(() => expect(fetchBillingSummary).toHaveBeenCalledTimes(2));
-    expect(screen.queryByRole("link", { name: "Analytics" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Analytics" }),
+    ).not.toBeInTheDocument();
   });
 
   it("ignores a plan that arrives after it has gone", async () => {
@@ -152,7 +165,9 @@ describe("AppNavRail - destinations", () => {
       data: { subscription: { plan: { features: ["Basic analytics"] } } },
     } as never);
     await pending.promise;
-    expect(screen.queryByRole("link", { name: "Analytics" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Analytics" }),
+    ).not.toBeInTheDocument();
   });
 
   it("marks the page you are on, with or without the trailing slash", () => {
@@ -162,17 +177,27 @@ describe("AppNavRail - destinations", () => {
       "aria-current",
       "page",
     );
-    expect(screen.getByRole("link", { name: "Chats" })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: "Chats" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 
   it("badges chats, broadcasts and activity with what is unread", () => {
     shell.unreadByMode = { chat: 3, broadcast: 4 };
     shell.activityUnread = 5;
     render(<AppNavRail />);
-    expect(screen.getByRole("link", { name: /Chats/ })).toHaveTextContent("Chats3");
-    expect(screen.getByRole("link", { name: /Broadcast/ })).toHaveTextContent("Broadcast4");
-    expect(screen.getByRole("link", { name: /Activity/ })).toHaveTextContent("Activity5");
-    expect(screen.getByRole("link", { name: "Calls" })).toHaveTextContent(/^Calls$/);
+    expect(screen.getByRole("link", { name: /Chats/ })).toHaveTextContent(
+      "Chats3",
+    );
+    expect(screen.getByRole("link", { name: /Broadcast/ })).toHaveTextContent(
+      "Broadcast4",
+    );
+    expect(screen.getByRole("link", { name: /Activity/ })).toHaveTextContent(
+      "Activity5",
+    );
+    expect(screen.getByRole("link", { name: "Calls" })).toHaveTextContent(
+      /^Calls$/,
+    );
   });
 
   it("closes the drawer when a destination is chosen", async () => {
@@ -182,7 +207,9 @@ describe("AppNavRail - destinations", () => {
     expect(shell.closeNavDrawer).toHaveBeenCalledTimes(1);
 
     // Both the backdrop and the X close it.
-    for (const button of screen.getAllByRole("button", { name: "Close navigation" })) {
+    for (const button of screen.getAllByRole("button", {
+      name: "Close navigation",
+    })) {
       await userEvent.click(button);
     }
     expect(shell.closeNavDrawer).toHaveBeenCalledTimes(3);
@@ -193,7 +220,9 @@ describe("AppNavRail - collapsing", () => {
   it("collapses to icons, keeping the badges, and remembers it", async () => {
     shell.unreadByMode = { chat: 3, broadcast: 0 };
     render(<AppNavRail />);
-    await userEvent.click(screen.getByRole("button", { name: "Collapse navigation" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Collapse navigation" }),
+    );
 
     expect(localStorage.getItem("loopdn_nav_collapsed")).toBe("1");
     expect(screen.queryByText("Discover")).not.toBeInTheDocument();
@@ -202,7 +231,9 @@ describe("AppNavRail - collapsing", () => {
     expect(chats).toHaveTextContent(/^3$/);
     expect(screen.getByTitle("Calls")).toHaveTextContent("");
 
-    await userEvent.click(screen.getByRole("button", { name: "Expand navigation" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    );
     expect(localStorage.getItem("loopdn_nav_collapsed")).toBe("0");
     expect(screen.getByText("Discover")).toBeInTheDocument();
   });
@@ -210,10 +241,9 @@ describe("AppNavRail - collapsing", () => {
   it("starts collapsed when it was left that way", () => {
     localStorage.setItem("loopdn_nav_collapsed", "1");
     render(<AppNavRail />);
-    expect(screen.getByRole("button", { name: "Expand navigation" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Expand navigation" }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 });
 
@@ -234,23 +264,26 @@ describe("AppNavRail - the account menu", () => {
   it("offers settings when there is nothing else to show", () => {
     shell.userProfile = { displayName: "" };
     render(<AppNavRail />);
-    expect(screen.getByRole("button", { name: "Account menu" })).toHaveTextContent(
-      "Open settings",
-    );
+    expect(
+      screen.getByRole("button", { name: "Account menu" }),
+    ).toHaveTextContent("Open settings");
   });
 
   it("opens the profile editor, mounted only while it is open", async () => {
     render(<AppNavRail />);
     await openAccountMenu();
-    expect(screen.getByRole("button", { name: "Account menu" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    expect(
+      screen.getByRole("button", { name: "Account menu" }),
+    ).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(screen.getByRole("menuitem", { name: /Profile/ }));
     expect(shell.closeNavDrawer).toHaveBeenCalled();
-    expect(screen.getByRole("dialog", { name: "Edit profile" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Edit profile" }),
+    ).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Close profile" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close profile" }),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
@@ -258,17 +291,27 @@ describe("AppNavRail - the account menu", () => {
     render(<AppNavRail />);
     await openAccountMenu();
     await userEvent.click(screen.getByRole("menuitem", { name: /Settings/ }));
-    expect(screen.getByRole("dialog", { name: "Settings: account" })).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Close settings" }));
+    expect(
+      screen.getByRole("dialog", { name: "Settings: account" }),
+    ).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Close settings" }),
+    );
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await openAccountMenu();
-    await userEvent.click(screen.getByRole("menuitem", { name: /Upgrade plan/ }));
-    expect(screen.getByRole("dialog", { name: "Settings: billing" })).toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: /Upgrade plan/ }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Settings: billing" }),
+    ).toBeInTheDocument();
   });
 
   it("writes to support for help", async () => {
-    const openExternal = vi.spyOn(platform, "openExternal").mockResolvedValue(undefined as never);
+    const openExternal = vi
+      .spyOn(platform, "openExternal")
+      .mockResolvedValue(undefined as never);
     render(<AppNavRail />);
     await openAccountMenu();
     await userEvent.click(screen.getByRole("menuitem", { name: /Help/ }));

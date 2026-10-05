@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let configState: { config: unknown; isLoading: boolean; isEnabled: boolean };
@@ -28,7 +35,9 @@ import {
 import type { WhatsAppConnection } from "@/lib/whatsapp/types";
 import { deferred } from "@/test/helpers";
 
-function connection(overrides: Partial<WhatsAppConnection> = {}): WhatsAppConnection {
+function connection(
+  overrides: Partial<WhatsAppConnection> = {},
+): WhatsAppConnection {
   return {
     id: 3,
     status: "active",
@@ -58,7 +67,11 @@ function click(name: string | RegExp) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  configState = { config: { enabled: true }, isLoading: false, isEnabled: true };
+  configState = {
+    config: { enabled: true },
+    isLoading: false,
+    isEnabled: true,
+  };
   connectState = { isConnecting: false, error: null };
   connectionsAre([]);
 });
@@ -70,7 +83,11 @@ describe("WhatsAppSettingsSection", () => {
     expect(loading.container).toBeEmptyDOMElement();
     loading.unmount();
 
-    configState = { config: { enabled: false }, isLoading: false, isEnabled: false };
+    configState = {
+      config: { enabled: false },
+      isLoading: false,
+      isEnabled: false,
+    };
     const off = render(<WhatsAppSettingsSection />);
     expect(off.container).toBeEmptyDOMElement();
     expect(fetchConnections).not.toHaveBeenCalled();
@@ -122,7 +139,9 @@ describe("WhatsAppSettingsSection", () => {
   it("shows the connect flow's own progress and error", async () => {
     connectState = { isConnecting: true, error: "Facebook was blocked." };
     render(<WhatsAppSettingsSection />);
-    expect(await screen.findByRole("button", { name: "Connecting..." })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: "Connecting..." }),
+    ).toBeDisabled();
     expect(screen.getByText("Facebook was blocked.")).toBeInTheDocument();
   });
 
@@ -135,7 +154,9 @@ describe("WhatsAppSettingsSection", () => {
     expect(
       await screen.findByText("WhatsApp is unavailable right now."),
     ).toBeInTheDocument();
-    expect(screen.getByText("No WhatsApp number is connected yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No WhatsApp number is connected yet."),
+    ).toBeInTheDocument();
   });
 
   it("describes each connected number and the groups using it", async () => {
@@ -170,7 +191,9 @@ describe("WhatsAppSettingsSection", () => {
       screen.getByText("None yet. Add it from a group's WhatsApp settings."),
     ).toBeInTheDocument();
     // Only the broken one offers to reconnect.
-    expect(screen.getAllByRole("button", { name: "Reconnect" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Reconnect" })).toHaveLength(
+      1,
+    );
     expect(
       screen.getByRole("button", { name: "Connect another number" }),
     ).toBeEnabled();
@@ -189,7 +212,10 @@ describe("WhatsAppSettingsSection", () => {
   });
 
   it("refreshes one number from WhatsApp, replacing just that row", async () => {
-    connectionsAre([connection(), connection({ id: 4, verifiedName: "Globex" })]);
+    connectionsAre([
+      connection(),
+      connection({ id: 4, verifiedName: "Globex" }),
+    ]);
     const pending = deferred<Awaited<ReturnType<typeof refreshConnection>>>();
     vi.mocked(refreshConnection).mockReturnValue(pending.promise);
     render(<WhatsAppSettingsSection />);
@@ -202,7 +228,10 @@ describe("WhatsAppSettingsSection", () => {
     expect(refreshConnection).toHaveBeenCalledWith(3);
 
     await act(async () =>
-      pending.resolve({ ok: true, data: connection({ qualityRating: "YELLOW" }) }),
+      pending.resolve({
+        ok: true,
+        data: connection({ qualityRating: "YELLOW" }),
+      }),
     );
     expect(screen.getByText("YELLOW")).toBeInTheDocument();
     expect(screen.getByText("Globex")).toBeInTheDocument();
@@ -236,7 +265,9 @@ describe("WhatsAppSettingsSection", () => {
     await screen.findByText("Acme");
 
     click("Disconnect");
-    const dialog = screen.getByRole("dialog", { name: "Disconnect this number?" });
+    const dialog = screen.getByRole("dialog", {
+      name: "Disconnect this number?",
+    });
     expect(dialog).toHaveTextContent("2 groups will stop using WhatsApp.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -249,7 +280,8 @@ describe("WhatsAppSettingsSection", () => {
 
   it("disconnects, says so, and reloads the list", async () => {
     connectionsAre([connection()]);
-    const pending = deferred<Awaited<ReturnType<typeof disconnectConnection>>>();
+    const pending =
+      deferred<Awaited<ReturnType<typeof disconnectConnection>>>();
     vi.mocked(disconnectConnection).mockReturnValue(pending.promise);
     render(<WhatsAppSettingsSection />);
     await screen.findByText("Acme");
@@ -258,12 +290,16 @@ describe("WhatsAppSettingsSection", () => {
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("1 group will stop using WhatsApp.");
     fireEvent.click(within(dialog).getByRole("button", { name: "Disconnect" }));
-    expect(within(dialog).getByRole("button", { name: "Disconnecting..." })).toBeDisabled();
+    expect(
+      within(dialog).getByRole("button", { name: "Disconnecting..." }),
+    ).toBeDisabled();
 
     connectionsAre([]);
     await act(async () => pending.resolve({ ok: true, data: true }));
     expect(disconnectConnection).toHaveBeenCalledWith(3);
-    expect(screen.getByText("That number is disconnected.")).toBeInTheDocument();
+    expect(
+      screen.getByText("That number is disconnected."),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText("No WhatsApp number is connected yet."),
     ).toBeInTheDocument();
@@ -279,7 +315,9 @@ describe("WhatsAppSettingsSection", () => {
     await screen.findByText("Acme");
     click("Disconnect");
     fireEvent.click(
-      within(screen.getByRole("dialog")).getByRole("button", { name: "Disconnect" }),
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Disconnect",
+      }),
     );
     expect(
       await screen.findByText("Couldn't disconnect that number."),
@@ -290,7 +328,8 @@ describe("WhatsAppSettingsSection", () => {
 
   it("saves the template names for a number", async () => {
     connectionsAre([connection()]);
-    const pending = deferred<Awaited<ReturnType<typeof updateConnectionTemplates>>>();
+    const pending =
+      deferred<Awaited<ReturnType<typeof updateConnectionTemplates>>>();
     vi.mocked(updateConnectionTemplates).mockReturnValue(pending.promise);
     render(<WhatsAppSettingsSection />);
     await screen.findByText("Acme");
@@ -315,7 +354,10 @@ describe("WhatsAppSettingsSection", () => {
     await act(async () =>
       pending.resolve({
         ok: true,
-        data: connection({ verifiedName: "Acme Ltd", notificationTemplateName: "notify_v2" }),
+        data: connection({
+          verifiedName: "Acme Ltd",
+          notificationTemplateName: "notify_v2",
+        }),
       }),
     );
     expect(screen.getByText("Template names saved.")).toBeInTheDocument();

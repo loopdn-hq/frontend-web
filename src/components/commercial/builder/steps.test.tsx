@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -15,7 +22,8 @@ vi.mock("@/lib/commercial/CompanyProvider", () => ({
   useCompany: () => ({ reload }),
 }));
 vi.mock("@/components/ui", async () => {
-  const actual = await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
+  const actual =
+    await vi.importActual<typeof import("@/components/ui")>("@/components/ui");
   return { ...actual, useToast: () => toast };
 });
 vi.mock("@/components/commercial/AddFundsDialog", () => ({
@@ -75,12 +83,19 @@ import { campaign, company, creative, OPTIONS } from "@/test/commercial";
 import { deferred } from "@/test/helpers";
 
 type Saved = { ok: true; data: CampaignDetail };
-type Refused = { ok: false; message: string; fieldErrors?: Record<string, string> };
+type Refused = {
+  ok: false;
+  message: string;
+  fieldErrors?: Record<string, string>;
+};
 
 const goTo = vi.fn();
 const onSaved = vi.fn();
 
-function props(overrides: Partial<CampaignDetail> = {}, extra: Partial<StepProps> = {}): StepProps {
+function props(
+  overrides: Partial<CampaignDetail> = {},
+  extra: Partial<StepProps> = {},
+): StepProps {
   return {
     campaign: campaign(overrides),
     company: company(),
@@ -131,12 +146,18 @@ describe("ObjectiveStep", () => {
 
   it("offers the objectives on sale, starting from website visits", () => {
     mount();
-    expect(screen.getByRole("heading", { name: "What is this campaign for?" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "What is this campaign for?" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Acme")).toBeInTheDocument();
     expect(
-      screen.getAllByRole("radio").map((radio) => (radio as HTMLInputElement).value),
+      screen
+        .getAllByRole("radio")
+        .map((radio) => (radio as HTMLInputElement).value),
     ).toEqual(["website", "lead", "group_join"]);
-    expect(screen.getByRole("radio", { name: /website visits/i })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: /website visits/i }),
+    ).toBeChecked();
   });
 
   it("creates a draft from the name and objective", async () => {
@@ -186,7 +207,9 @@ describe("ObjectiveStep", () => {
 
   it("warns when a new objective changes what the creatives' buttons do", () => {
     mount(campaign({ objective: "website" }));
-    expect(screen.queryByText(/creatives' buttons will need/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/creatives' buttons will need/),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("radio", { name: /group joins/i }));
     expect(screen.getByText(/will need your group's link/)).toBeInTheDocument();
@@ -198,7 +221,9 @@ describe("ObjectiveStep", () => {
   it("does not warn for a draft with no creatives, or an objective with the same button", () => {
     const first = mount(campaign({ creatives: [] }));
     fireEvent.click(screen.getByRole("radio", { name: /group joins/i }));
-    expect(screen.queryByText(/creatives' buttons will need/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/creatives' buttons will need/),
+    ).not.toBeInTheDocument();
     first.unmount();
 
     // A call or text campaign is not offered here, but may already exist.
@@ -214,14 +239,19 @@ describe("ObjectiveStep", () => {
         message: "Refused.",
         fieldErrors: { name: "Too long.", objective: "Not available." },
       } as Refused)
-      .mockResolvedValueOnce({ ok: false, message: "This company is suspended." });
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "This company is suspended.",
+      });
     mount();
     click("Continue");
     expect(await screen.findByText("Too long.")).toBeInTheDocument();
     expect(screen.getByText("Not available.")).toBeInTheDocument();
 
     click("Continue");
-    expect(await screen.findByText("This company is suspended.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This company is suspended."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Too long.")).not.toBeInTheDocument();
     expect(onCreated).not.toHaveBeenCalled();
   });
@@ -240,8 +270,12 @@ describe("AudienceStep", () => {
 
   it("describes none and all as the same thing: no narrowing", () => {
     render(<AudienceStep {...props({ audience: null })} />);
-    expect(screen.getByText("None chosen: any kind of group.")).toBeInTheDocument();
-    expect(screen.getByText("None chosen: anywhere in United States.")).toBeInTheDocument();
+    expect(
+      screen.getByText("None chosen: any kind of group."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("None chosen: anywhere in United States."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Sports" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Arts" }));
@@ -256,7 +290,9 @@ describe("AudienceStep", () => {
     ).toBeInTheDocument();
 
     click("Clear");
-    expect(screen.getByText("None chosen: anywhere in United States.")).toBeInTheDocument();
+    expect(
+      screen.getByText("None chosen: anywhere in United States."),
+    ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: "Arts" }));
     expect(screen.getByRole("checkbox", { name: "Arts" })).not.toBeChecked();
   });
@@ -312,14 +348,24 @@ describe("AudienceStep", () => {
           max_group_size: "Too big.",
         },
       } as Refused)
-      .mockResolvedValueOnce({ ok: false, message: "This draft was submitted." });
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "This draft was submitted.",
+      });
     render(<AudienceStep {...props()} />);
     click("Save and continue");
-    for (const message of ["Unknown category.", "Unknown region.", "Too small.", "Too big."]) {
+    for (const message of [
+      "Unknown category.",
+      "Unknown region.",
+      "Too small.",
+      "Too big.",
+    ]) {
       expect(await screen.findByText(message)).toBeInTheDocument();
     }
     click("Save and continue");
-    expect(await screen.findByText("This draft was submitted.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This draft was submitted."),
+    ).toBeInTheDocument();
     expect(goTo).not.toHaveBeenCalled();
   });
 
@@ -339,7 +385,9 @@ describe("AudienceStep", () => {
     const filter = screen.getByLabelText("Find a region");
     fireEvent.change(filter, { target: { value: " tex " } });
     expect(screen.getByRole("checkbox", { name: "Texas" })).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox", { name: "Region 1" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", { name: "Region 1" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(filter, { target: { value: "zzz" } });
     expect(screen.getByText("No region matches “zzz”.")).toBeInTheDocument();
@@ -380,7 +428,9 @@ describe("ReachStep", () => {
       data: { available: false, reason: "Audience is too small." },
     });
     render(<ReachStep {...props()} />);
-    expect(await screen.findByText(/Audience is too small\./)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Audience is too small\./),
+    ).toBeInTheDocument();
     click("Widen the audience");
     expect(goTo).toHaveBeenCalledWith("audience");
   });
@@ -405,7 +455,11 @@ describe("ReachStep", () => {
 
     vi.mocked(estimateReach).mockResolvedValue({
       ok: true,
-      data: { available: true, groups: { low: 1, high: 2 }, members: { low: 3, high: 4 } },
+      data: {
+        available: true,
+        groups: { low: 1, high: 2 },
+        members: { low: 3, high: 4 },
+      },
     });
     click(/try again/i);
     expect(await screen.findByText("1–2")).toBeInTheDocument();
@@ -434,17 +488,25 @@ describe("BudgetStep", () => {
     expect(
       await screen.findByText("About 62,500 views at $8.00 per 1,000."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Amounts are in USD, your company's currency.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Amounts are in USD, your company's currency."),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText("Daily cap")).not.toBeInTheDocument();
-    expect(screen.getByRole("radio", { name: "As soon as it's approved" })).toBeChecked();
-    expect(screen.getByRole("radio", { name: "When the budget is spent" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "As soon as it's approved" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "When the budget is spent" }),
+    ).toBeChecked();
   });
 
   it("falls back to a plain hint without a price or an amount", async () => {
     vi.mocked(fetchPricing).mockResolvedValue({ ok: false, message: "x" });
     render(<BudgetStep {...props({ totalBudgetCents: null })} />);
     await waitFor(() => expect(fetchPricing).toHaveBeenCalledWith(3));
-    expect(screen.getByText("The most this campaign will spend.")).toBeInTheDocument();
+    expect(
+      screen.getByText("The most this campaign will spend."),
+    ).toBeInTheDocument();
   });
 
   it("needs an end date or a daily cap to spread a budget evenly", () => {
@@ -462,7 +524,9 @@ describe("BudgetStep", () => {
     vi.mocked(updateCampaign).mockReturnValue(pending.promise);
     render(<BudgetStep {...props()} />);
     type("Total budget", "1,500.50");
-    fireEvent.click(screen.getByRole("radio", { name: /as fast as possible/i }));
+    fireEvent.click(
+      screen.getByRole("radio", { name: /as fast as possible/i }),
+    );
     click("Save and continue");
 
     expect(updateCampaign).toHaveBeenCalledWith(12, {
@@ -483,13 +547,18 @@ describe("BudgetStep", () => {
   it("saves a capped campaign that runs between two dates", async () => {
     vi.mocked(updateCampaign).mockResolvedValue({ ok: true, data: campaign() });
     render(<BudgetStep {...props()} />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Limit daily spending" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Limit daily spending" }),
+    );
     type("Daily cap", "50");
     fireEvent.click(screen.getAllByRole("radio", { name: "On a date" })[0]);
     type("Start date", "2026-10-10");
     fireEvent.click(screen.getAllByRole("radio", { name: "On a date" })[1]);
     // The end cannot be picked before the start.
-    expect(screen.getByLabelText("End date")).toHaveAttribute("min", "2026-10-10");
+    expect(screen.getByLabelText("End date")).toHaveAttribute(
+      "min",
+      "2026-10-10",
+    );
     type("End date", "2026-10-20");
     click("Save and continue");
 
@@ -507,12 +576,18 @@ describe("BudgetStep", () => {
   it("names each thing wrong with the amounts and dates", () => {
     render(<BudgetStep {...props()} />);
     type("Total budget", "lots");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Limit daily spending" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Limit daily spending" }),
+    );
     fireEvent.click(screen.getAllByRole("radio", { name: "On a date" })[0]);
     fireEvent.click(screen.getAllByRole("radio", { name: "On a date" })[1]);
     click("Save and continue");
-    expect(screen.getByText("Enter an amount, like 1500 or 1500.50.")).toBeInTheDocument();
-    expect(screen.getByText("Enter the most to spend in one day.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter an amount, like 1500 or 1500.50."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter the most to spend in one day."),
+    ).toBeInTheDocument();
     expect(screen.getByText("Choose a start date.")).toBeInTheDocument();
     expect(screen.getByText("Choose an end date.")).toBeInTheDocument();
 
@@ -524,14 +599,22 @@ describe("BudgetStep", () => {
     expect(
       screen.getByText("The daily cap can't be more than the total budget."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Choose a day from tomorrow on.")).toBeInTheDocument();
-    expect(screen.getByText("The campaign must end after it starts.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose a day from tomorrow on."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("The campaign must end after it starts."),
+    ).toBeInTheDocument();
 
     type("Total budget", "0");
     type("Daily cap", "0");
     click("Save and continue");
-    expect(screen.getByText("Enter an amount, like 1500 or 1500.50.")).toBeInTheDocument();
-    expect(screen.getByText("Enter the most to spend in one day.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter an amount, like 1500 or 1500.50."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter the most to spend in one day."),
+    ).toBeInTheDocument();
     expect(updateCampaign).not.toHaveBeenCalled();
   });
 
@@ -564,7 +647,10 @@ describe("BudgetStep", () => {
           other: "ignored",
         },
       } as Refused)
-      .mockResolvedValueOnce({ ok: false, message: "This draft was submitted." });
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "This draft was submitted.",
+      });
     render(
       <BudgetStep
         {...props({
@@ -585,7 +671,9 @@ describe("BudgetStep", () => {
       expect(await screen.findByText(message)).toBeInTheDocument();
     }
     click("Save and continue");
-    expect(await screen.findByText("This draft was submitted.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This draft was submitted."),
+    ).toBeInTheDocument();
     click("Back");
     expect(goTo).toHaveBeenCalledWith("reach");
   });
@@ -609,11 +697,16 @@ describe("CreativesStep", () => {
     render(
       <CreativesStep
         {...props({
-          creatives: [creative(), creative({ id: 2, headline: "Quote", ctaKind: "lead_form" })],
+          creatives: [
+            creative(),
+            creative({ id: 2, headline: "Quote", ctaKind: "lead_form" }),
+          ],
         })}
       />,
     );
-    expect(screen.getByText("Opens https://acme.example/offer")).toBeInTheDocument();
+    expect(
+      screen.getByText("Opens https://acme.example/offer"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Opens a Loopd'n form")).toBeInTheDocument();
     expect(screen.getAllByText("Sponsored · Acme")).toHaveLength(2);
   });
@@ -624,7 +717,9 @@ describe("CreativesStep", () => {
     vi.mocked(addCreative).mockReturnValue(pending.promise);
     render(<CreativesStep {...props({ creatives: [] })} />);
     click("Add a creative");
-    expect(screen.getByRole("dialog", { name: "Add a creative" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Add a creative" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Button label")).toHaveValue("Learn more");
 
     type("Headline", " New ad ");
@@ -646,7 +741,9 @@ describe("CreativesStep", () => {
     expect(screen.getByRole("dialog")).toBeInTheDocument();
 
     await act(async () => pending.resolve({ ok: true, data: added }));
-    expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ creatives: [added] }));
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ creatives: [added] }),
+    );
     expect(toast).toHaveBeenCalledWith({ title: "Creative added" });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -659,7 +756,9 @@ describe("CreativesStep", () => {
     expect(screen.getByText("Write a headline.")).toBeInTheDocument();
     expect(screen.getByText("Write what the ad says.")).toBeInTheDocument();
     expect(screen.getByText("Label the button.")).toBeInTheDocument();
-    expect(screen.getByText("Enter where the button goes.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Enter where the button goes."),
+    ).toBeInTheDocument();
     expect(addCreative).not.toHaveBeenCalled();
 
     click("Cancel");
@@ -667,12 +766,18 @@ describe("CreativesStep", () => {
   });
 
   it("asks a group-join campaign for the group's link", () => {
-    render(<CreativesStep {...props({ objective: "group_join", creatives: [] })} />);
+    render(
+      <CreativesStep {...props({ objective: "group_join", creatives: [] })} />,
+    );
     click("Add a creative");
     expect(screen.getByLabelText("Button label")).toHaveValue("Join the group");
-    expect(screen.getByLabelText("Your group's Loopd'n link")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Your group's Loopd'n link"),
+    ).toBeInTheDocument();
     click("Add creative");
-    expect(screen.getByText("Paste your group's Loopd'n link.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Paste your group's Loopd'n link."),
+    ).toBeInTheDocument();
   });
 
   it("gives a lead campaign a form instead of an address", async () => {
@@ -682,12 +787,17 @@ describe("CreativesStep", () => {
         message: "Refused.",
         fieldErrors: { cta_kind: "Leads are not on for this company." },
       } as Refused)
-      .mockResolvedValueOnce({ ok: true, data: creative({ id: 3, ctaKind: "lead_form" }) });
+      .mockResolvedValueOnce({
+        ok: true,
+        data: creative({ id: 3, ctaKind: "lead_form" }),
+      });
     render(<CreativesStep {...props({ objective: "lead", creatives: [] })} />);
     click("Add a creative");
     expect(screen.getByLabelText("Button label")).toHaveValue("Get a quote");
     expect(screen.queryByLabelText("Where it goes")).not.toBeInTheDocument();
-    expect(editor().getAllByText("Opens a Loopd'n form").length).toBeGreaterThan(0);
+    expect(
+      editor().getAllByText("Opens a Loopd'n form").length,
+    ).toBeGreaterThan(0);
 
     type("Headline", "Quote");
     type("Text", "Ask us.");
@@ -705,10 +815,16 @@ describe("CreativesStep", () => {
     const edited = creative({ headline: "Half off, today" });
     vi.mocked(updateCreative).mockResolvedValue({ ok: true, data: edited });
     render(
-      <CreativesStep {...props({ creatives: [creative(), creative({ id: 2, headline: "Other" })] })} />,
+      <CreativesStep
+        {...props({
+          creatives: [creative(), creative({ id: 2, headline: "Other" })],
+        })}
+      />,
     );
     fireEvent.click(screen.getAllByRole("button", { name: "Edit" })[0]);
-    expect(screen.getByRole("dialog", { name: "Edit creative" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Edit creative" }),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText("Headline")).toHaveValue("Half off");
 
     type("Headline", "Half off, today");
@@ -731,7 +847,9 @@ describe("CreativesStep", () => {
     vi.mocked(updateCreative).mockResolvedValue({ ok: true, data: creative() });
     render(
       <CreativesStep
-        {...props({ creatives: [creative({ imageUrl: "https://cdn.example/old.png" })] })}
+        {...props({
+          creatives: [creative({ imageUrl: "https://cdn.example/old.png" })],
+        })}
       />,
     );
     click("Edit");
@@ -748,10 +866,15 @@ describe("CreativesStep", () => {
 
     const image = new File(["png"], "new.png", { type: "image/png" });
     fireEvent.change(input, { target: { files: [image] } });
-    expect(screen.queryByText("Keep the image under 5MB.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Keep the image under 5MB."),
+    ).not.toBeInTheDocument();
     click("Save creative");
     await waitFor(() =>
-      expect(updateCreative).toHaveBeenCalledWith(1, expect.objectContaining({ image })),
+      expect(updateCreative).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ image }),
+      ),
     );
 
     click("Edit");
@@ -780,7 +903,10 @@ describe("CreativesStep", () => {
           other: "ignored",
         },
       } as Refused)
-      .mockResolvedValueOnce({ ok: false, message: "This draft was submitted." });
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "This draft was submitted.",
+      });
     render(<CreativesStep {...props()} />);
     click("Edit");
     click("Save creative");
@@ -794,7 +920,9 @@ describe("CreativesStep", () => {
       expect(await screen.findByText(message)).toBeInTheDocument();
     }
     click("Save creative");
-    expect(await screen.findByText("This draft was submitted.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This draft was submitted."),
+    ).toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
   });
 
@@ -803,15 +931,21 @@ describe("CreativesStep", () => {
     vi.mocked(deleteCreative).mockReturnValue(pending.promise);
     render(<CreativesStep {...props()} />);
     click("Remove “Half off”");
-    expect(screen.getByRole("button", { name: "Remove “Half off”" })).toBeDisabled();
-    await act(async () => pending.resolve({ ok: false, message: "It is in review." }));
+    expect(
+      screen.getByRole("button", { name: "Remove “Half off”" }),
+    ).toBeDisabled();
+    await act(async () =>
+      pending.resolve({ ok: false, message: "It is in review." }),
+    );
     expect(screen.getByText("It is in review.")).toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
 
     vi.mocked(deleteCreative).mockResolvedValue({ ok: true, data: null });
     click("Remove “Half off”");
     await waitFor(() =>
-      expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ creatives: [] })),
+      expect(onSaved).toHaveBeenCalledWith(
+        expect.objectContaining({ creatives: [] }),
+      ),
     );
     expect(deleteCreative).toHaveBeenCalledWith(1);
     expect(screen.queryByText("It is in review.")).not.toBeInTheDocument();
@@ -821,12 +955,18 @@ describe("CreativesStep", () => {
     render(
       <CreativesStep
         {...props({
-          creatives: [1, 2, 3, 4, 5].map((id) => creative({ id, headline: `Ad ${id}` })),
+          creatives: [1, 2, 3, 4, 5].map((id) =>
+            creative({ id, headline: `Ad ${id}` }),
+          ),
         })}
       />,
     );
-    expect(screen.getByText(/That's the most a campaign can have\./)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add a creative" })).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/That's the most a campaign can have\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add a creative" }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -876,17 +1016,26 @@ describe("ReviewStep", () => {
     expect(screen.getByText("$25.00")).toBeInTheDocument();
     expect(screen.getAllByText("Not set").length).toBeGreaterThan(0);
     expect(screen.getByText("None yet.")).toBeInTheDocument();
-    expect(await screen.findByText("$8.00 per 1,000 views")).toBeInTheDocument();
+    expect(
+      await screen.findByText("$8.00 per 1,000 views"),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/You need/)).not.toBeInTheDocument();
   });
 
   it("says how much more is needed, and opens Add funds with that amount", () => {
-    render(<ReviewStep {...props({}, { company: company({ balanceCents: 12_000 }) })} />);
+    render(
+      <ReviewStep
+        {...props({}, { company: company({ balanceCents: 12_000 }) })}
+      />,
+    );
     expect(screen.getByText(/You need \$380\.00 more/)).toBeInTheDocument();
     click("Add funds");
     const dialog = screen.getByTestId("add-funds");
     expect(dialog).toHaveAttribute("data-suggested", "38000");
-    expect(dialog).toHaveAttribute("data-return", "/campaigns/new/?id=12&step=review");
+    expect(dialog).toHaveAttribute(
+      "data-return",
+      "/campaigns/new/?id=12&step=review",
+    );
     click("Close add funds");
     expect(screen.queryByTestId("add-funds")).not.toBeInTheDocument();
   });
@@ -894,10 +1043,16 @@ describe("ReviewStep", () => {
   it("submits for review and opens the campaign", async () => {
     const pending = deferred<Saved>();
     vi.mocked(submitCampaign).mockReturnValue(pending.promise);
-    render(<ReviewStep {...props({}, { company: company({ balanceCents: 90_000 }) })} />);
+    render(
+      <ReviewStep
+        {...props({}, { company: company({ balanceCents: 90_000 }) })}
+      />,
+    );
     expect(screen.queryByText(/You need/)).not.toBeInTheDocument();
     click("Submit for review");
-    expect(screen.getByRole("button", { name: "Submit for review" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Submit for review" }),
+    ).toBeDisabled();
     click("Submit for review");
     expect(submitCampaign).toHaveBeenCalledTimes(1);
 
@@ -920,10 +1075,16 @@ describe("ReviewStep", () => {
         mystery: "Something else.",
       },
     } as Refused);
-    render(<ReviewStep {...props({}, { company: company({ balanceCents: 90_000 }) })} />);
+    render(
+      <ReviewStep
+        {...props({}, { company: company({ balanceCents: 90_000 }) })}
+      />,
+    );
     click("Submit for review");
 
-    expect(await screen.findByText("Before it can be submitted:")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Before it can be submitted:"),
+    ).toBeInTheDocument();
     click("Go to objective");
     expect(goTo).toHaveBeenCalledWith("objective");
     click("Go to creatives");
@@ -931,7 +1092,10 @@ describe("ReviewStep", () => {
     expect(screen.getByText("Something else.")).toBeInTheDocument();
 
     click("Add funds");
-    expect(screen.getByTestId("add-funds")).toHaveAttribute("data-suggested", "");
+    expect(screen.getByTestId("add-funds")).toHaveAttribute(
+      "data-suggested",
+      "",
+    );
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -942,14 +1106,21 @@ describe("ReviewStep", () => {
         message: "Refused.",
         fieldErrors: { name: "Give the campaign a name." },
       } as Refused)
-      .mockResolvedValueOnce({ ok: false, message: "This company is suspended." });
+      .mockResolvedValueOnce({
+        ok: false,
+        message: "This company is suspended.",
+      });
     render(<ReviewStep {...props({ totalBudgetCents: null })} />);
     click("Submit for review");
     await screen.findByText("Before it can be submitted:");
 
     click("Submit for review");
-    expect(await screen.findByText("This company is suspended.")).toBeInTheDocument();
-    expect(screen.queryByText("Before it can be submitted:")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("This company is suspended."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Before it can be submitted:"),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps checking the balance after returning from a payment", () => {

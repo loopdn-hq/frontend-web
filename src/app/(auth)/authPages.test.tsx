@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const push = vi.fn();
@@ -46,10 +52,13 @@ import {
 } from "@/lib/auth/client";
 import { deferred, stubLocation } from "@/test/helpers";
 
-type Result = { ok: true; displayName: string } | { ok: false; message: string };
+type Result =
+  { ok: true; displayName: string } | { ok: false; message: string };
 
 function type(placeholder: string, value: string) {
-  fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } });
+  fireEvent.change(screen.getByPlaceholderText(placeholder), {
+    target: { value },
+  });
 }
 
 function click(name: string | RegExp) {
@@ -100,7 +109,9 @@ describe("VerifyEmailPage", () => {
       message: "Too many attempts.",
     });
     render(<VerifyEmailPage />);
-    expect((await screen.findAllByText("Too many attempts.")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Too many attempts.")).length,
+    ).toBeGreaterThan(0);
 
     vi.mocked(resendEmailVerificationCode).mockResolvedValue({
       ok: true,
@@ -116,7 +127,9 @@ describe("VerifyEmailPage", () => {
       message: "Still too many.",
     });
     click("Resend code");
-    expect((await screen.findAllByText("Still too many.")).length).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("Still too many.")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("verifies the code and moves on to the phone when one is pending", async () => {
@@ -136,7 +149,10 @@ describe("VerifyEmailPage", () => {
   });
 
   it("goes home, or back where they were headed, with no phone to verify", async () => {
-    vi.mocked(verifyEmailCode).mockResolvedValue({ ok: true, displayName: "Sam" });
+    vi.mocked(verifyEmailCode).mockResolvedValue({
+      ok: true,
+      displayName: "Sam",
+    });
     const first = render(<VerifyEmailPage />);
     await screen.findByText("We sent a code to sam@example.com.");
     type("123456", "424242");
@@ -149,7 +165,9 @@ describe("VerifyEmailPage", () => {
     await screen.findByText("We sent a code to sam@example.com.");
     type("123456", "424242");
     click("Verify");
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/enterprise/builder/"));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/enterprise/builder/"),
+    );
   });
 
   it("shows a wrong code, and sends a verified-but-signed-out account to log in", async () => {
@@ -190,7 +208,9 @@ describe("VerifyEmailPage", () => {
     ).toBeInTheDocument();
 
     click("Use a different email");
-    expect(screen.getByRole("button", { name: "Send code" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Send code" }),
+    ).toBeInTheDocument();
   });
 
   it("ignores a send that finishes after the page has gone", async () => {
@@ -222,7 +242,9 @@ describe("VerifyPhonePage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("123456")).not.toBeInTheDocument();
 
-    expect(await screen.findByText("We sent a code to +14155552671.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("We sent a code to +14155552671."),
+    ).toBeInTheDocument();
     expect(requestPhoneVerificationCode).toHaveBeenCalledWith("+14155552671");
     expect(screen.getByRole("button", { name: "Verify" })).toBeDisabled();
     expect(
@@ -249,7 +271,9 @@ describe("VerifyPhonePage", () => {
     await screen.findByText("We sent a code to +14155552671.");
     type("123456", "424242");
     click("Verify");
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/enterprise/builder/"));
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/enterprise/builder/"),
+    );
   });
 
   it("shows a wrong code without leaving", async () => {
@@ -292,7 +316,9 @@ describe("VerifyPhonePage", () => {
       message: "Slow down.",
     });
     click("Resend code");
-    expect((await screen.findAllByText("Slow down.")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Slow down.")).length).toBeGreaterThan(
+      0,
+    );
   });
 
   it("sends a signed-out visitor to log in", () => {
@@ -392,7 +418,9 @@ describe("ForgotPasswordPage", () => {
   it("asks for a real address before sending anything", async () => {
     render(<ForgotPasswordPage />);
     click("Send reset link");
-    expect(await screen.findByText("Enter a valid email address.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Enter a valid email address."),
+    ).toBeInTheDocument();
     expect(requestPasswordReset).not.toHaveBeenCalled();
   });
 
@@ -403,7 +431,9 @@ describe("ForgotPasswordPage", () => {
     type("you@example.com", "sam@example.com");
     click("Send reset link");
 
-    expect(await screen.findByRole("button", { name: "Sending..." })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: "Sending..." }),
+    ).toBeDisabled();
     await act(async () => pending.resolve({ ok: true }));
     expect(requestPasswordReset).toHaveBeenCalledWith("sam@example.com");
     expect(
@@ -411,7 +441,9 @@ describe("ForgotPasswordPage", () => {
         "If an account exists for that email, a reset link has been sent.",
       ),
     ).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("you@example.com")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("you@example.com"),
+    ).not.toBeInTheDocument();
   });
 
   it("says something went wrong when the request itself failed", async () => {
@@ -449,7 +481,9 @@ describe("ResetPasswordPage", () => {
         screen.getByText("This password reset link is invalid or has expired."),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("link", { name: "Request a new link" }).getAttribute("href"),
+        screen
+          .getByRole("link", { name: "Request a new link" })
+          .getAttribute("href"),
       ).toMatch(/^\/forgot-password\/?$/);
       view.unmount();
     }
@@ -478,7 +512,9 @@ describe("ResetPasswordPage", () => {
     });
 
     expect(
-      screen.getByText("Your password has been reset. Redirecting you to log in..."),
+      screen.getByText(
+        "Your password has been reset. Redirecting you to log in...",
+      ),
     ).toBeInTheDocument();
     expect(resetPassword).toHaveBeenCalledWith({
       uid: "u1",
@@ -527,7 +563,9 @@ describe("ResetPasswordPage", () => {
     fill();
     click("Reset password");
 
-    expect(await screen.findByText("Try again in a minute.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Try again in a minute."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Something else.")).not.toBeInTheDocument();
   });
 
@@ -537,7 +575,9 @@ describe("ResetPasswordPage", () => {
     render(<ResetPasswordPage />);
     fill();
     click("Reset password");
-    expect(await screen.findByRole("button", { name: "Resetting..." })).toBeDisabled();
+    expect(
+      await screen.findByRole("button", { name: "Resetting..." }),
+    ).toBeDisabled();
 
     await act(async () =>
       pending.resolve({
@@ -550,6 +590,8 @@ describe("ResetPasswordPage", () => {
     expect(
       screen.getByText("This password reset link is invalid or has expired."),
     ).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Create a new password")).not.toBeInTheDocument();
+    expect(
+      screen.queryByPlaceholderText("Create a new password"),
+    ).not.toBeInTheDocument();
   });
 });

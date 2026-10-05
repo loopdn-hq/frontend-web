@@ -26,6 +26,10 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    // The default 5s is tight for a test that types and clicks its way
+    // through a whole form once every file is running at the same time under
+    // coverage - they pass alone and time out together.
+    testTimeout: 20_000,
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "json-summary", "html"],

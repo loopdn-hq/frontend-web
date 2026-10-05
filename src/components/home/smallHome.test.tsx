@@ -73,10 +73,7 @@ vi.mock("@/components/settings/AvatarPicker", () => ({
   }) => (
     <div data-testid="avatar-picker">
       <span>{file ? `new:${file.name}` : (currentUrl ?? "no picture")}</span>
-      <button
-        type="button"
-        onClick={() => onPick(new File(["x"], "logo.png"))}
-      >
+      <button type="button" onClick={() => onPick(new File(["x"], "logo.png"))}>
         pick picture
       </button>
       <button type="button" onClick={() => onReject("That file is too big.")}>
@@ -243,6 +240,7 @@ describe("MemberChannelConsent", () => {
     askedAt: null,
     consentedAt: null,
     optedOutAt: null,
+    canNudge: false,
     ...times,
   });
 
@@ -575,9 +573,15 @@ describe("useSponsoredSlot", () => {
   });
 
   it.each([
-    ["no conversation", { conversationId: null, isGroup: true, lastMessageId: 1 }],
+    [
+      "no conversation",
+      { conversationId: null, isGroup: true, lastMessageId: 1 },
+    ],
     ["a direct chat", { conversationId: 7, isGroup: false, lastMessageId: 1 }],
-    ["an empty thread", { conversationId: 7, isGroup: true, lastMessageId: null }],
+    [
+      "an empty thread",
+      { conversationId: 7, isGroup: true, lastMessageId: null },
+    ],
   ])("asks for nothing with %s", (_, props) => {
     const { result } = renderHook(() => useSponsoredSlot(props));
     expect(result.current).toBeNull();
@@ -721,7 +725,9 @@ describe("SponsoredSlot", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Learn more" }));
     expect(openLeadForm).toHaveBeenCalledWith("form-token");
-    expect(await screen.findByText("This form has closed.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This form has closed."),
+    ).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -732,13 +738,20 @@ describe("LeadFormModal", () => {
   const FORM = {
     companyName: "Acme",
     headline: "Get a quote",
-    fields: { name: "Sam Wren", phone: "+14155552671", email: "sam@example.com" },
+    fields: {
+      name: "Sam Wren",
+      phone: "+14155552671",
+      email: "sam@example.com",
+    },
     consent: "Acme will contact you about this.",
     alreadySent: false,
   };
 
   function formIs(form: typeof FORM = FORM) {
-    vi.mocked(openLeadForm).mockResolvedValue({ ok: true, data: form } as never);
+    vi.mocked(openLeadForm).mockResolvedValue({
+      ok: true,
+      data: form,
+    } as never);
   }
 
   it("does not open the form until it is shown", () => {
@@ -873,7 +886,9 @@ describe("LoopCommunicationMode", () => {
         onModeChange={onModeChange}
       />,
     );
-    expect(screen.getByRole("heading", { name: "Book Club" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Book Club" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Members can communicate with everyone/),
     ).toBeInTheDocument();
@@ -1057,7 +1072,9 @@ describe("LoopMessagingInterface", () => {
 
   it("says how each announcement may be answered in a broadcast", () => {
     render(<LoopMessagingInterface messages={messages} mode="broadcast" />);
-    expect(screen.getByText("💬 Reply privately to admins")).toBeInTheDocument();
+    expect(
+      screen.getByText("💬 Reply privately to admins"),
+    ).toBeInTheDocument();
     expect(screen.getByText("💬 Reply to everyone")).toBeInTheDocument();
     expect(screen.getByText("❌ No replies allowed")).toBeInTheDocument();
     expect(screen.getByText("📢 BROADCAST MODE")).toBeInTheDocument();
@@ -1079,7 +1096,11 @@ describe("MembersField", () => {
         disabled={disabled}
       />,
     );
-    return { onChange, onPendingChange, input: screen.getByLabelText("Members") };
+    return {
+      onChange,
+      onPendingChange,
+      input: screen.getByLabelText("Members"),
+    };
   }
   const sam: MemberEntry = { raw: "@sam", value: "sam", kind: "username" };
   const ada: MemberEntry = {
@@ -1109,7 +1130,10 @@ describe("MembersField", () => {
     expect(screen.getByText("Email:").parentElement).toHaveTextContent(
       "Email: ada@example.com",
     );
-    expect(input).not.toHaveAttribute("placeholder", expect.stringMatching(/./));
+    expect(input).not.toHaveAttribute(
+      "placeholder",
+      expect.stringMatching(/./),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Remove @sam" }));
     expect(onChange).toHaveBeenCalledWith([ada]);
@@ -1132,7 +1156,9 @@ describe("MembersField", () => {
 
     // Typing again clears the complaint.
     await userEvent.type(input, "x");
-    expect(screen.queryByText(/is not a valid username/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/is not a valid username/),
+    ).not.toBeInTheDocument();
   });
 
   it("takes a pasted list, keeping the good and counting the bad", () => {
@@ -1239,7 +1265,9 @@ describe("LoopDetailsForm", () => {
     expect(screen.getByLabelText("Loop Name")).toBeDisabled();
     expect(screen.getByLabelText("Description")).toBeDisabled();
     expect(screen.queryByTestId("avatar-picker")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Save" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Save" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/JPG or PNG/)).not.toBeInTheDocument();
   });
 
@@ -1247,7 +1275,9 @@ describe("LoopDetailsForm", () => {
     const { onSave } = show();
     const save = screen.getByRole("button", { name: "Save" });
     expect(save).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Discard" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Discard" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("8/280")).toBeInTheDocument();
 
     const name = screen.getByLabelText("Loop Name");
@@ -1323,10 +1353,14 @@ describe("LoopDetailsForm", () => {
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith({ image: expect.any(File) });
     await waitFor(() =>
-      expect(screen.getByText("https://cdn.example/logo.png")).toBeInTheDocument(),
+      expect(
+        screen.getByText("https://cdn.example/logo.png"),
+      ).toBeInTheDocument(),
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "remove picture" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "remove picture" }),
+    );
     expect(screen.getByText("no picture")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenLastCalledWith({ image: null });
@@ -1334,7 +1368,9 @@ describe("LoopDetailsForm", () => {
 
   it("has nothing to save on removing a picture that was never there", async () => {
     show({ imageUrl: null });
-    await userEvent.click(screen.getByRole("button", { name: "remove picture" }));
+    await userEvent.click(
+      screen.getByRole("button", { name: "remove picture" }),
+    );
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
   });
 
@@ -1348,7 +1384,9 @@ describe("LoopDetailsForm", () => {
     expect(screen.queryByText("That file is too big.")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-    expect(screen.getByText("https://cdn.example/logo.png")).toBeInTheDocument();
+    expect(
+      screen.getByText("https://cdn.example/logo.png"),
+    ).toBeInTheDocument();
   });
 
   it("says why a save failed, and keeps the draft", async () => {
