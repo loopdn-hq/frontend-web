@@ -10,6 +10,7 @@ import {
   MessageCircle,
   MessageSquare,
   Palette,
+  ReceiptText,
   User,
   UserCog,
   type LucideIcon,
@@ -30,6 +31,7 @@ import {
   type PrivacyPreferences,
 } from "./PrivacySection";
 import { SecuritySection } from "./SecuritySection";
+import { TransactionHistory } from "./TransactionHistory";
 import {
   defaultMessagingPreferences,
   type MessagingPreferences,
@@ -65,6 +67,7 @@ export type SettingsTab =
   | "notifications"
   | "privacy"
   | "billing"
+  | "transactions"
   | "account";
 
 /**
@@ -85,6 +88,7 @@ const TAB_META: { value: SettingsTab; label: string; icon: LucideIcon }[] = [
   { value: "notifications", label: "Notifications", icon: Bell },
   { value: "privacy", label: "Privacy", icon: Lock },
   { value: "billing", label: "Billing", icon: CreditCard },
+  { value: "transactions", label: "Transactions", icon: ReceiptText },
   { value: "account", label: "Account", icon: UserCog },
 ];
 
@@ -305,6 +309,7 @@ export function UserSettingsPanel({
             />
           )}
           {activeTab === "billing" && <BillingSettings />}
+          {activeTab === "transactions" && <TransactionHistory />}
           {activeTab === "account" && (
             <AccountSection profile={profile} onSaveProfile={onSaveProfile} />
           )}
