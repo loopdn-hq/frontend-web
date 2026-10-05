@@ -944,6 +944,15 @@ describe("HomeShell - sending", () => {
 });
 
 describe("HomeShell - mentions", () => {
+  // Picking a name puts the caret after it on the next animation frame. A
+  // test types faster than a frame, so it waits for that before going on -
+  // otherwise the caret lands mid-way through whatever was typed next.
+  const caretSettles = () =>
+    act(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+
   const rows = () => [
     conversation(1, "Book Club", {
       participants: [SAM, ADA, LIN, person("4", "Mom", { userId: undefined })],
@@ -978,12 +987,14 @@ describe("HomeShell - mentions", () => {
     );
     await userEvent.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{Enter}");
     expect(composer()).toHaveValue("Hi @Lin ");
+    await caretSettles();
     expect(panel().queryByRole("option")).not.toBeInTheDocument();
     // Enter chose the name; it did not send the message.
     expect(sendConversationMessage).not.toHaveBeenCalled();
 
     await userEvent.type(composer(), "and @every{Tab}");
     expect(composer()).toHaveValue("Hi @Lin and @everyone ");
+    await caretSettles();
     await userEvent.keyboard("{Enter}");
     expect(sendConversationMessage).toHaveBeenCalledWith(
       1,
@@ -1000,6 +1011,7 @@ describe("HomeShell - mentions", () => {
     await renderShell(rows());
     await userEvent.type(composer(), "@a{Enter}");
     expect(composer()).toHaveValue("@Ada ");
+    await caretSettles();
     await userEvent.clear(composer());
     await userEvent.type(composer(), "Hi{Enter}");
     expect(sendConversationMessage).toHaveBeenCalledWith(
@@ -1026,6 +1038,7 @@ describe("HomeShell - mentions", () => {
       panel().getAllByRole("option")[1].querySelector("button")!,
     );
     expect(composer()).toHaveValue("@Ada ");
+    await caretSettles();
 
     await userEvent.type(composer(), "@");
     await userEvent.keyboard("{Escape}");
