@@ -33,6 +33,8 @@ export type BillingTransaction = {
   amountCents: number;
   currency: string;
   description: string;
+  /** Stripe's own id for the payment, such as an invoice id; "" when unknown. */
+  stripeReference: string;
   /** Stripe's hosted invoice or receipt page; "" when there is none. */
   receiptUrl: string;
   paidAt: string;
@@ -126,6 +128,7 @@ function normalizeTransaction(item: unknown): BillingTransaction | null {
     amountCents: asNumber(item.amount_cents),
     currency: asText(item.currency),
     description: asText(item.description),
+    stripeReference: asText(item.stripe_reference),
     receiptUrl: asText(item.receipt_url),
     paidAt: asText(item.paid_at),
   };
@@ -180,11 +183,13 @@ export function formatTransactionAmount(
   amountCents: number,
   currency: string,
   locale?: string,
+  currencyDisplay: "symbol" | "code" = "symbol",
 ): string {
   try {
     const format = new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency.toUpperCase(),
+      currencyDisplay,
     });
     const digits = format.resolvedOptions().maximumFractionDigits ?? 2;
     return format.format(amountCents / 10 ** digits);

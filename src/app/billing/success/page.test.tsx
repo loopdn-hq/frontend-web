@@ -19,7 +19,10 @@ vi.mock("@/lib/billingTransactions", async () => {
   return { ...actual, fetchBillingTransactions: vi.fn() };
 });
 
+vi.mock("@/lib/receiptPdf", () => ({ downloadReceiptPdf: vi.fn() }));
+
 import BillingSuccessPage from "@/app/billing/success/page";
+import { downloadReceiptPdf } from "@/lib/receiptPdf";
 import { getAccessToken } from "@/lib/auth/client";
 import {
   fetchBillingTransactions,
@@ -36,6 +39,7 @@ function row(overrides: Partial<BillingTransaction> = {}): BillingTransaction {
     amountCents: 999,
     currency: "usd",
     description: "Premium plan",
+    stripeReference: "in_1Q",
     receiptUrl: "https://invoice.stripe.com/i/abc",
     paidAt: "2026-10-05T11:59:30Z",
     ...overrides,
@@ -112,6 +116,20 @@ describe("BillingSuccessPage", () => {
 
     await advance(1_000);
     expect(replace).toHaveBeenCalledWith("/chats/");
+  });
+
+  it("downloads the receipt, and stops the redirect while it is being saved", async () => {
+    given([row()]);
+    render(<BillingSuccessPage />);
+    await advance(2_000);
+
+    await act(async () => {
+      screen.getByRole("button", { name: /download receipt/i }).click();
+    });
+    expect(downloadReceiptPdf).toHaveBeenCalledWith(row());
+
+    await advance(30_000);
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("stays put when asked to", async () => {

@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ExternalLink } from "lucide-react";
+import { Download, ExternalLink } from "lucide-react";
 import { Skeleton, SkeletonRegion } from "@/components/ui";
 import { getAccessToken } from "@/lib/auth/client";
 import {
@@ -14,6 +14,7 @@ import {
   type BillingTransaction,
   type TransactionKind,
 } from "@/lib/billingTransactions";
+import { downloadReceiptPdf } from "@/lib/receiptPdf";
 
 /** Where the page sends the person once they have seen their receipt. */
 const AFTER_PAYMENT_HREF = "/chats/";
@@ -140,7 +141,13 @@ function BillingSuccessContent() {
         </SkeletonRegion>
       )}
 
-      {lookup.status === "found" && <Receipt receipt={lookup.receipt} />}
+      {lookup.status === "found" && (
+        <Receipt
+          receipt={lookup.receipt}
+          // Somebody saving a file is not done with the page.
+          onDownload={() => setStayed(true)}
+        />
+      )}
 
       {lookup.status === "none" && (
         <p className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
@@ -168,7 +175,13 @@ function BillingSuccessContent() {
   );
 }
 
-function Receipt({ receipt }: { receipt: BillingTransaction }) {
+function Receipt({
+  receipt,
+  onDownload,
+}: {
+  receipt: BillingTransaction;
+  onDownload: () => void;
+}) {
   const href = receiptHref(receipt.receiptUrl);
   const paidAt = new Date(receipt.paidAt);
   return (
@@ -203,18 +216,31 @@ function Receipt({ receipt }: { receipt: BillingTransaction }) {
           />
         )}
       </dl>
-      {href && (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-sky-700 hover:underline"
+      <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+        <button
+          type="button"
+          onClick={() => {
+            onDownload();
+            downloadReceiptPdf(receipt);
+          }}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
         >
-          View Stripe receipt
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-          <span className="sr-only">(opens in a new tab)</span>
-        </a>
-      )}
+          <Download className="h-4 w-4" aria-hidden />
+          Download receipt
+        </button>
+        {href && (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-sky-700 hover:underline"
+          >
+            View Stripe receipt
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            <span className="sr-only">(opens in a new tab)</span>
+          </a>
+        )}
+      </div>
     </section>
   );
 }

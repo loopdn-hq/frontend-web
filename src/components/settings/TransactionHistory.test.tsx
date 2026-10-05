@@ -28,6 +28,7 @@ function row(overrides: Partial<BillingTransaction> = {}): BillingTransaction {
     amountCents: 999,
     currency: "usd",
     description: "Premium plan",
+    stripeReference: "in_1Q",
     receiptUrl: "https://invoice.stripe.com/i/abc",
     paidAt: "2026-10-01T14:03:22-05:00",
     ...overrides,
