@@ -26,5 +26,25 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
     include: ["src/**/*.test.{ts,tsx}"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text-summary", "json-summary", "html"],
+      // Every source file counts, tested or not: a file nobody imported from
+      // a test would otherwise be missing from the total rather than 0%.
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+        "src/**/*.d.ts",
+        // Type declarations only - nothing in these runs.
+        "src/**/types.ts",
+      ],
+      thresholds: {
+        statements: 90,
+        branches: 90,
+        functions: 90,
+        lines: 90,
+      },
+    },
   },
 });
