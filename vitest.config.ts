@@ -30,6 +30,13 @@ export default defineConfig({
     // through a whole form once every file is running at the same time under
     // coverage - they pass alone and time out together.
     testTimeout: 20_000,
+    // Run afterEach hooks in the order they were registered, so the unmount
+    // in vitest.setup.ts comes BEFORE a test file's own teardown. The default
+    // runs them in reverse: a file would take its stubbed globals away
+    // (IntersectionObserver, navigator, ...) while its component was still
+    // mounted, and an answer landing in that gap re-ran an effect against a
+    // global that was no longer there.
+    sequence: { hooks: "list" },
     coverage: {
       provider: "v8",
       reporter: ["text-summary", "json-summary", "html"],

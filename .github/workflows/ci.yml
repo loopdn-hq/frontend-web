@@ -38,5 +38,10 @@ jobs:
       - name: Check TypeScript
         run: npm run typecheck
 
+      # Fails on a failing test, and on coverage under the thresholds set in
+      # vitest.config.ts (90% of statements, branches, functions and lines).
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
       - name: Build application
         run: npm run build
